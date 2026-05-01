@@ -15,6 +15,7 @@
         <div class="tabs-list" id="tabs-list"></div>
         <div class="tabs-actions">
           <button class="tabs-add" id="tabs-add" type="button" aria-label="Add pane">＋</button>
+          <button class="tabs-broadcast" id="tabs-broadcast" type="button" aria-label="Broadcast input to all panes" title="Broadcast input (⌘⇧B)">⊕</button>
           <button class="tabs-fullscreen" id="tabs-fullscreen" type="button" aria-label="Toggle fullscreen">&#9974;</button>
         </div>
         <section class="settings-panel is-hidden" id="settings-panel" aria-label="Settings">
@@ -71,6 +72,10 @@
             </div>
             <div class="settings-row settings-clickable-row" id="keyboard-shortcuts-settings-btn" role="button" tabindex="0" aria-label="Configure keyboard shortcuts">
               <span>Keyboard Shortcuts</span>
+              <span class="settings-row-hint">›</span>
+            </div>
+            <div class="settings-row settings-clickable-row" id="shell-integration-install-btn" role="button" tabindex="0" aria-label="Install shell integration">
+              <span>Install Shell Integration</span>
               <span class="settings-row-hint">›</span>
             </div>
           </div>

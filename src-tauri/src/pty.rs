@@ -185,6 +185,7 @@ impl PtyManager {
         // Ensure colour support environment variables are set.
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
+        cmd.env("TERM_PROGRAM", "vibe99");
 
         let mut child = pair
             .slave
