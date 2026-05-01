@@ -3,6 +3,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { ImageAddon } from '@xterm/addon-image';
 import {
   openCommandPalette,
   closeCommandPalette,
@@ -108,6 +109,7 @@ function createUnavailableBridge() {
     removeShellProfile: fail,
     setDefaultShellProfile: fail,
     detectShellProfiles: () => Promise.resolve([]),
+    installShellIntegration: fail,
     onTerminalData: () => () => {},
     onTerminalExit: () => () => {},
     onMenuAction: () => () => {},
@@ -189,6 +191,7 @@ function createTauriBridge(tauri) {
     removeShellProfile: (profileId) => invoke('shell_profile_remove', { profileId }),
     setDefaultShellProfile: (profileId) => invoke('shell_profile_set', { profileId }),
     detectShellProfiles: () => invoke('shell_profiles_detect'),
+    installShellIntegration: () => invoke('install_shell_integration'),
     onTerminalData: (handler) => onTauriEvent('vibe99:terminal-data', handler),
     onTerminalExit: (handler) => onTauriEvent('vibe99:terminal-exit', handler),
     onMenuAction: (handler) => onTauriEvent('vibe99:menu-action', handler),
@@ -266,7 +269,18 @@ const tabsListEl = document.getElementById('tabs-list');
 const statusLabelEl = document.getElementById('status-label');
 const statusHintEl = document.getElementById('status-hint');
 const addPaneButtonEl = document.getElementById('tabs-add');
+const broadcastButtonEl = document.getElementById('tabs-broadcast');
 const fullscreenButtonEl = document.getElementById('tabs-fullscreen');
+
+let broadcastEnabled = false;
+
+function setBroadcastEnabled(enabled) {
+  broadcastEnabled = enabled;
+  broadcastButtonEl.classList.toggle('is-active', enabled);
+  broadcastButtonEl.title = enabled
+    ? 'Broadcast ON — input goes to all panes (⌘⇧B)'
+    : 'Broadcast input to all panes (⌘⇧B)';
+}
 const settingsPanelEl = document.getElementById('settings-panel');
 const fontSizeRangeEl = document.getElementById('font-size-input');
 const fontSizeDisplayEl = document.getElementById('font-size-display');
@@ -280,6 +294,7 @@ const paneMaskOpacityValueEl = document.getElementById('pane-mask-alpha-value');
 const breathingAlertToggleEl = document.getElementById('breathing-alert-toggle');
 const shellProfilesSettingsBtn = document.getElementById('shell-profiles-settings-btn');
 const keyboardShortcutsSettingsBtn = document.getElementById('keyboard-shortcuts-settings-btn');
+const shellIntegrationInstallBtn = document.getElementById('shell-integration-install-btn');
 
 const settings = {
   fontSize: 13,
@@ -1209,6 +1224,7 @@ function createPane(pane) {
     fontSize: settings.fontSize,
     lineHeight: 1.2,
     scrollback: 5000,
+    overviewRulerWidth: 15,
     theme: createTerminalTheme(accentColor),
   });
   const fitAddon = new FitAddon();
@@ -1222,6 +1238,7 @@ function createPane(pane) {
   terminal.loadAddon(new Unicode11Addon());
   terminal.unicode.activeVersion = '11';
   terminal.open(terminalHost);
+  terminal.loadAddon(new ImageAddon());
   try { terminal.loadAddon(new WebglAddon()); } catch {}
   terminal.attachCustomKeyEventHandler((event) => {
     // Ctrl+Tab is reserved for pane MRU cycling — never let xterm forward
@@ -1266,6 +1283,7 @@ function createPane(pane) {
     sizeKey: '',
     needsFit: true,
     accent: pane.accent,
+    shellCmdMarker: null,
   };
 
   terminalHost.addEventListener('contextmenu', (event) => {
@@ -1275,7 +1293,12 @@ function createPane(pane) {
   });
 
   terminal.onData((data) => {
-    if (node.sessionReady) {
+    if (!node.sessionReady) return;
+    if (broadcastEnabled) {
+      for (const pnode of paneNodeMap.values()) {
+        if (pnode.sessionReady) bridge.writeTerminal({ paneId: pnode.paneId, data });
+      }
+    } else {
       bridge.writeTerminal({ paneId: node.paneId, data });
     }
   });
@@ -1316,6 +1339,26 @@ function createPane(pane) {
       );
       bridge.writeClipboardText(text);
     } catch {}
+    return true;
+  });
+
+  terminal.parser.registerOscHandler(133, (data) => {
+    if (data === 'C') {
+      node.shellCmdMarker = terminal.registerMarker(0);
+    } else if (data === 'D' || data.startsWith('D;')) {
+      const exitCode = data.length > 2 ? parseInt(data.slice(2), 10) : 0;
+      const marker = node.shellCmdMarker;
+      if (marker) {
+        terminal.registerDecoration({
+          marker,
+          overviewRulerOptions: {
+            color: exitCode === 0 ? '#30D158' : '#FF453A',
+            position: 'right',
+          },
+        });
+        node.shellCmdMarker = null;
+      }
+    }
     return true;
   });
 
@@ -2478,6 +2521,28 @@ keyboardShortcutsSettingsBtn.addEventListener('keydown', (event) => {
   }
 });
 
+async function runInstallShellIntegration() {
+  try {
+    const result = await bridge.installShellIntegration();
+    await bridge.writeClipboardText(result.sourceLine);
+    settingsPanelEl.classList.add('is-hidden');
+    statusLabelEl.textContent = `Shell integration installed. Source line copied — paste into your ~/.zshrc or ~/.bashrc`;
+    setTimeout(() => { statusLabelEl.textContent = ''; }, 8000);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    statusLabelEl.textContent = `Shell integration install failed: ${message}`;
+    setTimeout(() => { statusLabelEl.textContent = ''; }, 6000);
+  }
+}
+
+shellIntegrationInstallBtn.addEventListener('click', runInstallShellIntegration);
+shellIntegrationInstallBtn.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    runInstallShellIntegration();
+  }
+});
+
 // Fullscreen toggle
 function isFullscreenSupported() {
   return (
@@ -2619,6 +2684,10 @@ window.addEventListener('pointerdown', (event) => {
   }
 });
 
+broadcastButtonEl.addEventListener('click', () => {
+  setBroadcastEnabled(!broadcastEnabled);
+});
+
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !settingsPanelEl.classList.contains('is-hidden')) {
     settingsPanelEl.classList.add('is-hidden');
@@ -2626,6 +2695,10 @@ window.addEventListener('keydown', (event) => {
   if (event.key === ',' && (event.metaKey || event.ctrlKey)) {
     event.preventDefault();
     settingsPanelEl.classList.toggle('is-hidden');
+  }
+  if (event.key === 'b' && event.shiftKey && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault();
+    setBroadcastEnabled(!broadcastEnabled);
   }
 });
 
