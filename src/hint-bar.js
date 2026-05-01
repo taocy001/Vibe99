@@ -13,6 +13,14 @@
  * @param {string} platform - The platform ('linux', 'darwin', 'win32')
  * @returns {object} - { modeLabel: string, hintsHtml: string }
  */
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export function renderHintBar(keymap, currentMode, focusedPaneLabel, platform = 'linux') {
   // Filter keymap entries for current mode
   let entries = keymap.filter(entry =>
@@ -50,12 +58,12 @@ export function renderHintBar(keymap, currentMode, focusedPaneLabel, platform = 
           if (parts.length >= 2) {
             const keys = parts[0];
             const desc = parts.slice(1).join(' ');
-            return `<span class="hint"><kbd>${keys}</kbd> ${desc}</span>`;
+            return `<span class="hint"><kbd>${escapeHtml(keys)}</kbd> ${escapeHtml(desc)}</span>`;
           }
-          return `<span class="hint">${entry.hint}</span>`;
+          return `<span class="hint">${escapeHtml(entry.hint)}</span>`;
         }
         const chord = formatChordForHint(entry.chord, platform);
-        return `<span class="hint"><kbd>${chord}</kbd> ${entry.hint}</span>`;
+        return `<span class="hint"><kbd>${escapeHtml(chord)}</kbd> ${escapeHtml(entry.hint)}</span>`;
       })
       .join('<span class="hint-sep">·</span>');
 
