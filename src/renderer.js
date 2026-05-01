@@ -126,8 +126,8 @@ function createTauriBridge(tauri) {
   function base64Encode(str) {
     const bytes = new TextEncoder().encode(str);
     let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
     }
     return btoa(binary);
   }
