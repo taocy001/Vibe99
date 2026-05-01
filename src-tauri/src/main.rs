@@ -1,7 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use vibe99_lib::commands::context_menu;
 use vibe99_lib::commands::settings;
 use vibe99_lib::commands::shell_profile;
@@ -18,6 +19,35 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(AppState {
             pty: Arc::new(PtyManager::new()),
+        })
+        .setup(|app| {
+            let settings_item = MenuItemBuilder::new("Settings...")
+                .id("settings")
+                .accelerator("CmdOrCtrl+,")
+                .build(app)?;
+
+            let app_menu = SubmenuBuilder::new(app, "Vibe99")
+                .item(&PredefinedMenuItem::about(app, None, None)?)
+                .separator()
+                .item(&settings_item)
+                .separator()
+                .item(&PredefinedMenuItem::hide(app, None)?)
+                .item(&PredefinedMenuItem::hide_others(app, None)?)
+                .item(&PredefinedMenuItem::show_all(app, None)?)
+                .separator()
+                .item(&PredefinedMenuItem::quit(app, None)?)
+                .build()?;
+
+            let menu = MenuBuilder::new(app).item(&app_menu).build()?;
+            app.set_menu(menu)?;
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            if event.id().0 == "settings" {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.emit("open-settings", ());
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             terminal::terminal_create,

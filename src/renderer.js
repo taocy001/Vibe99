@@ -111,6 +111,7 @@ function createUnavailableBridge() {
     onTerminalData: () => () => {},
     onTerminalExit: () => () => {},
     onMenuAction: () => () => {},
+    onOpenSettings: () => () => {},
     cwdReady: Promise.resolve(),
   };
 }
@@ -191,6 +192,7 @@ function createTauriBridge(tauri) {
     onTerminalData: (handler) => onTauriEvent('vibe99:terminal-data', handler),
     onTerminalExit: (handler) => onTauriEvent('vibe99:terminal-exit', handler),
     onMenuAction: (handler) => onTauriEvent('vibe99:menu-action', handler),
+    onOpenSettings: (handler) => onTauriEvent('open-settings', handler),
     cwdReady: _cwdReady,
   };
 }
@@ -264,19 +266,16 @@ const tabsListEl = document.getElementById('tabs-list');
 const statusLabelEl = document.getElementById('status-label');
 const statusHintEl = document.getElementById('status-hint');
 const addPaneButtonEl = document.getElementById('tabs-add');
-const settingsButtonEl = document.getElementById('tabs-settings');
 const fullscreenButtonEl = document.getElementById('tabs-fullscreen');
 const settingsPanelEl = document.getElementById('settings-panel');
-const fontSizeInputEl = document.getElementById('font-size-input');
+const fontSizeRangeEl = document.getElementById('font-size-input');
+const fontSizeDisplayEl = document.getElementById('font-size-display');
 const fontFamilyInputEl = document.getElementById('font-family-input');
 const paneWidthRangeEl = document.getElementById('pane-width-range');
-const paneWidthInputEl = document.getElementById('pane-width-input');
 const paneWidthValueEl = document.getElementById('pane-width-value');
 const paneOpacityRangeEl = document.getElementById('pane-opacity-range');
-const paneOpacityInputEl = document.getElementById('pane-opacity-input');
 const paneOpacityValueEl = document.getElementById('pane-opacity-value');
 const paneMaskOpacityRangeEl = document.getElementById('pane-mask-alpha-range');
-const paneMaskOpacityInputEl = document.getElementById('pane-mask-alpha-input');
 const paneMaskOpacityValueEl = document.getElementById('pane-mask-alpha-value');
 const breathingAlertToggleEl = document.getElementById('breathing-alert-toggle');
 const shellProfilesSettingsBtn = document.getElementById('shell-profiles-settings-btn');
@@ -390,16 +389,14 @@ function applySettings() {
   document.documentElement.style.setProperty('--pane-opacity', settings.paneOpacity.toFixed(2));
   document.documentElement.style.setProperty('--pane-bg-mask-opacity', settings.paneMaskOpacity.toFixed(2));
   document.documentElement.style.setProperty('--pane-width', `${settings.paneWidth}px`);
-  fontSizeInputEl.value = String(settings.fontSize);
+  fontSizeRangeEl.value = String(settings.fontSize);
+  fontSizeDisplayEl.textContent = String(settings.fontSize);
   fontFamilyInputEl.value = settings.fontFamily;
   paneWidthRangeEl.value = String(settings.paneWidth);
-  paneWidthInputEl.value = String(settings.paneWidth);
   paneWidthValueEl.textContent = `${settings.paneWidth}px`;
   paneOpacityRangeEl.value = settings.paneOpacity.toFixed(2);
-  paneOpacityInputEl.value = settings.paneOpacity.toFixed(2);
   paneOpacityValueEl.textContent = settings.paneOpacity.toFixed(2);
   paneMaskOpacityRangeEl.value = settings.paneMaskOpacity.toFixed(2);
-  paneMaskOpacityInputEl.value = settings.paneMaskOpacity.toFixed(2);
   paneMaskOpacityValueEl.textContent = settings.paneMaskOpacity.toFixed(2);
   breathingAlertToggleEl.checked = settings.breathingAlertEnabled;
   paneActivityWatcher.setGlobalEnabled(settings.breathingAlertEnabled);
@@ -2452,13 +2449,6 @@ addPaneButtonEl.addEventListener('click', () => {
   }
 });
 
-settingsButtonEl.addEventListener('click', (event) => {
-  event.stopPropagation();
-  const wasHidden = settingsPanelEl.classList.toggle('is-hidden');
-  if (wasHidden) {
-    editingShellProfile = null;
-  }
-});
 
 // Shell profiles modal button (clickable row)
 shellProfilesSettingsBtn.addEventListener('click', () => {
@@ -2551,14 +2541,8 @@ settingsPanelEl.addEventListener('click', (event) => {
   event.stopPropagation();
 });
 
-fontSizeInputEl.addEventListener('change', () => {
-  const nextValue = Number(fontSizeInputEl.value);
-  if (!Number.isFinite(nextValue)) {
-    applySettings();
-    return;
-  }
-
-  settings.fontSize = Math.max(10, Math.min(24, Math.round(nextValue)));
+fontSizeRangeEl.addEventListener('input', () => {
+  settings.fontSize = Number(fontSizeRangeEl.value);
   applySettings();
   render(true);
   scheduleSettingsSave();
@@ -2612,24 +2596,12 @@ paneWidthRangeEl.addEventListener('input', () => {
   updatePaneWidth(paneWidthRangeEl.value);
 });
 
-paneWidthInputEl.addEventListener('change', () => {
-  updatePaneWidth(paneWidthInputEl.value);
-});
-
 paneOpacityRangeEl.addEventListener('input', () => {
   updatePaneOpacity(paneOpacityRangeEl.value);
 });
 
-paneOpacityInputEl.addEventListener('change', () => {
-  updatePaneOpacity(paneOpacityInputEl.value);
-});
-
 paneMaskOpacityRangeEl.addEventListener('input', () => {
   updatePaneMaskOpacity(paneMaskOpacityRangeEl.value);
-});
-
-paneMaskOpacityInputEl.addEventListener('change', () => {
-  updatePaneMaskOpacity(paneMaskOpacityInputEl.value);
 });
 
 breathingAlertToggleEl.addEventListener('change', () => {
@@ -2641,8 +2613,7 @@ breathingAlertToggleEl.addEventListener('change', () => {
 window.addEventListener('pointerdown', (event) => {
   if (
     !settingsPanelEl.classList.contains('is-hidden') &&
-    !settingsPanelEl.contains(event.target) &&
-    !settingsButtonEl.contains(event.target)
+    !settingsPanelEl.contains(event.target)
   ) {
     settingsPanelEl.classList.add('is-hidden');
   }
@@ -2652,6 +2623,14 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !settingsPanelEl.classList.contains('is-hidden')) {
     settingsPanelEl.classList.add('is-hidden');
   }
+  if (event.key === ',' && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault();
+    settingsPanelEl.classList.toggle('is-hidden');
+  }
+});
+
+bridge.onOpenSettings(() => {
+  settingsPanelEl.classList.remove('is-hidden');
 });
 
 window.addEventListener('resize', () => {

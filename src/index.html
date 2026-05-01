@@ -16,66 +16,59 @@
         <div class="tabs-actions">
           <button class="tabs-add" id="tabs-add" type="button" aria-label="Add pane">＋</button>
           <button class="tabs-fullscreen" id="tabs-fullscreen" type="button" aria-label="Toggle fullscreen">&#9974;</button>
-          <button class="tabs-settings" id="tabs-settings" type="button" aria-label="Open settings">&#9881;</button>
         </div>
         <section class="settings-panel is-hidden" id="settings-panel" aria-label="Settings">
+
+          <div class="settings-section-header">Terminal</div>
           <div class="settings-section">
+            <label class="settings-row" for="font-family-input">
+              <span>Font</span>
+            </label>
+            <input class="settings-number" id="font-family-input" type="text" placeholder="MesloLGS NF, Menlo, monospace" value="" />
+
             <label class="settings-row" for="font-size-input">
               <span>Font size</span>
+              <span id="font-size-display" class="settings-value">13</span>
             </label>
-            <input class="settings-number" id="font-size-input" type="number" min="10" max="24" step="1" value="13" />
-
-            <label class="settings-row" for="font-family-input">
-              <span>Font family</span>
-            </label>
-            <input class="settings-number" id="font-family-input" type="text" placeholder="e.g. JetBrains Mono, Consolas" value="" />
-
-            <label class="settings-row" for="pane-width-range">
-              <span>Pane width</span>
-              <span id="pane-width-value">720px</span>
-            </label>
-            <div class="settings-dual">
-              <input id="pane-width-range" type="range" min="520" max="2000" step="10" value="720" />
-              <input class="settings-number" id="pane-width-input" type="number" min="520" max="2000" step="10" value="720" />
-            </div>
-
-            <label class="settings-row" for="pane-opacity-range">
-              <span>Pane opacity</span>
-              <span id="pane-opacity-value">0.80</span>
-            </label>
-            <div class="settings-dual">
-              <input id="pane-opacity-range" type="range" min="0.55" max="1" step="0.01" value="0.8" />
-              <input class="settings-number" id="pane-opacity-input" type="number" min="0.55" max="1" step="0.01" value="0.8" />
-            </div>
-
-            <label class="settings-row" for="pane-mask-alpha-range">
-              <span>BG mask opacity</span>
-              <span id="pane-mask-alpha-value">0.75</span>
-            </label>
-            <div class="settings-dual">
-              <input id="pane-mask-alpha-range" type="range" min="0" max="1" step="0.01" value="0.75" />
-              <input class="settings-number" id="pane-mask-alpha-input" type="number" min="0" max="1" step="0.01" value="0.75" />
-            </div>
-
-            <label class="settings-row" for="breathing-alert-toggle">
-              <span>Background activity alert</span>
-              <input id="breathing-alert-toggle" class="settings-checkbox" type="checkbox" checked />
-            </label>
-
+            <input id="font-size-input" type="range" min="10" max="24" step="1" value="13" />
           </div>
 
           <div class="settings-divider"></div>
 
+          <div class="settings-section-header">Panes</div>
+          <div class="settings-section">
+            <label class="settings-row" for="pane-width-range">
+              <span>Width</span>
+              <span id="pane-width-value" class="settings-value">720px</span>
+            </label>
+            <input id="pane-width-range" type="range" min="520" max="2000" step="10" value="720" />
+
+            <label class="settings-row" for="pane-opacity-range">
+              <span>Opacity</span>
+              <span id="pane-opacity-value" class="settings-value">0.80</span>
+            </label>
+            <input id="pane-opacity-range" type="range" min="0.55" max="1" step="0.01" value="0.8" />
+
+            <label class="settings-row" for="pane-mask-alpha-range">
+              <span>Inactive tint</span>
+              <span id="pane-mask-alpha-value" class="settings-value">0.25</span>
+            </label>
+            <input id="pane-mask-alpha-range" type="range" min="0" max="1" step="0.01" value="0.25" />
+
+            <label class="settings-row" for="breathing-alert-toggle">
+              <span>Activity indicator</span>
+              <input id="breathing-alert-toggle" class="settings-toggle" type="checkbox" checked />
+            </label>
+          </div>
+
+          <div class="settings-divider"></div>
+
+          <div class="settings-section-header">Configuration</div>
           <div class="settings-section">
             <div class="settings-row settings-clickable-row" id="shell-profiles-settings-btn" role="button" tabindex="0" aria-label="Configure shell profiles">
               <span>Shell Profiles</span>
               <span class="settings-row-hint">›</span>
             </div>
-          </div>
-
-          <div class="settings-divider"></div>
-
-          <div class="settings-section">
             <div class="settings-row settings-clickable-row" id="keyboard-shortcuts-settings-btn" role="button" tabindex="0" aria-label="Configure keyboard shortcuts">
               <span>Keyboard Shortcuts</span>
               <span class="settings-row-hint">›</span>
