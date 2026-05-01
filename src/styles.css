@@ -212,6 +212,7 @@ body {
 
 .tabs-add,
 .tabs-settings,
+.tabs-broadcast,
 .tabs-fullscreen {
   width: 34px;
   height: 33px;
@@ -227,12 +228,17 @@ body {
 
 .tabs-add:hover,
 .tabs-settings:hover,
+.tabs-broadcast:hover,
 .tabs-fullscreen:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
 .tabs-fullscreen.is-hidden { display: none; }
 .tabs-fullscreen.is-fullscreen { color: #ffd166; }
+.tabs-broadcast.is-active {
+  color: #007AFF;
+  background: rgba(0, 122, 255, 0.12);
+}
 
 .settings-panel {
   position: fixed;
