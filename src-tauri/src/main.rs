@@ -122,6 +122,7 @@ fn main() {
             terminal::get_cwd,
             settings::settings_load,
             settings::settings_save,
+            settings::set_window_theme,
             shell_profile::shell_profiles_list,
             shell_profile::shell_profile_set,
             shell_profile::shell_profile_add,

@@ -14,7 +14,7 @@
       <header class="tabs-panel" aria-label="Pane tabs">
         <div class="tabs-list" id="tabs-list"></div>
         <div class="tabs-actions">
-          <button class="tabs-add" id="tabs-add" type="button" aria-label="Add pane">＋</button>
+          <button class="tabs-add" id="tabs-add" type="button" aria-label="Add pane"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 1V9M1 5H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
         </div>
         <section class="settings-panel is-hidden" id="settings-panel" aria-label="Settings">
 
@@ -58,6 +58,20 @@
               <span data-i18n="settings.activityIndicator">Activity indicator</span>
               <input id="breathing-alert-toggle" class="settings-toggle" type="checkbox" checked />
             </label>
+
+            <label class="settings-row" for="show-status-bar-toggle">
+              <span data-i18n="settings.showStatusBar">Show status bar</span>
+              <input id="show-status-bar-toggle" class="settings-toggle" type="checkbox" />
+            </label>
+
+            <label class="settings-row" for="color-mode-select">
+              <span data-i18n="settings.colorMode">Color mode</span>
+            </label>
+            <select id="color-mode-select" class="settings-select">
+              <option value="dark" data-i18n="settings.colorMode.dark">Dark</option>
+              <option value="light" data-i18n="settings.colorMode.light">Light</option>
+              <option value="auto" data-i18n="settings.colorMode.auto">Auto</option>
+            </select>
           </div>
 
           <div class="settings-divider"></div>

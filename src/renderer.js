@@ -111,6 +111,7 @@ function createUnavailableBridge() {
     setDefaultShellProfile: fail,
     detectShellProfiles: () => Promise.resolve([]),
     installShellIntegration: fail,
+    setWindowTheme: () => Promise.resolve(),
     onTerminalData: () => () => {},
     onTerminalExit: () => () => {},
     onMenuAction: () => () => {},
@@ -193,6 +194,7 @@ function createTauriBridge(tauri) {
     setDefaultShellProfile: (profileId) => invoke('shell_profile_set', { profileId }),
     detectShellProfiles: () => invoke('shell_profiles_detect'),
     installShellIntegration: () => invoke('install_shell_integration'),
+    setWindowTheme: (mode) => invoke('set_window_theme', { mode }),
     onTerminalData: (handler) => onTauriEvent('vibe99:terminal-data', handler),
     onTerminalExit: (handler) => onTauriEvent('vibe99:terminal-exit', handler),
     onMenuAction: (handler) => onTauriEvent('vibe99:menu-action', handler),
@@ -351,6 +353,8 @@ const paneOpacityValueEl = document.getElementById('pane-opacity-value');
 const paneMaskOpacityRangeEl = document.getElementById('pane-mask-alpha-range');
 const paneMaskOpacityValueEl = document.getElementById('pane-mask-alpha-value');
 const breathingAlertToggleEl = document.getElementById('breathing-alert-toggle');
+const showStatusBarToggleEl = document.getElementById('show-status-bar-toggle');
+const colorModeSelectEl = document.getElementById('color-mode-select');
 const shellProfilesSettingsBtn = document.getElementById('shell-profiles-settings-btn');
 const keyboardShortcutsSettingsBtn = document.getElementById('keyboard-shortcuts-settings-btn');
 const shellIntegrationInstallBtn = document.getElementById('shell-integration-install-btn');
@@ -371,6 +375,8 @@ const settings = {
   paneMaskOpacity: 0.75,
   paneWidth: 720,
   breathingAlertEnabled: true,
+  showStatusBar: false,
+  colorMode: 'dark',
   language: 'en',
 };
 let pendingSettingsSave = null;
@@ -474,6 +480,12 @@ function applyTranslations() {
   });
 }
 
+function applyColorMode(mode) {
+  document.documentElement.classList.remove('theme-dark', 'theme-light', 'theme-auto');
+  document.documentElement.classList.add(`theme-${mode}`);
+  bridge.setWindowTheme(mode).catch(() => {});
+}
+
 function applySettings() {
   document.documentElement.style.setProperty('--app-font-size', `${settings.fontSize}px`);
   document.documentElement.style.setProperty('--pane-opacity', settings.paneOpacity.toFixed(2));
@@ -490,6 +502,10 @@ function applySettings() {
   paneMaskOpacityValueEl.textContent = settings.paneMaskOpacity.toFixed(2);
   breathingAlertToggleEl.checked = settings.breathingAlertEnabled;
   paneActivityWatcher.setGlobalEnabled(settings.breathingAlertEnabled);
+  showStatusBarToggleEl.checked = settings.showStatusBar;
+  document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
+  colorModeSelectEl.value = settings.colorMode;
+  applyColorMode(settings.colorMode);
   languageSelectEl.value = settings.language;
 }
 
@@ -535,6 +551,14 @@ function applyPersistedSettings(nextSettings) {
 
   if (typeof uiSettings.breathingAlertEnabled === 'boolean') {
     settings.breathingAlertEnabled = uiSettings.breathingAlertEnabled;
+  }
+
+  if (typeof uiSettings.showStatusBar === 'boolean') {
+    settings.showStatusBar = uiSettings.showStatusBar;
+  }
+
+  if (typeof uiSettings.colorMode === 'string') {
+    settings.colorMode = uiSettings.colorMode;
   }
 
   if (typeof uiSettings.language === 'string') {
@@ -2751,6 +2775,18 @@ paneMaskOpacityRangeEl.addEventListener('input', () => {
 breathingAlertToggleEl.addEventListener('change', () => {
   settings.breathingAlertEnabled = breathingAlertToggleEl.checked;
   paneActivityWatcher.setGlobalEnabled(settings.breathingAlertEnabled);
+  scheduleSettingsSave();
+});
+
+showStatusBarToggleEl.addEventListener('change', () => {
+  settings.showStatusBar = showStatusBarToggleEl.checked;
+  document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
+  scheduleSettingsSave();
+});
+
+colorModeSelectEl.addEventListener('change', () => {
+  settings.colorMode = colorModeSelectEl.value;
+  applyColorMode(settings.colorMode);
   scheduleSettingsSave();
 });
 

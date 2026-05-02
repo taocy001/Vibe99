@@ -185,6 +185,25 @@ fn sanitize_ui_config(ui: Option<&Value>) -> Value {
         }
     }
 
+    // Preserve showStatusBar boolean
+    if let Some(show) = ui.get("showStatusBar").and_then(|v| v.as_bool()) {
+        result.as_object_mut().unwrap().insert(
+            "showStatusBar".into(),
+            Value::Bool(show),
+        );
+    }
+
+    // Preserve colorMode string
+    const VALID_COLOR_MODES: &[&str] = &["dark", "light", "auto"];
+    if let Some(mode) = ui.get("colorMode").and_then(|v| v.as_str()) {
+        if VALID_COLOR_MODES.contains(&mode) {
+            result.as_object_mut().unwrap().insert(
+                "colorMode".into(),
+                Value::String(mode.to_string()),
+            );
+        }
+    }
+
     result
 }
 
@@ -355,6 +374,20 @@ pub(crate) fn sanitize_config(candidate: &Value) -> Value {
             })
         }
     }
+}
+
+/// Set the native window theme (dark / light / auto) at runtime.
+#[tauri::command]
+pub fn set_window_theme(app: AppHandle, mode: String) -> Result<(), String> {
+    use tauri::Theme;
+    let window = app.get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+    let theme = match mode.as_str() {
+        "dark"  => Some(Theme::Dark),
+        "light" => Some(Theme::Light),
+        _       => None, // "auto" — follow system
+    };
+    window.set_theme(theme).map_err(|e| format!("set_theme failed: {e}"))
 }
 
 /// Load the application settings from disk.

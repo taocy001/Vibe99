@@ -1,4 +1,6 @@
-:root {
+/* Dark is the default; light overrides key tokens; auto follows system */
+:root,
+:root.theme-dark {
   color-scheme: dark;
   --bg: #151515;
   --panel: #1d1d1d;
@@ -9,12 +11,40 @@
   --pane-opacity: 0.8;
   --pane-bg-mask-opacity: 0.25;
   --pane-width: 720px;
-  --tabs-height: 28px;
+  --tabs-height: 34px;
   --status-height: 20px;
   --stage-padding: 0px;
   --pane-height-offset: calc(
     var(--tabs-height) + var(--status-height) + (var(--stage-padding) * 2)
   );
+}
+
+:root.theme-light {
+  color-scheme: light;
+  --bg: #f0f0f0;
+  --panel: #e2e2e2;
+  --panel-border: #c8c8c8;
+  --panel-muted: #666666;
+  --text: #1a1a1a;
+}
+
+:root.theme-light html,
+:root.theme-light body {
+  background: linear-gradient(180deg, #ebebeb 0%, #dcdcdc 100%);
+}
+
+:root.theme-auto {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root.theme-auto {
+    --bg: #f0f0f0;
+    --panel: #e2e2e2;
+    --panel-border: #c8c8c8;
+    --panel-muted: #666666;
+    --text: #1a1a1a;
+  }
 }
 
 * {
@@ -47,7 +77,7 @@ body {
 .tabs-panel {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0;
   padding: 0;
   border-bottom: none;
@@ -70,7 +100,7 @@ body {
   align-items: stretch;
   flex: 1 1 0;
   min-width: 0;
-  margin: 2px 1px;
+  margin: 5px 2px;
   border-radius: 9999px;
   background: transparent;
   color: rgba(255, 255, 255, 0.45);
@@ -220,23 +250,24 @@ body {
   padding: 0 4px;
 }
 
-/* Add-pane button: minimal, like iTerm2 — no border, very low-key */
+/* Add-pane button: circle with + SVG inside, like iTerm2 */
 .tabs-add {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   flex: 0 0 auto;
-  border-radius: 6px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.35);
-  font-size: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.50);
+  font-size: 14px;
   line-height: 1;
-  border: none;
-  transition: background 120ms ease, color 120ms ease;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
 .tabs-add:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.80);
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.50);
 }
 
 .settings-panel {
@@ -682,7 +713,6 @@ body {
   bottom: 0;
   width: var(--pane-width);
   border: 1px solid var(--pane-accent);
-  border-top: none;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
     color-mix(in srgb, var(--pane-accent) 10%, #101010);
@@ -731,7 +761,6 @@ body {
 .pane.is-focused {
   opacity: 1;
   border-color: color-mix(in srgb, var(--pane-accent) 80%, transparent);
-  border-top: none;
   box-shadow:
     0 24px 54px rgba(0, 0, 0, 0.42),
     0 0 12px -2px color-mix(in srgb, var(--pane-accent) 30%, transparent);
@@ -791,6 +820,14 @@ body {
 
 .pane:not(.is-focused):not(.is-navigation-target)::after {
   background-color: color-mix(in srgb, var(--pane-accent) 22%, #505050);
+}
+
+body.hide-status-bar {
+  --status-height: 0px;
+}
+
+body.hide-status-bar .status-bar {
+  display: none;
 }
 
 .status-bar {
