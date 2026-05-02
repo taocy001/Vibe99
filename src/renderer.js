@@ -1254,7 +1254,7 @@ function createTab(pane, index, focusedIndex, dragMeta) {
   const close = document.createElement('button');
   close.type = 'button';
   close.className = 'tab-close';
-  close.textContent = 'x';
+  close.textContent = '×';
   close.setAttribute('aria-label', `Close tab ${pane.id}`);
   close.disabled = panes.length === 1;
 
