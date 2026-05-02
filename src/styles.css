@@ -219,31 +219,6 @@ body {
   border-left: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-/* Broadcast button: compact square icon */
-.tabs-broadcast {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
-}
-
-.tabs-broadcast:hover {
-  background: rgba(255, 255, 255, 0.09);
-  color: rgba(255, 255, 255, 0.88);
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-.tabs-broadcast.is-active {
-  color: #007AFF;
-  background: rgba(0, 122, 255, 0.14);
-  border-color: rgba(0, 122, 255, 0.35);
-}
-
 /* Add-pane button: circular, slightly more prominent */
 .tabs-add {
   width: 26px;

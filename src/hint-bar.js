@@ -1,18 +1,5 @@
-/**
- * Hint Bar — mode-aware keyboard shortcut hints
- *
- * Displays relevant keyboard shortcuts for the current mode in the status bar.
- */
+import { t } from './i18n.js';
 
-/**
- * Render the hint bar based on current mode and settings.
- *
- * @param {Array} keymap - The keymap from ShortcutsRegistry.getActiveKeymap()
- * @param {string} currentMode - The current mode ('terminal' or 'nav')
- * @param {string} focusedPaneLabel - The label of the focused pane (for terminal mode)
- * @param {string} platform - The platform ('linux', 'darwin', 'win32')
- * @returns {object} - { modeLabel: string, hintsHtml: string }
- */
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -35,7 +22,7 @@ export function renderHintBar(keymap, currentMode, focusedPaneLabel, platform = 
       entries = entries.filter(e => e.action !== 'cycleRecentReverse');
       const cycleEntry = entries.find(e => e.action === 'cycleRecent');
       if (cycleEntry) {
-        cycleEntry.hint = 'Ctrl+Tab recent';
+        cycleEntry.hint = t('hint.ctrlTabRecent');
       }
     }
   }
@@ -63,16 +50,17 @@ export function renderHintBar(keymap, currentMode, focusedPaneLabel, platform = 
           return `<span class="hint">${escapeHtml(entry.hint)}</span>`;
         }
         const chord = formatChordForHint(entry.chord, platform);
-        return `<span class="hint"><kbd>${escapeHtml(chord)}</kbd> ${escapeHtml(entry.hint)}</span>`;
+        const hintText = t(`hint.action.${entry.action}`, entry.hint);
+        return `<span class="hint"><kbd>${escapeHtml(chord)}</kbd> ${escapeHtml(hintText)}</span>`;
       })
       .join('<span class="hint-sep">·</span>');
 
   // Determine mode label
   let modeLabel;
   if (currentMode === 'nav') {
-    modeLabel = 'Navigation Mode';
+    modeLabel = t('hint.navigationMode');
   } else {
-    modeLabel = focusedPaneLabel || 'Terminal';
+    modeLabel = focusedPaneLabel || t('hint.terminal');
   }
 
   return { modeLabel, hintsHtml };

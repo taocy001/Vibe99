@@ -6,6 +6,7 @@ use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, Predefined
 use vibe99_lib::commands::context_menu;
 use vibe99_lib::commands::context_menu::MenuActionPayload;
 use vibe99_lib::commands::settings;
+use vibe99_lib::commands::settings::get_saved_language;
 use vibe99_lib::commands::shell_integration;
 use vibe99_lib::commands::shell_profile;
 use vibe99_lib::commands::terminal::{self, AppState};
@@ -23,7 +24,15 @@ fn main() {
             pty: Arc::new(PtyManager::new()),
         })
         .setup(|app| {
-            let settings_item = MenuItemBuilder::new("Settings...")
+            let lang = get_saved_language(app.app_handle());
+            let l = lang.as_str();
+
+            // Helper: pick text by locale
+            let ml = |zh: &'static str, ja: &'static str, en: &'static str| -> &'static str {
+                if l.starts_with("zh") { zh } else if l == "ja" { ja } else { en }
+            };
+
+            let settings_item = MenuItemBuilder::new(ml("设置…", "設定…", "Settings…"))
                 .id("settings")
                 .accelerator("CmdOrCtrl+,")
                 .build(app)?;
@@ -40,15 +49,15 @@ fn main() {
                 .item(&PredefinedMenuItem::quit(app, None)?)
                 .build()?;
 
-            let new_pane_item = MenuItemBuilder::new("New Pane")
+            let new_pane_item = MenuItemBuilder::new(ml("新建面板", "新しいペイン", "New Pane"))
                 .id("new-pane")
                 .accelerator("CmdOrCtrl+N")
                 .build(app)?;
-            let close_pane_item = MenuItemBuilder::new("Close Pane")
+            let close_pane_item = MenuItemBuilder::new(ml("关闭面板", "ペインを閉じる", "Close Pane"))
                 .id("close-pane")
                 .accelerator("CmdOrCtrl+W")
                 .build(app)?;
-            let broadcast_item = CheckMenuItemBuilder::new("Broadcast Input")
+            let broadcast_item = CheckMenuItemBuilder::new(ml("广播输入", "入力を一斉送信", "Broadcast Input"))
                 .id("broadcast-toggle")
                 .accelerator("CmdOrCtrl+Shift+B")
                 .checked(false)
@@ -61,20 +70,21 @@ fn main() {
                 .item(&broadcast_item)
                 .build()?;
 
-            let font_increase_item = MenuItemBuilder::new("Increase Font Size")
+            let font_increase_item = MenuItemBuilder::new(ml("放大字体", "フォントを拡大", "Increase Font Size"))
                 .id("font-size-increase")
                 .accelerator("CmdOrCtrl+=")
                 .build(app)?;
-            let font_decrease_item = MenuItemBuilder::new("Decrease Font Size")
+            let font_decrease_item = MenuItemBuilder::new(ml("缩小字体", "フォントを縮小", "Decrease Font Size"))
                 .id("font-size-decrease")
                 .accelerator("CmdOrCtrl+-")
                 .build(app)?;
-            let font_reset_item = MenuItemBuilder::new("Reset Font Size")
+            let font_reset_item = MenuItemBuilder::new(ml("重置字体", "フォントをリセット", "Reset Font Size"))
                 .id("font-size-reset")
                 .accelerator("CmdOrCtrl+0")
                 .build(app)?;
 
-            let view_menu = SubmenuBuilder::new(app, "View")
+            let view_menu_label = ml("视图", "表示", "View");
+            let view_menu = SubmenuBuilder::new(app, view_menu_label)
                 .item(&font_increase_item)
                 .item(&font_decrease_item)
                 .item(&font_reset_item)
@@ -125,10 +135,10 @@ fn main() {
             shell_integration::install_shell_integration,
         ])
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::Destroyed) {
+            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
                 let state = window.state::<AppState>();
                 terminal::destroy_all_terminals(&state);
-                window.app_handle().exit(0);
+                std::process::exit(0);
             }
         })
         .run(tauri::generate_context!())

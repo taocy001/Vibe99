@@ -335,16 +335,10 @@ const tabsListEl = document.getElementById('tabs-list');
 const statusLabelEl = document.getElementById('status-label');
 const statusHintEl = document.getElementById('status-hint');
 const addPaneButtonEl = document.getElementById('tabs-add');
-const broadcastButtonEl = document.getElementById('tabs-broadcast');
-
 let broadcastEnabled = false;
 
 function setBroadcastEnabled(enabled) {
   broadcastEnabled = enabled;
-  broadcastButtonEl.classList.toggle('is-active', enabled);
-  broadcastButtonEl.title = enabled
-    ? 'Broadcast ON — input goes to all panes (⌘⇧B)'
-    : 'Broadcast input to all panes (⌘⇧B)';
 }
 const settingsPanelEl = document.getElementById('settings-panel');
 const fontSizeRangeEl = document.getElementById('font-size-input');
@@ -2414,6 +2408,50 @@ function handleMenuAction(action, paneId) {
   if (action.startsWith('terminal-change-shell:')) {
     const profileId = action.slice('terminal-change-shell:'.length);
     changePaneShell(paneId, profileId);
+    return;
+  }
+
+  if (action === 'new-pane') {
+    addPane();
+    return;
+  }
+
+  if (action === 'close-pane') {
+    const targetId = paneId ?? focusedPaneId;
+    const paneIndex = getPaneIndex(targetId);
+    if (paneIndex !== -1) {
+      closePane(paneIndex);
+    }
+    return;
+  }
+
+  if (action === 'broadcast-toggle') {
+    setBroadcastEnabled(!broadcastEnabled);
+    return;
+  }
+
+  if (action === 'font-size-increase') {
+    settings.fontSize = Math.min(24, settings.fontSize + 1);
+    applySettings();
+    render(true);
+    scheduleSettingsSave();
+    return;
+  }
+
+  if (action === 'font-size-decrease') {
+    settings.fontSize = Math.max(10, settings.fontSize - 1);
+    applySettings();
+    render(true);
+    scheduleSettingsSave();
+    return;
+  }
+
+  if (action === 'font-size-reset') {
+    settings.fontSize = 13;
+    applySettings();
+    render(true);
+    scheduleSettingsSave();
+    return;
   }
 }
 
@@ -2720,6 +2758,7 @@ languageSelectEl.addEventListener('change', () => {
   settings.language = languageSelectEl.value;
   setLocale(settings.language);
   applyTranslations();
+  updateStatus();
   scheduleSettingsSave();
 });
 
@@ -2732,10 +2771,6 @@ window.addEventListener('pointerdown', (event) => {
   }
 });
 
-broadcastButtonEl.addEventListener('click', () => {
-  setBroadcastEnabled(!broadcastEnabled);
-});
-
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !settingsPanelEl.classList.contains('is-hidden')) {
     settingsPanelEl.classList.add('is-hidden');
@@ -2743,10 +2778,6 @@ window.addEventListener('keydown', (event) => {
   if (event.key === ',' && (event.metaKey || event.ctrlKey)) {
     event.preventDefault();
     settingsPanelEl.classList.toggle('is-hidden');
-  }
-  if (event.key === 'b' && event.shiftKey && (event.metaKey || event.ctrlKey)) {
-    event.preventDefault();
-    setBroadcastEnabled(!broadcastEnabled);
   }
   // Cmd+= or Cmd++ → increase font size; Cmd+- → decrease; Cmd+0 → reset
   if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {

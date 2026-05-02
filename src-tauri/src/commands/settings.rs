@@ -174,7 +174,34 @@ fn sanitize_ui_config(ui: Option<&Value>) -> Value {
         );
     }
 
+    // Preserve language setting
+    const VALID_LANGS: &[&str] = &["en", "zh-CN", "zh-TW", "ja"];
+    if let Some(lang) = ui.get("language").and_then(|v| v.as_str()) {
+        if VALID_LANGS.contains(&lang) {
+            result.as_object_mut().unwrap().insert(
+                "language".into(),
+                Value::String(lang.to_string()),
+            );
+        }
+    }
+
     result
+}
+
+/// Read the saved language code from the settings file without full sanitization.
+/// Used at startup to localise native menu items before settings are fully loaded.
+pub fn get_saved_language(app: &AppHandle) -> String {
+    settings_path(app)
+        .ok()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .and_then(|v| {
+            v.get("ui")
+                .and_then(|ui| ui.get("language"))
+                .and_then(|l| l.as_str())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "en".to_string())
 }
 
 /// Sanitize the `session` block of a config.
