@@ -1256,7 +1256,6 @@ function createTab(pane, index, focusedIndex, dragMeta) {
   close.className = 'tab-close';
   close.textContent = '×';
   close.setAttribute('aria-label', `Close tab ${pane.id}`);
-  close.disabled = panes.length === 1;
 
   // Show pending close state
   if (pendingClosePaneId === pane.id) {
@@ -1598,12 +1597,13 @@ function addPane() {
 function closePane(index, options = {}) {
   const { destroyTerminal = true } = options;
 
-  if (panes.length === 1) {
+  const closingPane = panes[index];
+  if (!closingPane) {
     return;
   }
 
-  const closingPane = panes[index];
-  if (!closingPane) {
+  if (panes.length === 1) {
+    void bridge.closeWindow().catch(reportError);
     return;
   }
 
