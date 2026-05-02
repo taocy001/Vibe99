@@ -6,7 +6,7 @@ use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, Predefined
 use vibe99_lib::commands::context_menu;
 use vibe99_lib::commands::context_menu::MenuActionPayload;
 use vibe99_lib::commands::settings;
-use vibe99_lib::commands::settings::{get_saved_language, get_saved_is_light};
+use vibe99_lib::commands::settings::{get_saved_language, get_saved_is_light, get_saved_show_status_bar};
 use vibe99_lib::commands::shell_integration;
 use vibe99_lib::commands::shell_profile;
 use vibe99_lib::commands::terminal::{self, AppState};
@@ -28,6 +28,8 @@ fn main() {
             let is_light = get_saved_is_light(app.app_handle());
             vibe99_lib::IS_LIGHT_MODE.store(is_light, std::sync::atomic::Ordering::Relaxed);
 
+            let show_status_bar = get_saved_show_status_bar(app.app_handle());
+
             let lang = get_saved_language(app.app_handle());
             let l = lang.as_str();
 
@@ -36,6 +38,7 @@ fn main() {
                 if l.starts_with("zh") { zh } else if l == "ja" { ja } else { en }
             };
 
+            // ── App menu ─────────────────────────────────────────────────
             let settings_item = MenuItemBuilder::new(ml("设置…", "設定…", "Settings…"))
                 .id("settings")
                 .accelerator("CmdOrCtrl+,")
@@ -53,13 +56,21 @@ fn main() {
                 .item(&PredefinedMenuItem::quit(app, None)?)
                 .build()?;
 
-            let new_pane_item = MenuItemBuilder::new(ml("新建面板", "新しいペイン", "New Pane"))
+            // ── Shell menu ────────────────────────────────────────────────
+            let new_tab_item = MenuItemBuilder::new(ml("新建标签页", "新しいタブ", "New Tab"))
                 .id("new-pane")
                 .accelerator("CmdOrCtrl+N")
                 .build(app)?;
-            let close_pane_item = MenuItemBuilder::new(ml("关闭面板", "ペインを閉じる", "Close Pane"))
+            let close_tab_item = MenuItemBuilder::new(ml("关闭标签页", "タブを閉じる", "Close Tab"))
                 .id("close-pane")
                 .accelerator("CmdOrCtrl+W")
+                .build(app)?;
+            let close_window_item = MenuItemBuilder::new(ml("关闭窗口", "ウィンドウを閉じる", "Close Window"))
+                .id("close-window")
+                .accelerator("CmdOrCtrl+Shift+W")
+                .build(app)?;
+            let rename_tab_item = MenuItemBuilder::new(ml("重命名标签页…", "タブの名前を変更…", "Rename Tab…"))
+                .id("rename-tab")
                 .build(app)?;
             let broadcast_item = CheckMenuItemBuilder::new(ml("广播输入", "入力を一斉送信", "Broadcast Input"))
                 .id("broadcast-toggle")
@@ -68,12 +79,35 @@ fn main() {
                 .build(app)?;
 
             let shell_menu = SubmenuBuilder::new(app, "Shell")
-                .item(&new_pane_item)
-                .item(&close_pane_item)
+                .item(&new_tab_item)
+                .item(&close_tab_item)
+                .item(&close_window_item)
+                .separator()
+                .item(&rename_tab_item)
                 .separator()
                 .item(&broadcast_item)
                 .build()?;
 
+            // ── Edit menu ─────────────────────────────────────────────────
+            let clear_scrollback_item = MenuItemBuilder::new(
+                ml("清除滚动缓冲区", "スクロールバッファをクリア", "Clear Scrollback Buffer"),
+            )
+            .id("clear-scrollback")
+            .build(app)?;
+
+            let edit_menu = SubmenuBuilder::new(app, ml("编辑", "編集", "Edit"))
+                .item(&PredefinedMenuItem::undo(app, None)?)
+                .item(&PredefinedMenuItem::redo(app, None)?)
+                .separator()
+                .item(&PredefinedMenuItem::cut(app, None)?)
+                .item(&PredefinedMenuItem::copy(app, None)?)
+                .item(&PredefinedMenuItem::paste(app, None)?)
+                .item(&PredefinedMenuItem::select_all(app, None)?)
+                .separator()
+                .item(&clear_scrollback_item)
+                .build()?;
+
+            // ── View menu ─────────────────────────────────────────────────
             let font_increase_item = MenuItemBuilder::new(ml("放大字体", "フォントを拡大", "Increase Font Size"))
                 .id("font-size-increase")
                 .accelerator("CmdOrCtrl+=")
@@ -87,17 +121,97 @@ fn main() {
                 .accelerator("CmdOrCtrl+0")
                 .build(app)?;
 
-            let view_menu_label = ml("视图", "表示", "View");
-            let view_menu = SubmenuBuilder::new(app, view_menu_label)
+            let appearance_light = MenuItemBuilder::new(ml("浅色", "ライト", "Light"))
+                .id("appearance-light")
+                .build(app)?;
+            let appearance_dark = MenuItemBuilder::new(ml("深色", "ダーク", "Dark"))
+                .id("appearance-dark")
+                .build(app)?;
+            let appearance_auto = MenuItemBuilder::new(ml("跟随系统", "システムに合わせる", "Auto"))
+                .id("appearance-auto")
+                .build(app)?;
+            let appearance_submenu = SubmenuBuilder::new(app, ml("外观", "外観", "Appearance"))
+                .item(&appearance_light)
+                .item(&appearance_dark)
+                .item(&appearance_auto)
+                .build()?;
+
+            let toggle_status_bar_item =
+                CheckMenuItemBuilder::new(ml("显示状态栏", "ステータスバーを表示", "Show Status Bar"))
+                    .id("toggle-status-bar")
+                    .checked(show_status_bar)
+                    .build(app)?;
+            let navigation_mode_item = MenuItemBuilder::new(ml("导航模式", "ナビゲーションモード", "Navigation Mode"))
+                .id("toggle-navigation-mode")
+                .accelerator("CmdOrCtrl+Shift+N")
+                .build(app)?;
+
+            let view_menu = SubmenuBuilder::new(app, ml("视图", "表示", "View"))
+                .item(&PredefinedMenuItem::fullscreen(app, None)?)
+                .separator()
                 .item(&font_increase_item)
                 .item(&font_decrease_item)
                 .item(&font_reset_item)
+                .separator()
+                .item(&appearance_submenu)
+                .separator()
+                .item(&toggle_status_bar_item)
+                .item(&navigation_mode_item)
+                .build()?;
+
+            // ── Window menu ───────────────────────────────────────────────
+            let next_tab_item = MenuItemBuilder::new(ml("下一个标签页", "次のタブ", "Next Tab"))
+                .id("next-tab")
+                .accelerator("CmdOrCtrl+Shift+]")
+                .build(app)?;
+            let prev_tab_item = MenuItemBuilder::new(ml("上一个标签页", "前のタブ", "Previous Tab"))
+                .id("prev-tab")
+                .accelerator("CmdOrCtrl+Shift+[")
+                .build(app)?;
+            let move_tab_left_item = MenuItemBuilder::new(ml("向左移动标签页", "タブを左に移動", "Move Tab Left"))
+                .id("move-tab-left")
+                .accelerator("CmdOrCtrl+Shift+,")
+                .build(app)?;
+            let move_tab_right_item =
+                MenuItemBuilder::new(ml("向右移动标签页", "タブを右に移動", "Move Tab Right"))
+                    .id("move-tab-right")
+                    .accelerator("CmdOrCtrl+Shift+.")
+                    .build(app)?;
+            let tab_color_item = MenuItemBuilder::new(ml("标签页颜色…", "タブの色…", "Tab Color…"))
+                .id("pane-color")
+                .build(app)?;
+
+            let window_menu = SubmenuBuilder::new(app, ml("窗口", "ウィンドウ", "Window"))
+                .item(&PredefinedMenuItem::minimize(app, None)?)
+                .item(&PredefinedMenuItem::maximize(app, None)?)
+                .separator()
+                .item(&next_tab_item)
+                .item(&prev_tab_item)
+                .separator()
+                .item(&move_tab_left_item)
+                .item(&move_tab_right_item)
+                .separator()
+                .item(&tab_color_item)
+                .build()?;
+
+            // ── Help menu ─────────────────────────────────────────────────
+            let keyboard_shortcuts_item =
+                MenuItemBuilder::new(ml("键盘快捷键…", "キーボードショートカット…", "Keyboard Shortcuts…"))
+                    .id("keyboard-shortcuts")
+                    .accelerator("CmdOrCtrl+/")
+                    .build(app)?;
+
+            let help_menu = SubmenuBuilder::new(app, ml("帮助", "ヘルプ", "Help"))
+                .item(&keyboard_shortcuts_item)
                 .build()?;
 
             let menu = MenuBuilder::new(app)
                 .item(&app_menu)
                 .item(&shell_menu)
+                .item(&edit_menu)
                 .item(&view_menu)
+                .item(&window_menu)
+                .item(&help_menu)
                 .build()?;
             app.set_menu(menu)?;
             Ok(())

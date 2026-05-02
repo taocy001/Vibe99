@@ -224,6 +224,22 @@ pub fn get_saved_is_light(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
+/// Read whether the status bar should be shown from the settings file.
+/// Falls back to false when the setting is absent or unparseable.
+/// Used at startup to initialize the "Show Status Bar" CheckMenuItem before JS runs.
+pub fn get_saved_show_status_bar(app: &AppHandle) -> bool {
+    settings_path(app)
+        .ok()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .and_then(|v| {
+            v.get("ui")
+                .and_then(|ui| ui.get("showStatusBar"))
+                .and_then(|b| b.as_bool())
+        })
+        .unwrap_or(false)
+}
+
 /// Read the saved language code from the settings file without full sanitization.
 /// Falls back to the macOS system language when the setting is absent.
 /// Used at startup to localise native menu items before settings are fully loaded.
