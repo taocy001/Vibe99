@@ -265,6 +265,71 @@ let paneCycleState = null;
 const paneNodeMap = new Map();
 
 const stageEl = document.getElementById('stage');
+
+const MAX_DIVIDERS = 10;
+const dividerEls = Array.from({ length: MAX_DIVIDERS }, () => {
+  const el = document.createElement('div');
+  el.className = 'pane-divider';
+  el.style.display = 'none';
+  stageEl.appendChild(el);
+  return el;
+});
+
+let dividerDrag = null;
+
+dividerEls.forEach((el) => {
+  el.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const dividerIndex = parseInt(el.dataset.dividerIndex, 10);
+    const focusedIndex = getFocusedIndex();
+    const stageWidth = stageEl.clientWidth;
+    const previewWidth = getPreviewWidth(stageWidth, panes.length);
+    const initialDividerX = getPaneLeft(dividerIndex, previewWidth, focusedIndex);
+    dividerDrag = {
+      el,
+      startX: e.clientX,
+      initialPaneWidth: settings.paneWidth,
+      dividerIndex,
+      focusedIndex,
+      paneCount: panes.length,
+      stageWidth,
+      initialDividerX,
+      isLeftOfFocused: dividerIndex <= focusedIndex,
+    };
+    el.classList.add('is-dragging');
+    document.body.style.cursor = 'col-resize';
+  });
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!dividerDrag) return;
+  const { startX, initialDividerX, focusedIndex, paneCount, stageWidth, isLeftOfFocused, initialPaneWidth } = dividerDrag;
+  const dx = e.clientX - startX;
+  let newPaneWidth;
+  if (isLeftOfFocused && focusedIndex > 0) {
+    const newX = Math.max(10, initialDividerX + dx);
+    newPaneWidth = stageWidth - (newX / focusedIndex) * (paneCount - 1);
+  } else {
+    newPaneWidth = initialPaneWidth + dx;
+  }
+  newPaneWidth = Math.max(400, Math.min(2000, Math.round(newPaneWidth)));
+  if (newPaneWidth !== settings.paneWidth) {
+    settings.paneWidth = newPaneWidth;
+    applySettings();
+    renderPanes(true);
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (!dividerDrag) return;
+  dividerDrag.el.classList.remove('is-dragging');
+  document.body.style.cursor = '';
+  dividerDrag = null;
+  scheduleSettingsSave();
+});
+
 const tabsListEl = document.getElementById('tabs-list');
 const statusLabelEl = document.getElementById('status-label');
 const statusHintEl = document.getElementById('status-hint');
@@ -1765,6 +1830,19 @@ function renderPanes(refit = false) {
     if (refit || node.needsFit) {
       fitTerminal(node, true);
     }
+  });
+
+  // Position dividers between adjacent panes
+  const dividerCount = panes.length - 1;
+  dividerEls.forEach((el, i) => {
+    if (i >= dividerCount) {
+      el.style.display = 'none';
+      return;
+    }
+    const divX = getPaneLeft(i + 1, previewWidth, focusedIndex);
+    el.dataset.dividerIndex = String(i + 1);
+    el.style.display = 'block';
+    el.style.left = `${divX}px`;
   });
 }
 

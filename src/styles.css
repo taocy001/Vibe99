@@ -732,6 +732,35 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
+.pane-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  margin-left: -6px;
+  cursor: col-resize;
+  z-index: 1000;
+  user-select: none;
+}
+
+.pane-divider::after {
+  content: '';
+  position: absolute;
+  top: 10%;
+  bottom: 10%;
+  left: 5px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.pane-divider:hover::after,
+.pane-divider.is-dragging::after {
+  opacity: 1;
+}
+
 /* Inactive panes: desaturate accent to reduce visual noise */
 .pane:not(.is-focused):not(.is-navigation-target) {
   border-color: color-mix(in srgb, var(--pane-accent) 22%, #3a3a3a);
