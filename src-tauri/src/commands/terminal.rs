@@ -73,6 +73,16 @@ pub fn destroy_all_terminals(state: &AppState) {
     state.pty.destroy_all();
 }
 
+/// Terminate the process immediately after cleaning up PTY sessions.
+///
+/// More reliable than going through the window-close event chain, which can
+/// be silently swallowed by async IPC errors.
+#[tauri::command]
+pub fn exit_app(state: State<'_, AppState>) {
+    destroy_all_terminals(&state);
+    std::process::exit(0);
+}
+
 /// Return the current working directory as a string.
 ///
 /// Used by the frontend to derive the default tab title (directory basename).

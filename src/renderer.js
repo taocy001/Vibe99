@@ -174,6 +174,7 @@ function createTauriBridge(tauri) {
     destroyTerminal: (payload) =>
       invoke('terminal_destroy', { paneId: payload.paneId }),
     closeWindow: () => getCurrentWindow().close(),
+    exitApp: () => invoke('exit_app'),
     readClipboardText: () => clipboardReadText(),
     writeClipboardText: (text) => clipboardWriteText(text),
     getClipboardSnapshot: async () => {
@@ -442,7 +443,7 @@ const removeTerminalExitListener = bridge.onTerminalExit(({ paneId, exitCode }) 
   }
 
   if (panes.length === 1) {
-    void bridge.closeWindow().catch(reportError);
+    void bridge.exitApp().catch(reportError);
     return;
   }
 
@@ -1669,7 +1670,7 @@ function closePane(index, options = {}) {
   }
 
   if (panes.length === 1) {
-    void bridge.closeWindow().catch(reportError);
+    void bridge.exitApp().catch(reportError);
     return;
   }
 
@@ -1908,6 +1909,7 @@ function renderPanes(refit = false) {
     node.root.classList.toggle('is-navigation-target', isFocused && currentMode === 'nav');
     node.root.style.setProperty('--pane-accent', accentColor);
     node.root.style.left = `${left}px`;
+    node.root.style.width = panes.length === 1 ? `${stageWidth}px` : '';
     node.root.style.zIndex = String(index + 1);
     node.root.style.height = `${stageHeight}px`;
 
