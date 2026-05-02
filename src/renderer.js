@@ -1659,6 +1659,9 @@ function addPane() {
   focusedPaneId = newPane.id;
   recordPaneVisit(newPane.id);
   render(true);
+  requestAnimationFrame(() => {
+    paneNodeMap.get(newPane.id)?.terminal.focus();
+  });
 }
 
 function closePane(index, options = {}) {
@@ -1701,6 +1704,9 @@ function closePane(index, options = {}) {
   recordPaneVisit(focusedPaneId);
 
   render(true);
+  requestAnimationFrame(() => {
+    paneNodeMap.get(focusedPaneId)?.terminal.focus();
+  });
 }
 
 function beginRenamePane(index) {
