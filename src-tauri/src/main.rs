@@ -77,11 +77,22 @@ fn main() {
                 .accelerator("CmdOrCtrl+Shift+B")
                 .checked(false)
                 .build(app)?;
+            let split_right_item = MenuItemBuilder::new(ml("垂直切分", "垂直に分割", "Split Right"))
+                .id("split-right")
+                .accelerator("CmdOrCtrl+D")
+                .build(app)?;
+            let split_down_item = MenuItemBuilder::new(ml("水平切分", "水平に分割", "Split Down"))
+                .id("split-down")
+                .accelerator("CmdOrCtrl+Shift+D")
+                .build(app)?;
 
             let shell_menu = SubmenuBuilder::new(app, "Shell")
                 .item(&new_tab_item)
                 .item(&close_tab_item)
                 .item(&close_window_item)
+                .separator()
+                .item(&split_right_item)
+                .item(&split_down_item)
                 .separator()
                 .item(&rename_tab_item)
                 .separator()

@@ -20,6 +20,20 @@ import { createActions } from './input/actions.js';
 import { createDispatcher } from './input/dispatcher.js';
 import { renderHintBar } from './hint-bar.js';
 import { t, setLocale, getLocale, SUPPORTED_LOCALES } from './i18n.js';
+import {
+  leaf as layoutLeaf,
+  split as layoutSplit,
+  computeLayout,
+  collectDividers,
+  replaceLeaf,
+  removeLeaf,
+  collectPanelIds,
+  serializeLayout,
+  deserializeLayout,
+  DIVIDER_PX,
+  MIN_RATIO,
+  MAX_RATIO,
+} from './split-layout.js';
 
 function getRuntimePlatform() {
   const platform = navigator.platform.toLowerCase();
@@ -216,6 +230,8 @@ const initialPanes = [
     cwd: bridge.defaultCwd,
     accent: ColorsRegistry.ACCENT_PALETTE[0],
     shellProfileId: null,
+    layout: null,
+    focusedPanelId: 'p1',
   },
   {
     id: 'p2',
@@ -224,6 +240,8 @@ const initialPanes = [
     cwd: bridge.defaultCwd,
     accent: ColorsRegistry.ACCENT_PALETTE[1],
     shellProfileId: null,
+    layout: null,
+    focusedPanelId: 'p2',
   },
   {
     id: 'p3',
@@ -232,6 +250,8 @@ const initialPanes = [
     cwd: bridge.defaultCwd,
     accent: ColorsRegistry.ACCENT_PALETTE[2],
     shellProfileId: null,
+    layout: null,
+    focusedPanelId: 'p3',
   },
 ];
 
@@ -267,6 +287,16 @@ let paneMruOrder = panes.map((pane) => pane.id);
 let paneCycleState = null;
 
 const paneNodeMap = new Map();
+
+// panelId → { cwd, shellProfileId, accent, breathingMonitor } for split panels
+const panelDataMap = new Map();
+let nextPanelSeq = 1;
+function genPanelId() { return `panel-${nextPanelSeq++}`; }
+
+// splitNode (object identity) → HTMLElement for split dividers
+const splitDividerElMap = new Map();
+// el (WeakMap) → { splitNode, direction, usableSize } — updated each render
+const splitDividerDataMap = new WeakMap();
 
 const stageEl = document.getElementById('stage');
 
@@ -331,6 +361,54 @@ document.addEventListener('mouseup', () => {
   dividerDrag.el.classList.remove('is-dragging');
   document.body.style.cursor = '';
   dividerDrag = null;
+  scheduleSettingsSave();
+});
+
+// ── Split divider drag ────────────────────────────────────────────────────────
+
+let splitDividerDrag = null;
+
+stageEl.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;
+  const el = e.target.closest('.pane-split-divider');
+  if (!el) return;
+
+  const divData = splitDividerDataMap.get(el);
+  if (!divData) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  splitDividerDrag = {
+    el,
+    splitNode: divData.splitNode,
+    direction: divData.direction,
+    startPos: divData.direction === 'v' ? e.clientX : e.clientY,
+    initialRatio: divData.splitNode.ratio,
+    usableSize: divData.usableSize,
+  };
+  el.classList.add('is-dragging');
+  document.body.style.cursor = divData.direction === 'v' ? 'col-resize' : 'row-resize';
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!splitDividerDrag) return;
+  const { direction, startPos, initialRatio, usableSize, splitNode } = splitDividerDrag;
+  const currentPos = direction === 'v' ? e.clientX : e.clientY;
+  const delta = currentPos - startPos;
+  let newRatio = initialRatio + delta / usableSize;
+  newRatio = Math.max(MIN_RATIO, Math.min(MAX_RATIO, newRatio));
+  if (Math.abs(newRatio - splitNode.ratio) > 0.0005) {
+    splitNode.ratio = newRatio;
+    renderPanes(true);
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (!splitDividerDrag) return;
+  splitDividerDrag.el.classList.remove('is-dragging');
+  document.body.style.cursor = '';
+  splitDividerDrag = null;
   scheduleSettingsSave();
 });
 
@@ -601,14 +679,30 @@ function applyPersistedSettings(nextSettings) {
 function buildSessionData() {
   const focusedIndex = getFocusedIndex();
   return {
-    panes: panes.map((p) => ({
-      title: p.title,
-      cwd: p.cwd,
-      accent: p.accent,
-      customColor: p.customColor,
-      shellProfileId: p.shellProfileId,
-      breathingMonitor: p.breathingMonitor !== false,
-    })),
+    panes: panes.map((p) => {
+      const base = {
+        title: p.title,
+        cwd: p.cwd,
+        accent: p.accent,
+        customColor: p.customColor,
+        shellProfileId: p.shellProfileId,
+        breathingMonitor: p.breathingMonitor !== false,
+      };
+      if (p.layout) {
+        const serialized = serializeLayout(p.layout, (panelId) => {
+          const pd = panelDataMap.get(panelId);
+          return {
+            isRoot: panelId === p.id,
+            cwd: pd?.cwd ?? p.cwd,
+            shellProfileId: pd?.shellProfileId ?? p.shellProfileId ?? null,
+            breathingMonitor: pd?.breathingMonitor !== false,
+          };
+        });
+        base.layout = serialized;
+        base.focusedIsRoot = p.focusedPanelId === p.id;
+      }
+      return base;
+    }),
     focusedPaneIndex: focusedIndex >= 0 ? focusedIndex : 0,
   };
 }
@@ -616,16 +710,46 @@ function buildSessionData() {
 function restoreSession(session) {
   const validPanes = (session.panes ?? [])
     .filter((p) => p && typeof p.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.accent))
-    .map((p, index) => ({
-      id: `p${index + 1}`,
-      title: (typeof p.title === 'string' && p.title) || null,
-      terminalTitle: bridge.defaultTabTitle,
-      cwd: (typeof p.cwd === 'string' && p.cwd) || bridge.defaultCwd,
-      accent: p.accent,
-      customColor: (typeof p.customColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.customColor) && p.customColor) || undefined,
-      shellProfileId: (typeof p.shellProfileId === 'string' && p.shellProfileId) || null,
-      breathingMonitor: p.breathingMonitor !== false,
-    }));
+    .map((p, index) => {
+      const id = `p${index + 1}`;
+
+      // v5: restore split layout
+      let layout = null;
+      let focusedPanelId = id;
+      if (p.layout && typeof p.layout === 'object') {
+        try {
+          layout = deserializeLayout(p.layout, (leafData) => {
+            const panelId = leafData.isRoot ? id : genPanelId();
+            panelDataMap.set(panelId, {
+              cwd: (typeof leafData.cwd === 'string' && leafData.cwd) || bridge.defaultCwd,
+              shellProfileId: (typeof leafData.shellProfileId === 'string' && leafData.shellProfileId) || null,
+              accent: (typeof p.accent === 'string' && p.accent) || '#888888',
+              breathingMonitor: leafData.breathingMonitor !== false,
+            });
+            return panelId;
+          });
+          // Find which panelId was focused (first leaf with isRoot=true, otherwise first leaf)
+          const ids = collectPanelIds(layout);
+          focusedPanelId = p.focusedIsRoot ? id : (ids[0] ?? id);
+        } catch {
+          layout = null;
+          focusedPanelId = id;
+        }
+      }
+
+      return {
+        id,
+        title: (typeof p.title === 'string' && p.title) || null,
+        terminalTitle: bridge.defaultTabTitle,
+        cwd: (typeof p.cwd === 'string' && p.cwd) || bridge.defaultCwd,
+        accent: p.accent,
+        customColor: (typeof p.customColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.customColor) && p.customColor) || undefined,
+        shellProfileId: (typeof p.shellProfileId === 'string' && p.shellProfileId) || null,
+        breathingMonitor: p.breathingMonitor !== false,
+        layout,
+        focusedPanelId,
+      };
+    });
 
   if (validPanes.length === 0) {
     panes = initialPanes.map((p) => ({
@@ -660,7 +784,7 @@ function scheduleSettingsSave() {
   pendingSettingsSave = window.setTimeout(() => {
     pendingSettingsSave = null;
     const settingsToSave = {
-      version: 4,
+      version: 5,
       ui: {
         ...settings,
         shortcuts: ShortcutsRegistry.getShortcutsForSave()
@@ -676,7 +800,7 @@ function flushSettingsSave() {
     window.clearTimeout(pendingSettingsSave);
     pendingSettingsSave = null;
     const settingsToSave = {
-      version: 4,
+      version: 5,
       ui: {
         ...settings,
         shortcuts: ShortcutsRegistry.getShortcutsForSave()
@@ -1339,14 +1463,41 @@ function createTab(pane, index, focusedIndex, dragMeta) {
   return tab;
 }
 
-function createPane(pane) {
+function createPane(pane, { tabId = null } = {}) {
+  const owningTabId = tabId ?? pane.id;
+  const isSplitPanel = tabId !== null;
   const paneEl = document.createElement('article');
   paneEl.className = 'pane';
   const accentColor = pane.customColor || pane.accent;
   paneEl.style.setProperty('--pane-accent', accentColor);
   paneEl.addEventListener('click', () => {
-    focusPane(pane.id);
+    if (isSplitPanel) {
+      focusSplitPanel(pane.id);
+    } else {
+      focusPane(pane.id);
+    }
   });
+
+  // Panel header — only visible when has-splits (via CSS)
+  const panelHeader = document.createElement('div');
+  panelHeader.className = 'panel-header';
+
+  const panelDragHandle = document.createElement('div');
+  panelDragHandle.className = 'panel-title';
+  panelDragHandle.dataset.panelId = pane.id;
+
+  const panelCloseBtn = document.createElement('button');
+  panelCloseBtn.type = 'button';
+  panelCloseBtn.className = 'panel-close';
+  panelCloseBtn.textContent = '×';
+  panelCloseBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    // Close this specific panel (always context-sensitive via closeActivePanel after focusing it)
+    focusSplitPanel(pane.id, { focusTerminal: false });
+    closeActivePanel();
+  });
+
+  panelHeader.append(panelDragHandle, panelCloseBtn);
 
   const shell = document.createElement('div');
   shell.className = 'pane-shell';
@@ -1363,7 +1514,7 @@ function createPane(pane) {
   body.append(surface);
   paneAlert.attach(paneEl, body);
   shell.append(body);
-  paneEl.append(shell);
+  paneEl.append(panelHeader, shell);
 
   const terminal = new Terminal({
     allowProposedApi: true,
@@ -1441,7 +1592,11 @@ function createPane(pane) {
 
   terminalHost.addEventListener('contextmenu', (event) => {
     event.preventDefault();
-    focusPane(node.paneId, { focusTerminal: false });
+    if (isSplitPanel) {
+      focusSplitPanel(node.paneId, { focusTerminal: false });
+    } else {
+      focusPane(node.paneId, { focusTerminal: false });
+    }
     void showTerminalContextMenu(node, event);
   });
 
@@ -1462,9 +1617,9 @@ function createPane(pane) {
       return;
     }
     panes = panes.map((entry) =>
-      entry.id === pane.id ? { ...entry, terminalTitle: trimmedTitle } : entry
+      entry.id === owningTabId ? { ...entry, terminalTitle: trimmedTitle } : entry
     );
-    if (entryNeedsTabRefresh(pane.id)) {
+    if (entryNeedsTabRefresh(owningTabId)) {
       renderTabs();
     }
   });
@@ -1550,7 +1705,8 @@ function fitTerminal(node, force = false) {
 async function initializePaneTerminal(node) {
   fitTerminal(node, true);
   const pane = panes.find((p) => p.id === node.paneId);
-  const profileId = pane?.shellProfileId ?? null;
+  const panelData = panelDataMap.get(node.paneId);
+  const profileId = pane?.shellProfileId ?? panelData?.shellProfileId ?? null;
   try {
     await bridge.createTerminal({
       paneId: node.paneId,
@@ -1567,28 +1723,65 @@ async function initializePaneTerminal(node) {
   }
 }
 
-function ensurePaneNodes() {
-  const activeIds = new Set(panes.map((pane) => pane.id));
+function getTabLayout(pane) {
+  return pane.layout ?? { type: 'leaf', panelId: pane.focusedPanelId ?? pane.id };
+}
 
-  for (const [paneId, node] of paneNodeMap.entries()) {
-    if (!activeIds.has(paneId)) {
-      paneActivityWatcher.forget(paneId);
-      bridge.destroyTerminal({ paneId });
-      node.terminal.dispose();
-      node.root.remove();
-      paneNodeMap.delete(paneId);
+function ensurePaneNodes() {
+  // Collect all active panel IDs across all tabs
+  const activeIds = new Set();
+  for (const pane of panes) {
+    for (const panelId of collectPanelIds(getTabLayout(pane))) {
+      activeIds.add(panelId);
     }
   }
 
+  // Remove stale nodes
+  for (const [panelId, node] of paneNodeMap.entries()) {
+    if (!activeIds.has(panelId)) {
+      paneActivityWatcher.forget(panelId);
+      bridge.destroyTerminal({ paneId: panelId });
+      node.terminal.dispose();
+      node.root.remove();
+      paneNodeMap.delete(panelId);
+    }
+  }
+
+  // Create new nodes
   for (const pane of panes) {
-    if (!paneNodeMap.has(pane.id)) {
-      const node = createPane(pane);
-      paneNodeMap.set(pane.id, node);
-      stageEl.append(node.root);
-      paneActivityWatcher.setPaneEnabled(pane.id, pane.breathingMonitor !== false);
-      requestAnimationFrame(() => {
-        initializePaneTerminal(node);
-      });
+    const panelIds = collectPanelIds(getTabLayout(pane));
+    for (const panelId of panelIds) {
+      if (!paneNodeMap.has(panelId)) {
+        const isPrimary = panelId === pane.id;
+        let node;
+        if (isPrimary) {
+          node = createPane(pane);
+        } else {
+          const pd = panelDataMap.get(panelId) ?? {
+            cwd: pane.cwd,
+            shellProfileId: pane.shellProfileId ?? null,
+            accent: pane.accent,
+            breathingMonitor: pane.breathingMonitor !== false,
+          };
+          const syntheticPane = {
+            id: panelId,
+            cwd: pd.cwd,
+            accent: pd.accent ?? pane.accent,
+            customColor: undefined,
+            breathingMonitor: pd.breathingMonitor !== false,
+          };
+          node = createPane(syntheticPane, { tabId: pane.id });
+        }
+        paneNodeMap.set(panelId, node);
+        stageEl.append(node.root);
+        paneActivityWatcher.setPaneEnabled(
+          panelId,
+          isPrimary ? (pane.breathingMonitor !== false) : (panelDataMap.get(panelId)?.breathingMonitor !== false),
+        );
+        requestAnimationFrame(() => {
+          initializePaneTerminal(node);
+        });
+      }
     }
   }
 }
@@ -1598,13 +1791,16 @@ function createPaneData() {
   const accent = ColorsRegistry.ACCENT_PALETTE.find((c) => !usedAccents.has(c.toLowerCase()))
     || ColorsRegistry.ACCENT_PALETTE[(nextPaneNumber - 1) % ColorsRegistry.ACCENT_PALETTE.length];
   const focusedPane = panes[getFocusedIndex()];
+  const id = `p${nextPaneNumber}`;
   const pane = {
-    id: `p${nextPaneNumber}`,
+    id,
     title: null,
     terminalTitle: bridge.defaultTabTitle,
     cwd: focusedPane?.cwd || bridge.defaultCwd,
     accent,
     shellProfileId: null,
+    layout: null,
+    focusedPanelId: id,
   };
 
   nextPaneNumber += 1;
@@ -1707,6 +1903,303 @@ function closePane(index, options = {}) {
     paneNodeMap.get(focusedPaneId)?.terminal.focus();
   });
 }
+
+// ── Split panel management ────────────────────────────────────────────────────
+
+function focusSplitPanel(panelId, { focusTerminal = true } = {}) {
+  const pane = panes.find((p) => {
+    const layout = getTabLayout(p);
+    return collectPanelIds(layout).includes(panelId);
+  });
+  if (!pane) return;
+
+  // First focus the tab if it's not already focused
+  if (pane.id !== focusedPaneId) {
+    paneCycleState = null;
+    focusedPaneId = pane.id;
+    recordPaneVisit(pane.id);
+  }
+
+  // Then focus the specific panel within the tab
+  panes = panes.map((p) =>
+    p.id === pane.id ? { ...p, focusedPanelId: panelId } : p
+  );
+
+  setMode('terminal');
+  render();
+
+  if (focusTerminal) {
+    requestAnimationFrame(() => {
+      paneNodeMap.get(panelId)?.terminal.focus();
+    });
+  }
+}
+
+function splitPanel(direction) {
+  const focusedPane = panes[getFocusedIndex()];
+  if (!focusedPane) return;
+
+  const newPanelId = genPanelId();
+  const currentPanelId = focusedPane.focusedPanelId ?? focusedPane.id;
+  const currentNode = paneNodeMap.get(currentPanelId);
+
+  // Inherit data from current panel
+  const currentData = panelDataMap.get(currentPanelId) ?? {
+    cwd: focusedPane.cwd,
+    shellProfileId: focusedPane.shellProfileId ?? null,
+    accent: focusedPane.accent,
+    breathingMonitor: focusedPane.breathingMonitor !== false,
+  };
+
+  panelDataMap.set(newPanelId, {
+    cwd: currentNode?.cwd ?? currentData.cwd,
+    shellProfileId: currentData.shellProfileId,
+    accent: focusedPane.accent,
+    breathingMonitor: focusedPane.breathingMonitor !== false,
+  });
+
+  // Insert split into the layout tree
+  const currentLayout = getTabLayout(focusedPane);
+  const newSplit = layoutSplit(
+    direction,
+    0.5,
+    { type: 'leaf', panelId: currentPanelId },
+    { type: 'leaf', panelId: newPanelId },
+  );
+  const newLayout = replaceLeaf(currentLayout, currentPanelId, newSplit);
+
+  panes = panes.map((p) =>
+    p.id === focusedPane.id
+      ? { ...p, layout: newLayout, focusedPanelId: newPanelId }
+      : p
+  );
+
+  render(true);
+  requestAnimationFrame(() => {
+    paneNodeMap.get(newPanelId)?.terminal.focus();
+  });
+}
+
+function closeActivePanel() {
+  const focusedPane = panes[getFocusedIndex()];
+  if (!focusedPane) return;
+
+  if (!focusedPane.layout) {
+    // No split in this tab: close the whole tab
+    closePane(getFocusedIndex());
+    return;
+  }
+
+  const panelId = focusedPane.focusedPanelId ?? focusedPane.id;
+  const newLayout = removeLeaf(focusedPane.layout, panelId);
+
+  // Clean up the panel node
+  paneActivityWatcher.forget(panelId);
+  bridge.destroyTerminal({ paneId: panelId });
+  const node = paneNodeMap.get(panelId);
+  if (node) {
+    node.terminal.dispose();
+    node.root.remove();
+    paneNodeMap.delete(panelId);
+  }
+  panelDataMap.delete(panelId);
+
+  // Determine new focused panel
+  let newFocusId;
+  let finalLayout;
+  if (!newLayout) {
+    // Was the only panel (shouldn't happen in a split, but be safe)
+    closePane(getFocusedIndex());
+    return;
+  } else if (newLayout.type === 'leaf') {
+    // Collapsed to single panel
+    newFocusId = newLayout.panelId;
+    finalLayout = null; // back to single-panel state
+  } else {
+    finalLayout = newLayout;
+    const ids = collectPanelIds(newLayout);
+    newFocusId = ids[0] ?? focusedPane.id;
+  }
+
+  panes = panes.map((p) =>
+    p.id === focusedPane.id
+      ? { ...p, layout: finalLayout, focusedPanelId: newFocusId }
+      : p
+  );
+
+  render(true);
+  requestAnimationFrame(() => {
+    paneNodeMap.get(newFocusId)?.terminal.focus();
+  });
+}
+
+function focusPanelDelta(delta) {
+  const focusedPane = panes[getFocusedIndex()];
+  if (!focusedPane || !focusedPane.layout) return;
+
+  const ids = collectPanelIds(getTabLayout(focusedPane));
+  if (ids.length < 2) return;
+
+  const currentIdx = ids.indexOf(focusedPane.focusedPanelId ?? focusedPane.id);
+  const nextIdx = (currentIdx + delta + ids.length) % ids.length;
+  focusSplitPanel(ids[nextIdx]);
+}
+
+// ── Panel drag-to-rearrange ───────────────────────────────────────────────────
+
+let panelDragState = null; // null | { sourcePanelId, startX, startY, ghost, dropOverlay, active }
+
+function getPanelDropZone(panelEl, mouseX, mouseY) {
+  const rect = panelEl.getBoundingClientRect();
+  const rx = mouseX - rect.left;
+  const ry = mouseY - rect.top;
+  const w = rect.width;
+  const h = rect.height;
+  const edge = 0.25;
+  if (rx < w * edge) return 'left';
+  if (rx > w * (1 - edge)) return 'right';
+  if (ry < h * edge) return 'top';
+  if (ry > h * (1 - edge)) return 'bottom';
+  return 'center';
+}
+
+function getHoveredPanelInfo(mouseX, mouseY, excludeId) {
+  // Find the topmost .pane element under the cursor (excluding the source panel)
+  for (const [panelId, node] of paneNodeMap.entries()) {
+    if (panelId === excludeId) continue;
+    if (node.root.style.display === 'none') continue;
+    const rect = node.root.getBoundingClientRect();
+    if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
+      return { panelId, node, zone: getPanelDropZone(node.root, mouseX, mouseY) };
+    }
+  }
+  return null;
+}
+
+function commitPanelDrop(sourcePanelId, targetPanelId, zone) {
+  if (zone === 'center' || sourcePanelId === targetPanelId) return;
+  const focusedPane = panes[getFocusedIndex()];
+  if (!focusedPane?.layout) return;
+
+  const direction = (zone === 'left' || zone === 'right') ? 'v' : 'h';
+  const sourceFirst = (zone === 'left' || zone === 'top');
+
+  // Remove source from current layout
+  const layoutAfterRemove = removeLeaf(focusedPane.layout, sourcePanelId);
+  if (!layoutAfterRemove) return;
+
+  // Collapse to null if single leaf after remove
+  const baseLayout = layoutAfterRemove.type === 'leaf' ? null : layoutAfterRemove;
+  const effectiveBase = baseLayout ?? { type: 'leaf', panelId: layoutAfterRemove.panelId ?? targetPanelId };
+
+  // Build new split at the target location
+  const sourceLeaf = { type: 'leaf', panelId: sourcePanelId };
+  const newSplit = layoutSplit(
+    direction, 0.5,
+    sourceFirst ? sourceLeaf : { type: 'leaf', panelId: targetPanelId },
+    sourceFirst ? { type: 'leaf', panelId: targetPanelId } : sourceLeaf,
+  );
+
+  const newLayout = replaceLeaf(effectiveBase, targetPanelId, newSplit);
+
+  panes = panes.map((p) =>
+    p.id === focusedPane.id
+      ? { ...p, layout: newLayout, focusedPanelId: sourcePanelId }
+      : p
+  );
+
+  render(true);
+  requestAnimationFrame(() => {
+    paneNodeMap.get(sourcePanelId)?.terminal.focus();
+  });
+}
+
+// Drag state machine wired into the stage
+stageEl.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;
+  const handle = e.target.closest('.panel-title');
+  if (!handle) return;
+  const sourcePanelId = handle.dataset.panelId;
+  if (!sourcePanelId) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  panelDragState = {
+    sourcePanelId,
+    startX: e.clientX,
+    startY: e.clientY,
+    ghost: null,
+    dropOverlay: null,
+    active: false,
+    currentZone: null,
+    currentTargetId: null,
+  };
+}, true);
+
+document.addEventListener('mousemove', (e) => {
+  if (!panelDragState) return;
+  const { sourcePanelId, startX, startY } = panelDragState;
+
+  if (!panelDragState.active) {
+    const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+    if (dist < 6) return;
+
+    // Activate drag: create ghost
+    panelDragState.active = true;
+    const ghost = document.createElement('div');
+    ghost.className = 'panel-drag-ghost';
+    document.body.appendChild(ghost);
+    panelDragState.ghost = ghost;
+
+    // Create drop overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'panel-drop-overlay';
+    document.body.appendChild(overlay);
+    panelDragState.dropOverlay = overlay;
+  }
+
+  // Position ghost
+  if (panelDragState.ghost) {
+    panelDragState.ghost.style.left = `${e.clientX + 12}px`;
+    panelDragState.ghost.style.top = `${e.clientY + 12}px`;
+  }
+
+  // Detect hover target
+  const hovered = getHoveredPanelInfo(e.clientX, e.clientY, sourcePanelId);
+  if (hovered && hovered.zone !== 'center') {
+    panelDragState.currentTargetId = hovered.panelId;
+    panelDragState.currentZone = hovered.zone;
+    // Position drop overlay on the hovered panel
+    const rect = hovered.node.root.getBoundingClientRect();
+    const ov = panelDragState.dropOverlay;
+    ov.style.left = `${rect.left}px`;
+    ov.style.top = `${rect.top}px`;
+    ov.style.width = `${rect.width}px`;
+    ov.style.height = `${rect.height}px`;
+    ov.style.display = '';
+    ov.dataset.zone = hovered.zone;
+  } else {
+    panelDragState.currentTargetId = null;
+    panelDragState.currentZone = null;
+    if (panelDragState.dropOverlay) panelDragState.dropOverlay.style.display = 'none';
+  }
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (!panelDragState) return;
+  const { sourcePanelId, active, currentTargetId, currentZone, ghost, dropOverlay } = panelDragState;
+  ghost?.remove();
+  dropOverlay?.remove();
+  panelDragState = null;
+
+  if (active && currentTargetId && currentZone) {
+    commitPanelDrop(sourcePanelId, currentTargetId, currentZone);
+  } else if (!active) {
+    // Treated as a click: focus the panel
+    focusSplitPanel(sourcePanelId);
+  }
+});
 
 function beginRenamePane(index) {
   const pane = panes[index];
@@ -1895,40 +2388,119 @@ function renderTabs() {
   isRenderingTabs = false;
 }
 
+function applyPanelStyle(node, accentColor, x, y, w, h, zIndex, isFocused, hasSplits) {
+  node.root.classList.toggle('is-focused', isFocused);
+  node.root.classList.toggle('is-navigation-target', isFocused && currentMode === 'nav');
+  node.root.classList.toggle('has-splits', hasSplits);
+  node.root.style.setProperty('--pane-accent', accentColor);
+  node.root.style.left = `${x}px`;
+  node.root.style.top = `${y}px`;
+  node.root.style.width = `${w}px`;
+  node.root.style.height = `${h}px`;
+  node.root.style.zIndex = String(zIndex);
+  node.root.style.display = '';
+  if (node.accent !== accentColor) {
+    node.terminal.options.theme = createTerminalTheme(accentColor);
+    node.accent = accentColor;
+  }
+}
+
+function renderSplitDividers(focusedPane, tabX, tabW, stageHeight) {
+  const layout = focusedPane?.layout;
+
+  // Hide all existing dividers first
+  for (const el of splitDividerElMap.values()) {
+    el.style.display = 'none';
+  }
+
+  if (!layout) return;
+
+  const dividers = collectDividers(layout, tabX, 0, tabW, stageHeight);
+  const activeNodes = new Set();
+
+  for (const div of dividers) {
+    activeNodes.add(div.node);
+    let el = splitDividerElMap.get(div.node);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'pane-split-divider';
+      stageEl.appendChild(el);
+      splitDividerElMap.set(div.node, el);
+    }
+    el.style.left = `${div.x}px`;
+    el.style.top = `${div.y}px`;
+    el.style.width = `${div.w}px`;
+    el.style.height = `${div.h}px`;
+    el.style.display = '';
+    el.dataset.direction = div.direction;
+    // Keep drag data current so mousedown can read it without re-traversing the tree
+    splitDividerDataMap.set(el, { splitNode: div.node, direction: div.direction, usableSize: div.usableSize });
+  }
+
+  // Remove stale divider elements for split nodes no longer in the tree
+  for (const [splitNode, el] of splitDividerElMap.entries()) {
+    if (!activeNodes.has(splitNode)) {
+      el.remove();
+      splitDividerElMap.delete(splitNode);
+    }
+  }
+}
+
 function renderPanes(refit = false) {
   const stageWidth = stageEl.clientWidth;
   const stageHeight = stageEl.clientHeight;
   const previewWidth = getPreviewWidth(stageWidth, panes.length);
   const focusedIndex = getFocusedIndex();
+  const focusedPane = panes[focusedIndex];
 
   ensurePaneNodes();
-  paneActivityWatcher.setFocus(focusedPaneId);
+
+  // Track active panel for breathing monitor
+  const activePanelId = focusedPane?.focusedPanelId ?? focusedPane?.id ?? focusedPaneId;
+  paneActivityWatcher.setFocus(activePanelId);
+
+  const visiblePanelIds = new Set();
+
+  // Compute focused tab's pixel rect
+  const focusedTabX = panes.length === 1 ? 0 : getPaneLeft(focusedIndex, previewWidth, focusedIndex);
+  const focusedTabW = panes.length === 1 ? stageWidth : settings.paneWidth;
 
   panes.forEach((pane, index) => {
-    const node = paneNodeMap.get(pane.id);
-    const left = getPaneLeft(index, previewWidth, focusedIndex);
-    const isFocused = index === focusedIndex;
+    const isFocusedTab = index === focusedIndex;
     const accentColor = pane.customColor || pane.accent;
 
-    node.root.classList.toggle('is-focused', isFocused);
-    node.root.classList.toggle('is-navigation-target', isFocused && currentMode === 'nav');
-    node.root.style.setProperty('--pane-accent', accentColor);
-    node.root.style.left = `${left}px`;
-    node.root.style.width = panes.length === 1 ? `${stageWidth}px` : '';
-    node.root.style.zIndex = String(index + 1);
-    node.root.style.height = `${stageHeight}px`;
-
-    if (node.accent !== accentColor) {
-      node.terminal.options.theme = createTerminalTheme(accentColor);
-      node.accent = accentColor;
-    }
-
-    if (refit || node.needsFit) {
-      fitTerminal(node, true);
+    if (isFocusedTab && pane.layout) {
+      // ── Focused tab with splits ──────────────────────────────────────
+      computeLayout(pane.layout, focusedTabX, 0, focusedTabW, stageHeight, (leafNode, x, y, w, h) => {
+        const node = paneNodeMap.get(leafNode.panelId);
+        if (!node) return;
+        const isPanelFocused = leafNode.panelId === pane.focusedPanelId;
+        applyPanelStyle(node, accentColor, x, y, w, h, panes.length + 10, isPanelFocused, true);
+        if (refit || node.needsFit) fitTerminal(node, true);
+        visiblePanelIds.add(leafNode.panelId);
+      });
+    } else {
+      // ── Single panel (no split) or non-focused tab ────────────────────
+      const displayPanelId = pane.focusedPanelId ?? pane.id;
+      const node = paneNodeMap.get(displayPanelId);
+      if (node) {
+        const left = getPaneLeft(index, previewWidth, focusedIndex);
+        const w = panes.length === 1 ? stageWidth : settings.paneWidth;
+        applyPanelStyle(node, accentColor, left, 0, w, stageHeight, index + 1, isFocusedTab, false);
+        if (refit || node.needsFit) fitTerminal(node, true);
+        visiblePanelIds.add(displayPanelId);
+      }
     }
   });
 
-  // Position dividers between adjacent panes
+  // Hide any panel nodes not in the visible set
+  for (const [panelId, node] of paneNodeMap.entries()) {
+    if (!visiblePanelIds.has(panelId)) {
+      node.root.style.display = 'none';
+    }
+  }
+
+  // Tab-level dividers between adjacent tabs
   const dividerCount = panes.length - 1;
   dividerEls.forEach((el, i) => {
     if (i >= dividerCount) {
@@ -1940,6 +2512,9 @@ function renderPanes(refit = false) {
     el.style.display = 'block';
     el.style.left = `${divX}px`;
   });
+
+  // Split panel dividers for the focused tab
+  renderSplitDividers(focusedPane, focusedTabX, focusedTabW, stageHeight);
 }
 
 function render(refit = false) {
@@ -2497,11 +3072,17 @@ function handleMenuAction(action, paneId) {
   }
 
   if (action === 'close-pane') {
-    const targetId = paneId ?? focusedPaneId;
-    const paneIndex = getPaneIndex(targetId);
-    if (paneIndex !== -1) {
-      closePane(paneIndex);
-    }
+    closeActivePanel();
+    return;
+  }
+
+  if (action === 'split-right') {
+    splitPanel('v');
+    return;
+  }
+
+  if (action === 'split-down') {
+    splitPanel('h');
     return;
   }
 
@@ -2765,6 +3346,9 @@ const keyboardActions = createActions({
   requestClosePane,
   startInlineRename,
   openKeymapHelpModal,
+  splitPanel,
+  closeActivePanel,
+  focusPanelDelta,
 });
 
 const dispatchKeydown = createDispatcher({

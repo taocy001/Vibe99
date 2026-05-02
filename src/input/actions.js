@@ -55,7 +55,13 @@ export function createActions(deps) {
     },
 
     // Navigation mode — editing (VIB-33)
-    closePane:   () => deps.requestClosePane(deps.getFocusedPaneId()),
+    closePane:   () => deps.closeActivePanel(),
     renamePane:  () => deps.startInlineRename(deps.getFocusedPaneId()),
+
+    // Split pane management
+    splitRight:      () => deps.splitPanel('v'),
+    splitDown:       () => deps.splitPanel('h'),
+    focusPanelPrev:  () => deps.focusPanelDelta(-1),
+    focusPanelNext:  () => deps.focusPanelDelta(1),
   };
 }

@@ -36,6 +36,10 @@ export const KEYMAP = [
   { id: 'navigate-right',  mode: '*', chord: 'Cmd+Shift+]',  action: 'navigateRight', hint: '→ tab' },
   { id: 'copy',            mode: '*', chord: 'Cmd+C',  action: 'copyTerminalSelection', hint: 'copy',      skipInInput: true },
   { id: 'paste',           mode: '*', chord: 'Cmd+V',  action: 'pasteIntoTerminal',     hint: 'paste',     skipInInput: true },
+  { id: 'split-right',     mode: '*', chord: 'Cmd+D',        action: 'splitRight',      hint: 'split →',   skipInInput: true },
+  { id: 'split-down',      mode: '*', chord: 'Cmd+Shift+D',  action: 'splitDown',       hint: 'split ↓',   skipInInput: true },
+  { id: 'focus-panel-prev', mode: '*', chord: 'Cmd+[',       action: 'focusPanelPrev',  hint: '← panel',   skipInInput: true },
+  { id: 'focus-panel-next', mode: '*', chord: 'Cmd+]',       action: 'focusPanelNext',  hint: '→ panel',   skipInInput: true },
 
   // Navigation mode - non-customizable arrow keys (always available)
   { mode: 'nav', chord: 'ArrowLeft',  action: 'focusPrev',   hint: '← prev',     stopPropagation: true },

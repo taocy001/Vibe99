@@ -937,6 +937,167 @@ body.hide-status-bar {
   --status-height: 0px;
 }
 
+/* ── Split panel dividers ─────────────────────────────────────────────────── */
+
+.pane-split-divider {
+  position: absolute;
+  z-index: 1001;
+  background: rgba(255, 255, 255, 0.06);
+  transition: background 150ms ease;
+  user-select: none;
+}
+
+.pane-split-divider[data-direction="v"] {
+  cursor: col-resize;
+}
+
+.pane-split-divider[data-direction="h"] {
+  cursor: row-resize;
+}
+
+.pane-split-divider:hover,
+.pane-split-divider.is-dragging {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ── Panel header (only visible inside splits) ───────────────────────────── */
+
+.panel-header {
+  display: none;
+  align-items: center;
+  height: 22px;
+  padding: 0 4px 0 6px;
+  gap: 4px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.07);
+  position: relative;
+  z-index: 1;
+}
+
+.pane.has-splits .panel-header {
+  display: flex;
+}
+
+.pane.has-splits .pane-shell {
+  height: calc(100% - 22px);
+}
+
+.panel-title {
+  flex: 1;
+  cursor: grab;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.panel-title:active {
+  cursor: grabbing;
+}
+
+.panel-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 3px;
+  border-radius: 3px;
+  transition: color 100ms ease, background 100ms ease;
+  flex-shrink: 0;
+}
+
+.panel-close:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Panel drag ghost and drop overlay ───────────────────────────────────── */
+
+.panel-drag-ghost {
+  position: fixed;
+  width: 120px;
+  height: 22px;
+  background: var(--panel, #1d1d1d);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.panel-drop-overlay {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1003;
+  display: none;
+}
+
+.panel-drop-overlay::before {
+  content: '';
+  position: absolute;
+  background: rgba(99, 179, 237, 0.25);
+  border: 2px solid rgba(99, 179, 237, 0.6);
+  border-radius: 3px;
+  transition: all 80ms ease;
+}
+
+/* Zone highlight shapes */
+.panel-drop-overlay[data-zone="left"]::before  { inset: 0 50% 0 0; }
+.panel-drop-overlay[data-zone="right"]::before { inset: 0 0 0 50%; }
+.panel-drop-overlay[data-zone="top"]::before   { inset: 0 0 50% 0; }
+.panel-drop-overlay[data-zone="bottom"]::before { inset: 50% 0 0 0; }
+
+/* Panels inside a split: disable the slide transition and adjust border */
+.pane.has-splits {
+  transition:
+    box-shadow 120ms ease;
+}
+
+.pane.has-splits.is-focused {
+  border-color: color-mix(in srgb, var(--pane-accent) 60%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pane-accent) 40%, transparent) inset,
+    0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+/* Light mode overrides for split dividers */
+:root.theme-light .pane-split-divider,
+:root.theme-auto .pane-split-divider {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+:root.theme-light .pane-split-divider:hover,
+:root.theme-auto .pane-split-divider:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-color-scheme: light) {
+  :root.theme-auto .pane-split-divider {
+    background: rgba(0, 0, 0, 0.1);
+  }
+  :root.theme-auto .pane-split-divider:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* Light mode panel header */
+:root.theme-light .panel-header {
+  background: rgba(0, 0, 0, 0.05);
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+:root.theme-light .panel-close {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+:root.theme-light .panel-close:hover {
+  color: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.08);
+}
+
 body.hide-status-bar .status-bar {
   display: none;
 }
