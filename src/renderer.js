@@ -484,6 +484,11 @@ function applyColorMode(mode) {
   document.documentElement.classList.remove('theme-dark', 'theme-light', 'theme-auto');
   document.documentElement.classList.add(`theme-${mode}`);
   bridge.setWindowTheme(mode).catch(() => {});
+  // Re-theme all open terminals
+  for (const [, node] of paneNodeMap) {
+    const accent = node.accent || '#888888';
+    node.terminal.options.theme = createTerminalTheme(accent);
+  }
 }
 
 function applySettings() {
@@ -1117,6 +1122,31 @@ function createModalShellProfileEditor() {
 }
 
 function createTerminalTheme(accent) {
+  if (settings.colorMode === 'light') {
+    return {
+      background: '#f4f0ea',
+      foreground: '#383a42',
+      cursor: accent,
+      cursorAccent: '#ffffff',
+      selectionBackground: `${accent}55`,
+      black: '#383a42',
+      red: '#ca1243',
+      green: '#3d8c40',
+      yellow: '#c18401',
+      blue: '#3b65cc',
+      magenta: '#8b1fa8',
+      cyan: '#0c7ba1',
+      white: '#696c77',
+      brightBlack: '#4f525e',
+      brightRed: '#e06c75',
+      brightGreen: '#50a14f',
+      brightYellow: '#986801',
+      brightBlue: '#4078f2',
+      brightMagenta: '#a626a4',
+      brightCyan: '#0184bc',
+      brightWhite: '#383a42',
+    };
+  }
   return {
     background: '#11111100',
     foreground: '#d9d4c7',

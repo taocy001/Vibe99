@@ -21,16 +21,11 @@
 
 :root.theme-light {
   color-scheme: light;
-  --bg: #f0f0f0;
-  --panel: #e2e2e2;
-  --panel-border: #c8c8c8;
-  --panel-muted: #666666;
+  --bg: #ede8e2;
+  --panel: #e4ddd5;
+  --panel-border: #c8c0b8;
+  --panel-muted: #6b6358;
   --text: #1a1a1a;
-}
-
-:root.theme-light html,
-:root.theme-light body {
-  background: linear-gradient(180deg, #ebebeb 0%, #dcdcdc 100%);
 }
 
 :root.theme-auto {
@@ -39,11 +34,20 @@
 
 @media (prefers-color-scheme: light) {
   :root.theme-auto {
-    --bg: #f0f0f0;
-    --panel: #e2e2e2;
-    --panel-border: #c8c8c8;
-    --panel-muted: #666666;
+    --bg: #ede8e2;
+    --panel: #e4ddd5;
+    --panel-border: #c8c0b8;
+    --panel-muted: #6b6358;
     --text: #1a1a1a;
+  }
+
+  :root.theme-auto,
+  :root.theme-auto body {
+    background:
+      radial-gradient(ellipse 70% 55% at 78% 8%,  rgba(160, 140, 210, 0.10) 0%, transparent 100%),
+      radial-gradient(ellipse 60% 60% at 18% 92%, rgba(120, 185, 160, 0.09) 0%, transparent 100%),
+      radial-gradient(ellipse 90% 40% at 50% 48%, rgba(240, 228, 210, 0.18) 0%, transparent 100%),
+      linear-gradient(160deg, #f5f1eb 0%, #ebe5dd 100%);
   }
 }
 
@@ -712,7 +716,7 @@ body {
   top: 0;
   bottom: 0;
   width: var(--pane-width);
-  border: 1px solid var(--pane-accent);
+  border: 0.5px solid var(--pane-accent);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
     color-mix(in srgb, var(--pane-accent) 10%, #101010);
@@ -1614,4 +1618,188 @@ body.is-dragging-tabs {
   font-size: 11px;
   color: #ff6b57;
   margin-top: 2px;
+}
+
+/* ================================================================
+   LIGHT MODE
+   ================================================================ */
+
+.theme-light,
+.theme-light body {
+  background:
+    radial-gradient(ellipse 70% 55% at 78% 8%,  rgba(160, 140, 210, 0.10) 0%, transparent 100%),
+    radial-gradient(ellipse 60% 60% at 18% 92%, rgba(120, 185, 160, 0.09) 0%, transparent 100%),
+    radial-gradient(ellipse 90% 40% at 50% 48%, rgba(240, 228, 210, 0.18) 0%, transparent 100%),
+    linear-gradient(160deg, #f5f1eb 0%, #ebe5dd 100%);
+  color: #1a1a1a;
+}
+
+/* Tab bar */
+.theme-light .tab {
+  color: rgba(0, 0, 0, 0.40);
+}
+
+.theme-light .tab:hover:not(.is-focused) {
+  background: rgba(0, 0, 0, 0.07);
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.theme-light .tab.is-focused {
+  color: rgba(0, 0, 0, 0.88);
+  background: color-mix(in srgb, var(--pane-accent) 20%, #d8d2ca);
+}
+
+.theme-light .tab-name {
+  color: inherit;
+}
+
+/* + button */
+.theme-light .tabs-add {
+  background: rgba(0, 0, 0, 0.07);
+  color: rgba(0, 0, 0, 0.40);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.theme-light .tabs-add:hover {
+  background: rgba(0, 0, 0, 0.14);
+  color: rgba(0, 0, 0, 0.85);
+  border-color: rgba(0, 0, 0, 0.40);
+}
+
+/* Pane */
+.theme-light .pane {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.22)),
+    color-mix(in srgb, var(--pane-accent) 7%, #faf7f3);
+  box-shadow: 0 4px 20px rgba(80, 60, 40, 0.10);
+}
+
+.theme-light .pane.is-focused {
+  box-shadow:
+    0 8px 28px rgba(80, 60, 40, 0.14),
+    0 0 12px -2px color-mix(in srgb, var(--pane-accent) 25%, transparent);
+}
+
+.theme-light .pane:not(.is-focused):not(.is-navigation-target) {
+  border-color: color-mix(in srgb, var(--pane-accent) 25%, #c4bdb6);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.12)),
+    color-mix(in srgb, var(--pane-accent) 4%, #f2ede8);
+}
+
+.theme-light .pane:not(.is-focused):not(.is-navigation-target)::after {
+  background-color: color-mix(in srgb, var(--pane-accent) 12%, #d4cdc6);
+}
+
+/* Settings panel */
+.theme-light .settings-panel {
+  background: rgba(245, 245, 247, 0.95);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.80);
+}
+
+.theme-light .settings-section-header {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.theme-light .settings-row {
+  color: rgba(0, 0, 0, 0.80);
+}
+
+.theme-light .settings-divider {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.theme-light input[type="range"] {
+  accent-color: #555;
+}
+
+/* Status bar */
+.theme-light .status-bar {
+  border-top-color: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.60);
+}
+
+.theme-light .hint {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.theme-light .hint kbd {
+  background: rgba(0, 0, 0, 0.07);
+  color: rgba(0, 0, 0, 0.65);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.theme-light .hint-sep {
+  color: rgba(0, 0, 0, 0.20);
+}
+
+/* Navigation mode on light */
+.theme-light body.is-navigation-mode .status-bar {
+  background: rgba(180, 120, 0, 0.10);
+}
+
+.theme-light body.is-navigation-mode #status-label {
+  color: #b07800;
+}
+
+.theme-light body.is-navigation-mode .hint kbd {
+  color: #b07800;
+}
+
+.theme-light body.is-navigation-mode .hint-sep {
+  color: rgba(180, 120, 0, 0.35);
+}
+
+.theme-light body.is-navigation-mode .tab.is-focused .tab-swatch {
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+}
+
+/* Context menu */
+.theme-light .context-menu {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  color: #1a1a1a;
+}
+
+.theme-light .context-menu-item:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.theme-light .context-menu-item:disabled {
+  color: rgba(0, 0, 0, 0.28);
+}
+
+.theme-light .context-menu-shortcut {
+  color: rgba(0, 0, 0, 0.38);
+}
+
+.theme-light .context-menu-separator {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.theme-light .context-menu-parent::after {
+  color: rgba(0, 0, 0, 0.38);
+}
+
+.theme-light .context-menu-submenu {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+/* Pane divider on light */
+.theme-light .pane-divider::after {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* Stage background on light */
+.theme-light .stage {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.01), rgba(0, 0, 0, 0)),
+    rgba(0, 0, 0, 0.01);
 }
