@@ -336,7 +336,6 @@ const statusLabelEl = document.getElementById('status-label');
 const statusHintEl = document.getElementById('status-hint');
 const addPaneButtonEl = document.getElementById('tabs-add');
 const broadcastButtonEl = document.getElementById('tabs-broadcast');
-const fullscreenButtonEl = document.getElementById('tabs-fullscreen');
 
 let broadcastEnabled = false;
 
@@ -2643,65 +2642,6 @@ shellIntegrationInstallBtn.addEventListener('keydown', (event) => {
     runInstallShellIntegration();
   }
 });
-
-// Fullscreen toggle
-function isFullscreenSupported() {
-  return (
-    document.documentElement.requestFullscreen ||
-    document.documentElement.webkitRequestFullscreen ||
-    false
-  );
-}
-
-function getIsFullscreen() {
-  return (
-    document.fullscreenElement ||
-    document.webkitFullscreenElement ||
-    null
-  );
-}
-
-function updateFullscreenButton() {
-  const isFs = getIsFullscreen();
-  fullscreenButtonEl.classList.toggle('is-fullscreen', Boolean(isFs));
-  fullscreenButtonEl.setAttribute('aria-label', isFs ? 'Exit fullscreen' : 'Enter fullscreen');
-}
-
-function toggleFullscreen() {
-  if (!isFullscreenSupported()) {
-    return;
-  }
-
-  if (getIsFullscreen()) {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
-    }
-  } else {
-    const elem = document.documentElement;
-    if (elem.requestFullscreen) {
-      elem.requestFullscreen();
-    } else if (elem.webkitRequestFullscreen) {
-      elem.webkitRequestFullscreen();
-    }
-  }
-}
-
-function hideFullscreenButtonIfUnsupported() {
-  if (!isFullscreenSupported()) {
-    fullscreenButtonEl.classList.add('is-hidden');
-  }
-}
-
-document.addEventListener('fullscreenchange', updateFullscreenButton);
-document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
-
-fullscreenButtonEl.addEventListener('click', () => {
-  toggleFullscreen();
-});
-
-hideFullscreenButtonIfUnsupported();
 
 settingsPanelEl.addEventListener('click', (event) => {
   event.stopPropagation();

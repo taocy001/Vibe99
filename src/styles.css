@@ -214,36 +214,54 @@ body {
 .tabs-actions {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.tabs-add,
-.tabs-settings,
-.tabs-broadcast,
-.tabs-fullscreen {
-  width: 34px;
-  height: 33px;
+/* Broadcast button: compact square icon */
+.tabs-broadcast {
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 18px;
-  line-height: 33px;
-  text-align: center;
-  transition: background 120ms ease, color 120ms ease;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
-.tabs-add:hover,
-.tabs-settings:hover,
-.tabs-broadcast:hover,
-.tabs-fullscreen:hover {
-  background: rgba(255, 255, 255, 0.08);
+.tabs-broadcast:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.88);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
-.tabs-fullscreen.is-hidden { display: none; }
-.tabs-fullscreen.is-fullscreen { color: #ffd166; }
 .tabs-broadcast.is-active {
   color: #007AFF;
-  background: rgba(0, 122, 255, 0.12);
+  background: rgba(0, 122, 255, 0.14);
+  border-color: rgba(0, 122, 255, 0.35);
+}
+
+/* Add-pane button: circular, slightly more prominent */
+.tabs-add {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 17px;
+  line-height: 1;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.tabs-add:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .settings-panel {
@@ -688,7 +706,7 @@ body {
   top: 0;
   bottom: 0;
   width: var(--pane-width);
-  border: 2px solid var(--pane-accent);
+  border: 1px solid var(--pane-accent);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
     color-mix(in srgb, var(--pane-accent) 10%, #101010);
@@ -737,9 +755,10 @@ body {
 
 .pane.is-focused {
   opacity: 1;
+  border-color: color-mix(in srgb, var(--pane-accent) 80%, transparent);
   box-shadow:
     0 24px 54px rgba(0, 0, 0, 0.42),
-    0 0 0 1px color-mix(in srgb, var(--pane-accent) 22%, transparent),
+    0 0 12px -2px color-mix(in srgb, var(--pane-accent) 30%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
