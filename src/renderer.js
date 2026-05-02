@@ -1406,15 +1406,14 @@ function createPane(pane) {
     ) {
       return false;
     }
-    // Ctrl+Shift+C/V are reserved for copy/paste — handled by the
-    // window-level shortcut handler. Returning false here prevents xterm
-    // from consuming the event so it can bubble up and preventDefault()
-    // runs before the WebView intercepts it for DevTools/Carets.
+    // Cmd+C/V are reserved for copy/paste — handled by the window-level
+    // shortcut handler. Returning false prevents xterm from consuming the
+    // event so our capturing listener wins and preventDefault() runs.
     if (
       event.type === 'keydown' &&
-      event.ctrlKey &&
-      event.shiftKey &&
-      !event.metaKey &&
+      event.metaKey &&
+      !event.ctrlKey &&
+      !event.shiftKey &&
       !event.altKey &&
       (event.key === 'C' || event.key === 'c' || event.key === 'V' || event.key === 'v')
     ) {

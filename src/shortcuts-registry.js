@@ -24,6 +24,7 @@ function chordToLegacy(chord) {
   const [first] = parseChord(chord);
   const modifiers = [];
   if (first.ctrl)  modifiers.push('ctrl');
+  if (first.meta)  modifiers.push('meta');
   if (first.shift) modifiers.push('shift');
   if (first.alt)   modifiers.push('alt');
   return { key: normalizeLegacyKey(first.key), modifiers };
@@ -32,6 +33,7 @@ function chordToLegacy(chord) {
 function legacyToChord({ key, modifiers }) {
   const tokens = [];
   if (modifiers.includes('ctrl'))  tokens.push('Ctrl');
+  if (modifiers.includes('meta'))  tokens.push('Cmd');
   if (modifiers.includes('shift')) tokens.push('Shift');
   if (modifiers.includes('alt'))   tokens.push('Alt');
   tokens.push(key);
@@ -142,7 +144,7 @@ export function updateKeyboardShortcut(id, shortcut) {
 export function parseShortcutEvent(event) {
   const modifiers = [];
   if (event.ctrlKey) modifiers.push('ctrl');
-  if (event.metaKey && !event.ctrlKey) modifiers.push('ctrl'); // Cmd ≡ Ctrl
+  if (event.metaKey) modifiers.push('meta');
   if (event.shiftKey) modifiers.push('shift');
   if (event.altKey) modifiers.push('alt');
   return { key: event.key, modifiers };

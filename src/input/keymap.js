@@ -24,46 +24,50 @@
  */
 
 export const KEYMAP = [
-  // Global
-  { mode: '*',   chord: 'Ctrl+Shift+O',    action: 'toggleCommandPalette',  hint: 'palette',          stopPropagation: true },
-  { mode: '*',   chord: 'Ctrl+Tab',        action: 'cycleRecent',           hint: 'recent',           skipInInput: true, stopPropagation: true },
-  { mode: '*',   chord: 'Ctrl+Shift+Tab',  action: 'cycleRecentReverse',    hint: 'recent',           skipInInput: true, stopPropagation: true },
-  { id: 'navigation-mode', mode: '*',   chord: 'Ctrl+B',          action: 'enterNav',              hint: 'navigate',         skipInInput: true, stopPropagation: true },
-  { id: 'new-tab',         mode: '*',   chord: 'Ctrl+N',          action: 'newPane',               hint: 'new pane' },
-  { id: 'navigate-left',   mode: '*',   chord: 'Ctrl+ArrowLeft',  action: 'navigateLeft',          hint: '← pane' },
-  { id: 'navigate-right',  mode: '*',   chord: 'Ctrl+ArrowRight', action: 'navigateRight',         hint: '→ pane' },
-  { id: 'copy',            mode: '*',   chord: 'Ctrl+Shift+C',    action: 'copyTerminalSelection', hint: 'copy',             skipInInput: true },
-  { id: 'paste',           mode: '*',   chord: 'Ctrl+Shift+V',    action: 'pasteIntoTerminal',     hint: 'paste',            skipInInput: true },
+  // Global — use Cmd (not Ctrl) for app-level actions so Ctrl passes through
+  // to the terminal unchanged (e.g. Ctrl+B reaches tmux, Ctrl+C reaches PTY).
+  { mode: '*',   chord: 'Cmd+Shift+O',   action: 'toggleCommandPalette',  hint: 'palette',   stopPropagation: true },
+  { mode: '*',   chord: 'Ctrl+Tab',      action: 'cycleRecent',           hint: 'recent',    skipInInput: true, stopPropagation: true },
+  { mode: '*',   chord: 'Ctrl+Shift+Tab', action: 'cycleRecentReverse',   hint: 'recent ↑',  skipInInput: true, stopPropagation: true },
+  { id: 'navigation-mode', mode: '*', chord: 'Cmd+B',  action: 'enterNav',              hint: 'navigate',  skipInInput: true, stopPropagation: true },
+  { id: 'new-tab',         mode: '*', chord: 'Cmd+T',  action: 'newPane',               hint: 'new tab' },
+  { id: 'close-tab',       mode: '*', chord: 'Cmd+W',  action: 'closePane',             hint: 'close tab', skipInInput: true },
+  { id: 'navigate-left',   mode: '*', chord: 'Cmd+[',  action: 'navigateLeft',          hint: '← pane' },
+  { id: 'navigate-right',  mode: '*', chord: 'Cmd+]',  action: 'navigateRight',         hint: '→ pane' },
+  { id: 'copy',            mode: '*', chord: 'Cmd+C',  action: 'copyTerminalSelection', hint: 'copy',      skipInInput: true },
+  { id: 'paste',           mode: '*', chord: 'Cmd+V',  action: 'pasteIntoTerminal',     hint: 'paste',     skipInInput: true },
 
   // Navigation mode - non-customizable arrow keys (always available)
-  { mode: 'nav', chord: 'ArrowLeft',  action: 'focusPrev',    hint: '← prev',  stopPropagation: true },
-  { mode: 'nav', chord: 'ArrowRight', action: 'focusNext',    hint: '→ next',  stopPropagation: true },
-  { mode: 'nav', chord: 'Enter',       action: 'commitFocus', hint: '↵ focus', stopPropagation: true },
-  { mode: 'nav', chord: 'Escape',      action: 'cancelNav',   hint: 'esc cancel', stopPropagation: true },
+  { mode: 'nav', chord: 'ArrowLeft',  action: 'focusPrev',   hint: '← prev',     stopPropagation: true },
+  { mode: 'nav', chord: 'ArrowRight', action: 'focusNext',   hint: '→ next',     stopPropagation: true },
+  { mode: 'nav', chord: 'Enter',      action: 'commitFocus', hint: '↵ focus',    stopPropagation: true },
+  { mode: 'nav', chord: 'Escape',     action: 'cancelNav',   hint: 'esc cancel', stopPropagation: true },
 
   // Navigation mode - customizable vim-style keys (optional)
-  { id: 'nav-left',  mode: 'nav', chord: 'h', action: 'focusPrev',    hint: 'h prev',  stopPropagation: true },
-  { id: 'nav-right', mode: 'nav', chord: 'l', action: 'focusNext',    hint: 'l next',  stopPropagation: true },
+  { id: 'nav-left',  mode: 'nav', chord: 'h', action: 'focusPrev', hint: 'h prev', stopPropagation: true },
+  { id: 'nav-right', mode: 'nav', chord: 'l', action: 'focusNext', hint: 'l next', stopPropagation: true },
 
-  // Navigation mode — movement (VIB-33)
-  { id: 'focus-first',     mode: 'nav', chord: 'Home',           action: 'focusFirst',            hint: 'Home first' },
-  { id: 'focus-last',      mode: 'nav', chord: 'End',            action: 'focusLast',             hint: 'End last' },
-  { id: 'jump-to',         mode: 'nav', chord: '1..9',           action: 'jumpTo',                hint: '1-9 jump',         skipInInput: true },
+  // Navigation mode — movement
+  { id: 'focus-first', mode: 'nav', chord: 'Home',  action: 'focusFirst', hint: 'Home first' },
+  { id: 'focus-last',  mode: 'nav', chord: 'End',   action: 'focusLast',  hint: 'End last' },
+  { id: 'jump-to',     mode: 'nav', chord: '1..9',  action: 'jumpTo',     hint: '1-9 jump',  skipInInput: true },
 
-  // Navigation mode — editing (VIB-33)
-  { id: 'new-pane',        mode: 'nav', chord: 'n',              action: 'newPane',               hint: 'n new',            skipInInput: true },
-  { id: 'close-pane',      mode: 'nav', chord: 'x',              action: 'closePane',             hint: 'x close',          skipInInput: true },
-  { id: 'rename-pane',     mode: 'nav', chord: 'r',              action: 'renamePane',            hint: 'r rename',         skipInInput: true },
+  // Navigation mode — editing
+  { id: 'new-pane',    mode: 'nav', chord: 'n', action: 'newPane',    hint: 'n new',    skipInInput: true },
+  { id: 'close-pane',  mode: 'nav', chord: 'x', action: 'closePane',  hint: 'x close',  skipInInput: true },
+  { id: 'rename-pane', mode: 'nav', chord: 'r', action: 'renamePane', hint: 'r rename', skipInInput: true },
 ];
 
 // ---------------------------------------------------------------------------
 // Chord parsing
 //
-// A chord like "Ctrl+Shift+C" is split into one or more *alternatives* (joined
+// A chord like "Cmd+Shift+C" is split into one or more *alternatives* (joined
 // by `|`) and each alternative is split on `+`. The last token is the key,
-// the rest are modifiers. We treat `Cmd`/`Meta` as `Ctrl` so a chord written
-// `Ctrl+B` fires for both `Ctrl+B` on Linux/Windows and `Cmd+B` on macOS —
-// matching the legacy behavior of `shortcuts-registry.js`.
+// the rest are modifiers.
+//
+// `Ctrl` and `Cmd`/`Meta` are kept as separate modifiers so that app-level
+// shortcuts written with `Cmd` do not intercept `Ctrl+*` terminal sequences
+// (e.g. Ctrl+B reaching tmux, Ctrl+C reaching the PTY).
 // ---------------------------------------------------------------------------
 
 const MOD_TOKENS = new Set(['ctrl', 'cmd', 'meta', 'shift', 'alt', 'option']);
@@ -71,7 +75,7 @@ const MOD_TOKENS = new Set(['ctrl', 'cmd', 'meta', 'shift', 'alt', 'option']);
 /**
  * Parse a chord string into an array of alternatives.
  * @param {string} chord
- * @returns {Array<{key: string, ctrl: boolean, shift: boolean, alt: boolean}>}
+ * @returns {Array<{key: string, ctrl: boolean, meta: boolean, shift: boolean, alt: boolean}>}
  */
 export function parseChord(chord) {
   return chord.split('|').map(parseChordAlt);
@@ -89,6 +93,7 @@ function parseChordAlt(alt) {
     return {
       key: '?',
       ctrl: false,
+      meta: false,
       shift: false,
       alt: false,
       _digitRange: { lo, hi }
@@ -105,7 +110,8 @@ function parseChordAlt(alt) {
 
   return {
     key,
-    ctrl: mods.includes('ctrl') || mods.includes('cmd') || mods.includes('meta'),
+    ctrl: mods.includes('ctrl'),
+    meta: mods.includes('cmd') || mods.includes('meta'),
     shift: mods.includes('shift'),
     alt: mods.includes('alt') || mods.includes('option'),
   };
@@ -116,7 +122,7 @@ function parseChordAlt(alt) {
  *
  * Tab is matched on `event.code` so the binding is keyboard-layout-agnostic,
  * and auto-repeats are dropped (one press = one step). Single-character keys
- * are compared case-insensitively so chord `Ctrl+Shift+C` fires regardless of
+ * are compared case-insensitively so chord `Cmd+Shift+C` fires regardless of
  * whether Shift causes the browser to deliver `c` or `C`.
  */
 export function matchesChord(event, parsedAlts) {
@@ -144,8 +150,10 @@ function matchesChordAlt(event, alt) {
     if (normalizeKey(event.key) !== normalizeKey(alt.key)) return false;
   }
 
-  const ctrlHeld = Boolean(event.ctrlKey || event.metaKey);
-  if (alt.ctrl !== ctrlHeld) return false;
+  // Ctrl and Cmd/Meta are distinct: a chord written with Cmd only matches
+  // when metaKey is held (not ctrlKey), and vice versa.
+  if (alt.ctrl !== Boolean(event.ctrlKey)) return false;
+  if (alt.meta !== Boolean(event.metaKey)) return false;
 
   // Special case for '?' key: it requires Shift on most keyboards,
   // but the chord is written as just '?' (no Shift modifier).
@@ -177,7 +185,8 @@ export function formatChord(chord, platform = 'linux') {
   const [first] = parseChord(chord);
   const isMac = platform === 'darwin';
   const parts = [];
-  if (first.ctrl)  parts.push(isMac ? '⌘' : 'Ctrl');
+  if (first.ctrl)  parts.push(isMac ? '^' : 'Ctrl');
+  if (first.meta)  parts.push(isMac ? '⌘' : 'Cmd');
   if (first.shift) parts.push(isMac ? '⇧' : 'Shift');
   if (first.alt)   parts.push(isMac ? '⌥' : 'Alt');
   parts.push(formatKeyForDisplay(first.key));
