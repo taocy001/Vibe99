@@ -15,7 +15,7 @@
         "label": "main",
         "title": "Vibe99",
         "width": 1600,
-        "height": 920,
+        "height": 1800,
         "minWidth": 960,
         "minHeight": 640,
         "resizable": true,
@@ -27,6 +27,7 @@
     "security": {
       "csp": "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; font-src 'self' data:;"
     },
+    "macOSPrivateApi": true,
     "withGlobalTauri": true
   },
   "bundle": {

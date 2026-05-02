@@ -4876,6 +4876,8 @@ name = "vibe99"
 version = "0.7.2"
 dependencies = [
  "base64 0.22.1",
+ "objc2",
+ "objc2-app-kit",
  "portable-pty",
  "regex",
  "serde",

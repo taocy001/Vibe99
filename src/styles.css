@@ -72,14 +72,34 @@ body {
   overflow: hidden;
 }
 
+/* In macOS fullscreen the WKWebView can leave an uncovered strip at the
+   bottom. A fixed::before on html guarantees the viewport canvas is filled
+   with the correct solid colour no matter what 100vh resolves to. */
+html::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -9999;
+  background: var(--bg);
+  pointer-events: none;
+}
+
 .app-shell {
   display: grid;
   grid-template-rows: var(--tabs-height) 1fr var(--status-height);
   height: 100vh;
+  box-sizing: border-box;
+}
+
+/* In fullscreen, only the tab bar slides down when the auto-hide menu bar
+   appears — content stays in place (mirrors iTerm2 behavior). */
+html.is-fullscreen .tabs-panel {
+  z-index: 100;
+  background: var(--bg);
   transition: transform 0.22s ease;
 }
 
-html.is-fullscreen.menu-bar-showing .app-shell {
+html.is-fullscreen.menu-bar-showing .tabs-panel {
   transform: translateY(25px);
 }
 
@@ -1726,6 +1746,12 @@ body.is-dragging-tabs {
 .theme-light .status-bar {
   border-top-color: rgba(0, 0, 0, 0.08);
   color: rgba(0, 0, 0, 0.60);
+}
+
+/* allowTransparency:true + dark init → viewport bg stays black when switching to light; force it */
+.theme-light .terminal-host .xterm,
+.theme-light .terminal-host .xterm-viewport {
+  background-color: #f4f0ea !important;
 }
 
 .theme-light .hint {

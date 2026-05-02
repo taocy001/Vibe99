@@ -488,7 +488,19 @@ function applyColorMode(mode) {
   for (const [, node] of paneNodeMap) {
     const accent = node.accent || '#888888';
     node.terminal.options.theme = createTerminalTheme(accent);
+    fixXtermViewportBg(node.terminalHost, mode);
   }
+  // xterm.js may update viewport.style.backgroundColor asynchronously
+  requestAnimationFrame(() => {
+    for (const [, node] of paneNodeMap) {
+      fixXtermViewportBg(node.terminalHost, mode);
+    }
+  });
+}
+
+function fixXtermViewportBg(terminalHost, mode) {
+  const vp = terminalHost.querySelector('.xterm-viewport');
+  if (vp) vp.style.backgroundColor = mode === 'light' ? '#f4f0ea' : '';
 }
 
 function applySettings() {
@@ -1372,6 +1384,7 @@ function createPane(pane) {
   terminal.loadAddon(new Unicode11Addon());
   terminal.unicode.activeVersion = '11';
   terminal.open(terminalHost);
+  fixXtermViewportBg(terminalHost, settings.colorMode);
   terminal.loadAddon(new ImageAddon());
   try { terminal.loadAddon(new WebglAddon()); } catch {}
   terminal.attachCustomKeyEventHandler((event) => {
@@ -2879,6 +2892,7 @@ bridge.onOpenSettings(() => {
 {
   const html = document.documentElement;
   let menuBarTimer = null;
+  let fsCheckTimer = null;
   const tauriWin = window.__TAURI__?.window?.getCurrentWindow?.();
 
   async function updateFullscreenClass() {
@@ -2890,25 +2904,44 @@ bridge.onOpenSettings(() => {
       html.classList.remove('is-fullscreen', 'menu-bar-showing');
       clearTimeout(menuBarTimer);
     } else {
+      const wasFs = html.classList.contains('is-fullscreen');
       html.classList.add('is-fullscreen');
+      if (!wasFs) {
+        // macOS resets the native WKWebView background on fullscreen entry.
+        // Apply immediately and again after the animation settles (~600ms).
+        bridge.setWindowTheme(settings.colorMode).catch(() => {});
+        setTimeout(() => bridge.setWindowTheme(settings.colorMode).catch(() => {}), 600);
+      }
     }
   }
 
-  if (tauriWin) {
-    tauriWin.onResized(() => updateFullscreenClass());
+  // Debounce: macOS fullscreen animation takes ~300ms; check after it completes.
+  function scheduleFullscreenCheck() {
+    clearTimeout(fsCheckTimer);
+    fsCheckTimer = setTimeout(() => updateFullscreenClass(), 350);
   }
+
+  // Both resize sources: Tauri's onResized and the web-level resize event.
+  // onResized alone can fire before isFullscreen() reflects the new state.
+  if (tauriWin) {
+    tauriWin.onResized(() => scheduleFullscreenCheck());
+  }
+  window.addEventListener('resize', () => scheduleFullscreenCheck());
   updateFullscreenClass();
 
   document.addEventListener('mousemove', (e) => {
     if (!html.classList.contains('is-fullscreen')) return;
-    // clientY <= 5 catches cursor moving to the very top of the screen just
-    // before macOS intercepts events to show the auto-hide menu bar.
-    if (e.clientY <= 5) {
-      html.classList.add('menu-bar-showing');
+    if (e.clientY <= 40) {
+      if (!html.classList.contains('menu-bar-showing')) {
+        html.classList.add('menu-bar-showing');
+      }
       clearTimeout(menuBarTimer);
       menuBarTimer = setTimeout(() => {
         html.classList.remove('menu-bar-showing');
-      }, 3500);
+      }, 4000);
+    } else if (e.clientY > 60 && html.classList.contains('menu-bar-showing')) {
+      clearTimeout(menuBarTimer);
+      html.classList.remove('menu-bar-showing');
     }
   });
 }

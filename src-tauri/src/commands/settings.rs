@@ -207,6 +207,23 @@ fn sanitize_ui_config(ui: Option<&Value>) -> Value {
     result
 }
 
+/// Read whether the saved color mode is "light" from the settings file.
+/// Falls back to false (dark) when the setting is absent or unparseable.
+/// Used at startup to initialize IS_LIGHT_MODE before JS runs.
+pub fn get_saved_is_light(app: &AppHandle) -> bool {
+    settings_path(app)
+        .ok()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .and_then(|v| {
+            v.get("ui")
+                .and_then(|ui| ui.get("colorMode"))
+                .and_then(|m| m.as_str())
+                .map(|m| m == "light")
+        })
+        .unwrap_or(false)
+}
+
 /// Read the saved language code from the settings file without full sanitization.
 /// Falls back to the macOS system language when the setting is absent.
 /// Used at startup to localise native menu items before settings are fully loaded.
@@ -380,6 +397,14 @@ pub(crate) fn sanitize_config(candidate: &Value) -> Value {
 #[tauri::command]
 pub fn set_window_theme(app: AppHandle, mode: String) -> Result<(), String> {
     use tauri::{Theme, window::Color};
+
+    // Record the theme so the on_window_event Resized handler can read it
+    // without needing an IPC round-trip.
+    crate::IS_LIGHT_MODE.store(
+        mode == "light",
+        std::sync::atomic::Ordering::Relaxed,
+    );
+
     let window = app.get_webview_window("main")
         .ok_or_else(|| "main window not found".to_string())?;
     let theme = match mode.as_str() {
@@ -388,12 +413,91 @@ pub fn set_window_theme(app: AppHandle, mode: String) -> Result<(), String> {
         _       => None,
     };
     window.set_theme(theme).map_err(|e| format!("set_theme failed: {e}"))?;
-    // Sync native window background so macOS window chrome matches the CSS theme.
+    // Sync the WKWebView underPageBackgroundColor (overscroll colour).
     let bg = match mode.as_str() {
-        "light" => Color(235, 229, 221, 255), // ~#ebe5dd warm pearl
-        _       => Color(16,  16,  16,  255), // ~#101010 dark base
+        "light" => Color(235, 229, 221, 255),
+        _       => Color(16,  16,  16,  255),
     };
-    window.set_background_color(Some(bg)).map_err(|e| format!("set_background_color failed: {e}"))
+    window.set_background_color(Some(bg)).map_err(|e| format!("set_background_color failed: {e}"))?;
+    // Also set NSWindow.backgroundColor immediately on the main thread.
+    // The on_window_event Resized handler does the same thing reliably after
+    // fullscreen entry, but calling it here too covers theme-change scenarios.
+    #[cfg(target_os = "macos")]
+    apply_ns_window_background(window.app_handle(), &mode);
+    Ok(())
+}
+
+/// Schedule NSWindow.backgroundColor = theme colour on the main thread.
+/// Must be called from ANY thread; dispatches via run_on_main_thread.
+#[cfg(target_os = "macos")]
+pub fn apply_ns_window_background(app: &AppHandle, mode: &str) {
+    let is_light = mode == "light";
+    if let Some(win) = app.get_webview_window("main") {
+        let win2 = win.clone();
+        let _ = win.run_on_main_thread(move || {
+            if let Ok(ptr) = win2.ns_window() {
+                set_ns_window_bg_ptr(ptr, is_light);
+            }
+        });
+    }
+}
+
+/// Set the native window background AND the WryWebViewParent CALayer color.
+///
+/// The black strip visible in macOS fullscreen is NOT the NSWindow background —
+/// it is the CALayer.backgroundColor of the WryWebViewParent NSView that wry
+/// inserts as the content view (wry/src/wkwebview/mod.rs ~line 685).
+/// WKWebView itself has drawsBackground=false (transparent), so whatever is
+/// behind it shows through.  WryWebViewParent's CALayer defaults to opaque
+/// black, which is what appears during fullscreen when the WKWebView doesn't
+/// momentarily cover every pixel.
+///
+/// Must be called on the main thread.
+#[cfg(target_os = "macos")]
+pub fn set_ns_window_bg_ptr(ptr: *mut std::ffi::c_void, is_light: bool) {
+    let (r, g, b) = if is_light {
+        (235.0_f64 / 255.0, 229.0_f64 / 255.0, 221.0_f64 / 255.0)
+    } else {
+        (16.0_f64 / 255.0, 16.0_f64 / 255.0, 16.0_f64 / 255.0)
+    };
+    unsafe {
+        use objc2::runtime::AnyObject;
+        use objc2::msg_send;
+        use objc2_app_kit::{NSColor, NSWindow};
+
+        let ns_win: &NSWindow = &*(ptr as *const NSWindow);
+        let color = NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, 1.0);
+
+        // 1. NSWindow.backgroundColor — covers the narrow region behind the
+        //    content view during resize/animation.
+        ns_win.setBackgroundColor(Some(&color));
+
+        // 2. WryWebViewParent CALayer — this view is set as NSWindow.contentView
+        //    by wry. Its CALayer defaults to opaque black, which shows through
+        //    the transparent WKWebView in the strip below the CSS viewport.
+        let content_view: *mut AnyObject = msg_send![ns_win, contentView];
+        if !content_view.is_null() {
+            let () = msg_send![content_view, setWantsLayer: true];
+            let layer: *mut AnyObject = msg_send![content_view, layer];
+            if !layer.is_null() {
+                let cg_color: *mut AnyObject = msg_send![&color, CGColor];
+                let () = msg_send![layer, setBackgroundColor: cg_color];
+            }
+
+            let subviews: *mut AnyObject = msg_send![content_view, subviews];
+            let count: usize = msg_send![subviews, count];
+            for i in 0..count {
+                let sv: *mut AnyObject = msg_send![subviews, objectAtIndex: i];
+                let () = msg_send![sv, setWantsLayer: true];
+                let sv_layer: *mut AnyObject = msg_send![sv, layer];
+                if !sv_layer.is_null() {
+                    let cg_color: *mut AnyObject = msg_send![&color, CGColor];
+                    let () = msg_send![sv_layer, setBackgroundColor: cg_color];
+                }
+                let () = msg_send![sv, setUnderPageBackgroundColor: &*color];
+            }
+        }
+    }
 }
 
 /// Load the application settings from disk.

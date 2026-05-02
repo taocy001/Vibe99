@@ -6,7 +6,7 @@ use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, Predefined
 use vibe99_lib::commands::context_menu;
 use vibe99_lib::commands::context_menu::MenuActionPayload;
 use vibe99_lib::commands::settings;
-use vibe99_lib::commands::settings::get_saved_language;
+use vibe99_lib::commands::settings::{get_saved_language, get_saved_is_light};
 use vibe99_lib::commands::shell_integration;
 use vibe99_lib::commands::shell_profile;
 use vibe99_lib::commands::terminal::{self, AppState};
@@ -24,6 +24,10 @@ fn main() {
             pty: Arc::new(PtyManager::new()),
         })
         .setup(|app| {
+            // Initialize IS_LIGHT_MODE from saved settings before any Resized events fire.
+            let is_light = get_saved_is_light(app.app_handle());
+            vibe99_lib::IS_LIGHT_MODE.store(is_light, std::sync::atomic::Ordering::Relaxed);
+
             let lang = get_saved_language(app.app_handle());
             let l = lang.as_str();
 
@@ -140,6 +144,22 @@ fn main() {
                 let state = window.state::<AppState>();
                 terminal::destroy_all_terminals(&state);
                 std::process::exit(0);
+            }
+            // After every resize (including fullscreen entry/exit), re-apply
+            // NSWindow.backgroundColor so the native area outside the WKWebView
+            // CSS viewport is never black. This fires after windowDidEnterFullScreen:
+            // completes — the correct moment to set the colour.
+            #[cfg(target_os = "macos")]
+            if matches!(event, tauri::WindowEvent::Resized(_)) {
+                use std::sync::atomic::Ordering;
+                let is_light = vibe99_lib::IS_LIGHT_MODE.load(Ordering::Relaxed);
+                let win = window.clone();
+                // run_on_main_thread ensures the AppKit call is on the right thread.
+                let _ = window.run_on_main_thread(move || {
+                    if let Ok(ptr) = win.ns_window() {
+                        vibe99_lib::commands::settings::set_ns_window_bg_ptr(ptr, is_light);
+                    }
+                });
             }
         })
         .run(tauri::generate_context!())
