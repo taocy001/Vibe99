@@ -19,6 +19,7 @@ import * as ColorsRegistry from './colors-registry.js';
 import { createActions } from './input/actions.js';
 import { createDispatcher } from './input/dispatcher.js';
 import { renderHintBar } from './hint-bar.js';
+import { t, setLocale, getLocale, SUPPORTED_LOCALES } from './i18n.js';
 
 function getRuntimePlatform() {
   const platform = navigator.platform.toLowerCase();
@@ -360,6 +361,15 @@ const breathingAlertToggleEl = document.getElementById('breathing-alert-toggle')
 const shellProfilesSettingsBtn = document.getElementById('shell-profiles-settings-btn');
 const keyboardShortcutsSettingsBtn = document.getElementById('keyboard-shortcuts-settings-btn');
 const shellIntegrationInstallBtn = document.getElementById('shell-integration-install-btn');
+const languageSelectEl = document.getElementById('language-select');
+
+// Populate language selector
+SUPPORTED_LOCALES.forEach(({ code, label }) => {
+  const opt = document.createElement('option');
+  opt.value = code;
+  opt.textContent = label;
+  languageSelectEl.appendChild(opt);
+});
 
 const settings = {
   fontSize: 13,
@@ -368,6 +378,7 @@ const settings = {
   paneMaskOpacity: 0.75,
   paneWidth: 720,
   breathingAlertEnabled: true,
+  language: 'en',
 };
 let pendingSettingsSave = null;
 
@@ -464,6 +475,12 @@ function getPaneLabel(pane) {
   return pane.title ?? pane.terminalTitle ?? '';
 }
 
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+}
+
 function applySettings() {
   document.documentElement.style.setProperty('--app-font-size', `${settings.fontSize}px`);
   document.documentElement.style.setProperty('--pane-opacity', settings.paneOpacity.toFixed(2));
@@ -480,6 +497,7 @@ function applySettings() {
   paneMaskOpacityValueEl.textContent = settings.paneMaskOpacity.toFixed(2);
   breathingAlertToggleEl.checked = settings.breathingAlertEnabled;
   paneActivityWatcher.setGlobalEnabled(settings.breathingAlertEnabled);
+  languageSelectEl.value = settings.language;
 }
 
 function applyPersistedSettings(nextSettings) {
@@ -524,6 +542,11 @@ function applyPersistedSettings(nextSettings) {
 
   if (typeof uiSettings.breathingAlertEnabled === 'boolean') {
     settings.breathingAlertEnabled = uiSettings.breathingAlertEnabled;
+  }
+
+  if (typeof uiSettings.language === 'string') {
+    settings.language = uiSettings.language;
+    setLocale(uiSettings.language);
   }
 
   // Load keyboard shortcuts
@@ -2151,23 +2174,23 @@ async function showTerminalContextMenu(node, event) {
   const breathingOn = pane && pane.breathingMonitor !== false;
 
   const items = [
-    { label: 'Copy', action: 'terminal-copy', disabled: !node.terminal.hasSelection(), shortcut: '⇧⌘C' },
-    { label: 'Paste', action: 'terminal-paste', disabled: !clipboardSnapshot.text, shortcut: '⇧⌘V' },
-    { label: 'Paste Image', action: 'terminal-paste-image', disabled: !clipboardSnapshot.hasImage },
+    { label: t('menu.copy'), action: 'terminal-copy', disabled: !node.terminal.hasSelection(), shortcut: '⇧⌘C' },
+    { label: t('menu.paste'), action: 'terminal-paste', disabled: !clipboardSnapshot.text, shortcut: '⇧⌘V' },
+    { label: t('menu.pasteImage'), action: 'terminal-paste-image', disabled: !clipboardSnapshot.hasImage },
     { type: 'separator' },
-    { label: 'Change Color...', action: 'terminal-change-color' },
+    { label: t('menu.changeColor'), action: 'terminal-change-color' },
     {
-      label: 'Background activity alert',
+      label: t('menu.backgroundActivityAlert'),
       action: 'pane-toggle-breathing',
       shortcut: breathingOn ? '✓' : '',
     },
-    { label: 'Select All', action: 'terminal-select-all', shortcut: '⌘A' },
+    { label: t('menu.selectAll'), action: 'terminal-select-all', shortcut: '⌘A' },
   ];
 
   if (shellChildren.length > 0) {
     items.push(
       { type: 'separator' },
-      { label: 'Change Profile', children: shellChildren },
+      { label: t('menu.changeProfile'), children: shellChildren },
     );
   }
 
@@ -2189,10 +2212,10 @@ function showTabContextMenu(paneId, event) {
   const hasCustomColor = pane && pane.customColor !== undefined;
 
   const items = [
-    { label: 'Change Color...', action: 'tab-change-color' },
+    { label: t('menu.changeColor'), action: 'tab-change-color' },
     { type: 'separator' },
-    { label: 'Rename Tab', action: 'tab-rename' },
-    { label: 'Close Tab', action: 'tab-close', disabled: panes.length <= 1 },
+    { label: t('menu.renameTab'), action: 'tab-rename' },
+    { label: t('menu.closeTab'), action: 'tab-close' },
   ];
   showContextMenu(items, event.clientX, event.clientY, paneId);
 }
@@ -2604,11 +2627,11 @@ async function runInstallShellIntegration() {
     const result = await bridge.installShellIntegration();
     await bridge.writeClipboardText(result.sourceLine);
     settingsPanelEl.classList.add('is-hidden');
-    statusLabelEl.textContent = `Shell integration installed. Source line copied — paste into your ~/.zshrc or ~/.bashrc`;
+    statusLabelEl.textContent = t('msg.shellIntegrationInstalled');
     setTimeout(() => { statusLabelEl.textContent = ''; }, 8000);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    statusLabelEl.textContent = `Shell integration install failed: ${message}`;
+    statusLabelEl.textContent = `${t('msg.shellIntegrationFailed')}${message}`;
     setTimeout(() => { statusLabelEl.textContent = ''; }, 6000);
   }
 }
@@ -2753,6 +2776,13 @@ breathingAlertToggleEl.addEventListener('change', () => {
   scheduleSettingsSave();
 });
 
+languageSelectEl.addEventListener('change', () => {
+  settings.language = languageSelectEl.value;
+  setLocale(settings.language);
+  applyTranslations();
+  scheduleSettingsSave();
+});
+
 window.addEventListener('pointerdown', (event) => {
   if (
     !settingsPanelEl.classList.contains('is-hidden') &&
@@ -2778,6 +2808,28 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
     setBroadcastEnabled(!broadcastEnabled);
   }
+  // Cmd+= or Cmd++ → increase font size; Cmd+- → decrease; Cmd+0 → reset
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+    if (event.key === '=' || event.key === '+') {
+      event.preventDefault();
+      settings.fontSize = Math.min(24, settings.fontSize + 1);
+      applySettings();
+      render(true);
+      scheduleSettingsSave();
+    } else if (event.key === '-') {
+      event.preventDefault();
+      settings.fontSize = Math.max(10, settings.fontSize - 1);
+      applySettings();
+      render(true);
+      scheduleSettingsSave();
+    } else if (event.key === '0') {
+      event.preventDefault();
+      settings.fontSize = 13;
+      applySettings();
+      render(true);
+      scheduleSettingsSave();
+    }
+  }
 });
 
 bridge.onOpenSettings(() => {
@@ -2799,6 +2851,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     const savedSettings = await bridge.loadSettings();
     applyPersistedSettings(savedSettings);
     applySettings();
+    applyTranslations();
     loadShellProfiles();
 
     if (savedSettings?.session?.panes?.length > 0) {
