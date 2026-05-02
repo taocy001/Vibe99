@@ -2873,6 +2873,46 @@ bridge.onOpenSettings(() => {
   settingsPanelEl.classList.remove('is-hidden');
 });
 
+// macOS fullscreen: shift content down when auto-hide menu bar appears.
+// Use Tauri's isFullscreen() API — window.innerHeight >= screen.height fails
+// on notched MacBooks where screen.height includes the notch area.
+{
+  const html = document.documentElement;
+  let menuBarTimer = null;
+  const tauriWin = window.__TAURI__?.window?.getCurrentWindow?.();
+
+  async function updateFullscreenClass() {
+    let isFs = false;
+    if (tauriWin) {
+      try { isFs = await tauriWin.isFullscreen(); } catch {}
+    }
+    if (!isFs) {
+      html.classList.remove('is-fullscreen', 'menu-bar-showing');
+      clearTimeout(menuBarTimer);
+    } else {
+      html.classList.add('is-fullscreen');
+    }
+  }
+
+  if (tauriWin) {
+    tauriWin.onResized(() => updateFullscreenClass());
+  }
+  updateFullscreenClass();
+
+  document.addEventListener('mousemove', (e) => {
+    if (!html.classList.contains('is-fullscreen')) return;
+    // clientY <= 5 catches cursor moving to the very top of the screen just
+    // before macOS intercepts events to show the auto-hide menu bar.
+    if (e.clientY <= 5) {
+      html.classList.add('menu-bar-showing');
+      clearTimeout(menuBarTimer);
+      menuBarTimer = setTimeout(() => {
+        html.classList.remove('menu-bar-showing');
+      }, 3500);
+    }
+  });
+}
+
 window.addEventListener('resize', () => {
   try {
     render(true);

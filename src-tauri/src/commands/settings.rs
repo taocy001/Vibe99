@@ -379,15 +379,21 @@ pub(crate) fn sanitize_config(candidate: &Value) -> Value {
 /// Set the native window theme (dark / light / auto) at runtime.
 #[tauri::command]
 pub fn set_window_theme(app: AppHandle, mode: String) -> Result<(), String> {
-    use tauri::Theme;
+    use tauri::{Theme, window::Color};
     let window = app.get_webview_window("main")
         .ok_or_else(|| "main window not found".to_string())?;
     let theme = match mode.as_str() {
         "dark"  => Some(Theme::Dark),
         "light" => Some(Theme::Light),
-        _       => None, // "auto" — follow system
+        _       => None,
     };
-    window.set_theme(theme).map_err(|e| format!("set_theme failed: {e}"))
+    window.set_theme(theme).map_err(|e| format!("set_theme failed: {e}"))?;
+    // Sync native window background so macOS window chrome matches the CSS theme.
+    let bg = match mode.as_str() {
+        "light" => Color(235, 229, 221, 255), // ~#ebe5dd warm pearl
+        _       => Color(16,  16,  16,  255), // ~#101010 dark base
+    };
+    window.set_background_color(Some(bg)).map_err(|e| format!("set_background_color failed: {e}"))
 }
 
 /// Load the application settings from disk.

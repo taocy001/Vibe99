@@ -76,6 +76,11 @@ body {
   display: grid;
   grid-template-rows: var(--tabs-height) 1fr var(--status-height);
   height: 100vh;
+  transition: transform 0.22s ease;
+}
+
+html.is-fullscreen.menu-bar-showing .app-shell {
+  transform: translateY(25px);
 }
 
 .tabs-panel {
