@@ -2,8 +2,9 @@
 
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
-use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use vibe99_lib::commands::context_menu;
+use vibe99_lib::commands::context_menu::MenuActionPayload;
 use vibe99_lib::commands::settings;
 use vibe99_lib::commands::shell_integration;
 use vibe99_lib::commands::shell_profile;
@@ -39,7 +40,51 @@ fn main() {
                 .item(&PredefinedMenuItem::quit(app, None)?)
                 .build()?;
 
-            let menu = MenuBuilder::new(app).item(&app_menu).build()?;
+            let new_pane_item = MenuItemBuilder::new("New Pane")
+                .id("new-pane")
+                .accelerator("CmdOrCtrl+N")
+                .build(app)?;
+            let close_pane_item = MenuItemBuilder::new("Close Pane")
+                .id("close-pane")
+                .accelerator("CmdOrCtrl+W")
+                .build(app)?;
+            let broadcast_item = CheckMenuItemBuilder::new("Broadcast Input")
+                .id("broadcast-toggle")
+                .accelerator("CmdOrCtrl+Shift+B")
+                .checked(false)
+                .build(app)?;
+
+            let shell_menu = SubmenuBuilder::new(app, "Shell")
+                .item(&new_pane_item)
+                .item(&close_pane_item)
+                .separator()
+                .item(&broadcast_item)
+                .build()?;
+
+            let font_increase_item = MenuItemBuilder::new("Increase Font Size")
+                .id("font-size-increase")
+                .accelerator("CmdOrCtrl+=")
+                .build(app)?;
+            let font_decrease_item = MenuItemBuilder::new("Decrease Font Size")
+                .id("font-size-decrease")
+                .accelerator("CmdOrCtrl+-")
+                .build(app)?;
+            let font_reset_item = MenuItemBuilder::new("Reset Font Size")
+                .id("font-size-reset")
+                .accelerator("CmdOrCtrl+0")
+                .build(app)?;
+
+            let view_menu = SubmenuBuilder::new(app, "View")
+                .item(&font_increase_item)
+                .item(&font_decrease_item)
+                .item(&font_reset_item)
+                .build()?;
+
+            let menu = MenuBuilder::new(app)
+                .item(&app_menu)
+                .item(&shell_menu)
+                .item(&view_menu)
+                .build()?;
             app.set_menu(menu)?;
             Ok(())
         })
@@ -48,6 +93,15 @@ fn main() {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.emit("open-settings", ());
                 }
+                return;
+            }
+
+            let action = event.id().0.clone();
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.emit("vibe99:menu-action", MenuActionPayload {
+                    action,
+                    pane_id: None,
+                });
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -74,6 +128,7 @@ fn main() {
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 let state = window.state::<AppState>();
                 terminal::destroy_all_terminals(&state);
+                window.app_handle().exit(0);
             }
         })
         .run(tauri::generate_context!())
