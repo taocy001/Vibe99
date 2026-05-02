@@ -18,84 +18,101 @@
         </div>
         <section class="settings-panel is-hidden" id="settings-panel" aria-label="Settings">
 
-          <div class="settings-section-header" data-i18n="settings.section.terminal">Terminal</div>
-          <div class="settings-section">
-            <label class="settings-row" for="font-family-input">
-              <span data-i18n="settings.font">Font</span>
-            </label>
-            <input class="settings-number" id="font-family-input" type="text" placeholder="MesloLGS NF, Menlo, monospace" value="" />
+          <!-- Tab navigation -->
+          <nav class="settings-tabs" role="tablist">
+            <button class="settings-tab-btn is-active" role="tab" data-tab="appearance" aria-selected="true" data-i18n="settings.tab.appearance">Appearance</button>
+            <button class="settings-tab-btn" role="tab" data-tab="window" aria-selected="false" data-i18n="settings.tab.window">Window</button>
+            <button class="settings-tab-btn" role="tab" data-tab="general" aria-selected="false" data-i18n="settings.tab.general">General</button>
+          </nav>
 
-            <label class="settings-row" for="font-size-input">
-              <span data-i18n="settings.fontSize">Font size</span>
-              <span id="font-size-display" class="settings-value">13</span>
-            </label>
-            <input id="font-size-input" type="range" min="10" max="24" step="1" value="13" />
-          </div>
+          <!-- Appearance tab -->
+          <div class="settings-tab-panel" id="settings-tab-appearance" role="tabpanel">
+            <div class="settings-section">
 
-          <div class="settings-divider"></div>
+              <div class="settings-segmented" id="color-mode-segmented" role="group" aria-label="Color mode">
+                <button class="settings-segment is-active" data-value="dark" data-i18n="settings.colorMode.dark">Dark</button>
+                <button class="settings-segment" data-value="light" data-i18n="settings.colorMode.light">Light</button>
+                <button class="settings-segment" data-value="auto" data-i18n="settings.colorMode.auto">Auto</button>
+              </div>
 
-          <div class="settings-section-header" data-i18n="settings.section.panes">Panes</div>
-          <div class="settings-section">
-            <label class="settings-row" for="pane-width-range">
-              <span data-i18n="settings.paneWidth">Width</span>
-              <span id="pane-width-value" class="settings-value">720px</span>
-            </label>
-            <input id="pane-width-range" type="range" min="520" max="2000" step="10" value="720" />
+              <div class="settings-divider"></div>
 
-            <label class="settings-row" for="pane-opacity-range">
-              <span data-i18n="settings.paneOpacity">Opacity</span>
-              <span id="pane-opacity-value" class="settings-value">0.80</span>
-            </label>
-            <input id="pane-opacity-range" type="range" min="0.55" max="1" step="0.01" value="0.8" />
+              <label class="settings-label" for="font-family-input" data-i18n="settings.font">Font</label>
+              <input class="settings-number" id="font-family-input" type="text" placeholder="MesloLGS NF, Menlo, monospace" value="" />
 
-            <label class="settings-row" for="pane-mask-alpha-range">
-              <span data-i18n="settings.inactiveTint">Inactive tint</span>
-              <span id="pane-mask-alpha-value" class="settings-value">0.25</span>
-            </label>
-            <input id="pane-mask-alpha-range" type="range" min="0" max="1" step="0.01" value="0.25" />
+              <label class="settings-row" for="font-size-input">
+                <span data-i18n="settings.fontSize">Font size</span>
+                <span id="font-size-display" class="settings-value">13</span>
+              </label>
+              <input id="font-size-input" type="range" min="10" max="24" step="1" value="13" />
 
-            <label class="settings-row" for="breathing-alert-toggle">
-              <span data-i18n="settings.activityIndicator">Activity indicator</span>
-              <input id="breathing-alert-toggle" class="settings-toggle" type="checkbox" checked />
-            </label>
+              <div class="settings-divider"></div>
 
-            <label class="settings-row" for="show-status-bar-toggle">
-              <span data-i18n="settings.showStatusBar">Show status bar</span>
-              <input id="show-status-bar-toggle" class="settings-toggle" type="checkbox" />
-            </label>
+              <label class="settings-row" for="show-status-bar-toggle">
+                <span data-i18n="settings.showStatusBar">Show status bar</span>
+                <input id="show-status-bar-toggle" class="settings-toggle" type="checkbox" />
+              </label>
 
-            <label class="settings-row" for="color-mode-select">
-              <span data-i18n="settings.colorMode">Color mode</span>
-            </label>
-            <select id="color-mode-select" class="settings-select">
-              <option value="dark" data-i18n="settings.colorMode.dark">Dark</option>
-              <option value="light" data-i18n="settings.colorMode.light">Light</option>
-              <option value="auto" data-i18n="settings.colorMode.auto">Auto</option>
-            </select>
-          </div>
-
-          <div class="settings-divider"></div>
-
-          <div class="settings-section-header" data-i18n="settings.section.configuration">Configuration</div>
-          <div class="settings-section">
-            <label class="settings-row" for="language-select">
-              <span data-i18n="settings.language">Language</span>
-            </label>
-            <select id="language-select" class="settings-select"></select>
-
-            <div class="settings-row settings-clickable-row" id="shell-profiles-settings-btn" role="button" tabindex="0" aria-label="Configure shell profiles">
-              <span data-i18n="settings.shellProfiles">Shell Profiles</span>
-              <span class="settings-row-hint">›</span>
-            </div>
-            <div class="settings-row settings-clickable-row" id="keyboard-shortcuts-settings-btn" role="button" tabindex="0" aria-label="Configure keyboard shortcuts">
-              <span data-i18n="settings.keyboardShortcuts">Keyboard Shortcuts</span>
-              <span class="settings-row-hint">›</span>
-            </div>
-            <div class="settings-row settings-clickable-row" id="shell-integration-install-btn" role="button" tabindex="0" aria-label="Install shell integration">
-              <span data-i18n="settings.installShellIntegration">Install Shell Integration</span>
-              <span class="settings-row-hint">›</span>
             </div>
           </div>
+
+          <!-- Window tab -->
+          <div class="settings-tab-panel is-hidden" id="settings-tab-window" role="tabpanel">
+            <div class="settings-section">
+
+              <label class="settings-row" for="pane-width-range">
+                <span data-i18n="settings.paneWidth">Width</span>
+                <span id="pane-width-value" class="settings-value">720px</span>
+              </label>
+              <input id="pane-width-range" type="range" min="520" max="2000" step="10" value="720" />
+
+              <label class="settings-row" for="pane-opacity-range">
+                <span data-i18n="settings.paneOpacity">Opacity</span>
+                <span id="pane-opacity-value" class="settings-value">0.80</span>
+              </label>
+              <input id="pane-opacity-range" type="range" min="0.55" max="1" step="0.01" value="0.8" />
+
+              <label class="settings-row" for="pane-mask-alpha-range">
+                <span data-i18n="settings.inactiveTint">Inactive dim</span>
+                <span id="pane-mask-alpha-value" class="settings-value">0.25</span>
+              </label>
+              <input id="pane-mask-alpha-range" type="range" min="0" max="1" step="0.01" value="0.25" />
+
+              <div class="settings-divider"></div>
+
+              <label class="settings-row" for="breathing-alert-toggle">
+                <span data-i18n="settings.activityIndicator">Activity indicator</span>
+                <input id="breathing-alert-toggle" class="settings-toggle" type="checkbox" checked />
+              </label>
+
+            </div>
+          </div>
+
+          <!-- General tab -->
+          <div class="settings-tab-panel is-hidden" id="settings-tab-general" role="tabpanel">
+            <div class="settings-section">
+
+              <label class="settings-label" for="language-select" data-i18n="settings.language">Language</label>
+              <select id="language-select" class="settings-select"></select>
+
+              <div class="settings-divider"></div>
+
+              <div class="settings-row settings-clickable-row" id="shell-profiles-settings-btn" role="button" tabindex="0" aria-label="Configure shell profiles">
+                <span data-i18n="settings.shellProfiles">Shell Profiles</span>
+                <span class="settings-row-hint">›</span>
+              </div>
+              <div class="settings-row settings-clickable-row" id="keyboard-shortcuts-settings-btn" role="button" tabindex="0" aria-label="Configure keyboard shortcuts">
+                <span data-i18n="settings.keyboardShortcuts">Keyboard Shortcuts</span>
+                <span class="settings-row-hint">›</span>
+              </div>
+              <div class="settings-row settings-clickable-row" id="shell-integration-install-btn" role="button" tabindex="0" aria-label="Install shell integration">
+                <span data-i18n="settings.installShellIntegration">Install Shell Integration</span>
+                <span class="settings-row-hint">›</span>
+              </div>
+
+            </div>
+          </div>
+
         </section>
       </header>
 

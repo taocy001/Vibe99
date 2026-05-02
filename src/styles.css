@@ -306,8 +306,8 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   transform: translateX(-50%);
   display: grid;
   gap: 0;
-  width: 280px;
-  padding: 5px 0;
+  width: 340px;
+  padding: 0 0 4px;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 10px;
   background: rgba(30, 30, 32, 0.88);
@@ -324,6 +324,88 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
 
 .settings-panel.is-hidden {
   display: none;
+}
+
+/* ── Tab navigation ───────────────────────────────────────────── */
+.settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 8px 0;
+  gap: 2px;
+}
+
+.settings-tab-btn {
+  appearance: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.38);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 4px 6px;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-tab-btn:hover {
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.settings-tab-btn.is-active {
+  color: rgba(255, 255, 255, 0.95);
+  border-bottom-color: rgba(255, 255, 255, 0.65);
+}
+
+.settings-tab-panel.is-hidden {
+  display: none;
+}
+
+/* ── Segmented control (color mode) ──────────────────────────── */
+.settings-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.settings-segment {
+  appearance: none;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.42);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  height: 24px;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.settings-segment:hover {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.settings-segment.is-active {
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Settings label (full-width, above a control) ────────────── */
+.settings-label {
+  display: block;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .settings-section-header {
@@ -1736,6 +1818,46 @@ body.is-dragging-tabs {
 
 .theme-light .settings-divider {
   background: rgba(0, 0, 0, 0.08);
+}
+
+.theme-light .settings-tabs {
+  border-bottom-color: rgba(0, 0, 0, 0.09);
+}
+
+.theme-light .settings-tab-btn {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.theme-light .settings-tab-btn:hover {
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.theme-light .settings-tab-btn.is-active {
+  color: rgba(0, 0, 0, 0.90);
+  border-bottom-color: rgba(0, 0, 0, 0.50);
+}
+
+.theme-light .settings-segmented {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.theme-light .settings-segment {
+  color: rgba(0, 0, 0, 0.40);
+}
+
+.theme-light .settings-segment:hover {
+  color: rgba(0, 0, 0, 0.70);
+}
+
+.theme-light .settings-segment.is-active {
+  background: rgba(0, 0, 0, 0.10);
+  color: rgba(0, 0, 0, 0.90);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.theme-light .settings-label {
+  color: rgba(0, 0, 0, 0.80);
 }
 
 .theme-light input[type="range"] {

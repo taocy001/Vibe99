@@ -354,7 +354,13 @@ const paneMaskOpacityRangeEl = document.getElementById('pane-mask-alpha-range');
 const paneMaskOpacityValueEl = document.getElementById('pane-mask-alpha-value');
 const breathingAlertToggleEl = document.getElementById('breathing-alert-toggle');
 const showStatusBarToggleEl = document.getElementById('show-status-bar-toggle');
-const colorModeSelectEl = document.getElementById('color-mode-select');
+const colorModeSegmentedEl = document.getElementById('color-mode-segmented');
+
+function applyColorModeUI(mode) {
+  colorModeSegmentedEl?.querySelectorAll('.settings-segment').forEach(btn => {
+    btn.classList.toggle('is-active', btn.dataset.value === mode);
+  });
+}
 const shellProfilesSettingsBtn = document.getElementById('shell-profiles-settings-btn');
 const keyboardShortcutsSettingsBtn = document.getElementById('keyboard-shortcuts-settings-btn');
 const shellIntegrationInstallBtn = document.getElementById('shell-integration-install-btn');
@@ -521,7 +527,7 @@ function applySettings() {
   paneActivityWatcher.setGlobalEnabled(settings.breathingAlertEnabled);
   showStatusBarToggleEl.checked = settings.showStatusBar;
   document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
-  colorModeSelectEl.value = settings.colorMode;
+  applyColorModeUI(settings.colorMode);
   applyColorMode(settings.colorMode);
   languageSelectEl.value = settings.language;
 }
@@ -2520,6 +2526,99 @@ function handleMenuAction(action, paneId) {
     scheduleSettingsSave();
     return;
   }
+
+  if (action === 'close-window') {
+    void bridge.closeWindow().catch(reportError);
+    return;
+  }
+
+  if (action === 'rename-tab') {
+    const paneIndex = getFocusedIndex();
+    if (paneIndex !== -1) {
+      if (currentMode === 'nav') setMode('terminal');
+      beginRenamePane(paneIndex);
+    }
+    return;
+  }
+
+  if (action === 'clear-scrollback') {
+    const node = paneNodeMap.get(focusedPaneId);
+    if (node) node.terminal.clear();
+    return;
+  }
+
+  if (action === 'appearance-light' || action === 'appearance-dark' || action === 'appearance-auto') {
+    const mode = action.slice('appearance-'.length);
+    settings.colorMode = mode;
+    applyColorModeUI(mode);
+    applyColorMode(mode);
+    scheduleSettingsSave();
+    return;
+  }
+
+  if (action === 'toggle-status-bar') {
+    settings.showStatusBar = !settings.showStatusBar;
+    showStatusBarToggleEl.checked = settings.showStatusBar;
+    document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
+    scheduleSettingsSave();
+    return;
+  }
+
+  if (action === 'toggle-navigation-mode') {
+    if (currentMode === 'nav') {
+      setMode('terminal');
+      if (focusedPaneId) focusPane(focusedPaneId, { focusTerminal: true });
+    } else {
+      enterNavigationMode();
+    }
+    return;
+  }
+
+  if (action === 'next-tab') {
+    const idx = getFocusedIndex();
+    if (idx !== -1 && panes.length > 1) {
+      focusPane(panes[(idx + 1) % panes.length].id, { focusTerminal: true });
+    }
+    return;
+  }
+
+  if (action === 'prev-tab') {
+    const idx = getFocusedIndex();
+    if (idx !== -1 && panes.length > 1) {
+      focusPane(panes[(idx - 1 + panes.length) % panes.length].id, { focusTerminal: true });
+    }
+    return;
+  }
+
+  if (action === 'move-tab-left') {
+    const idx = getFocusedIndex();
+    if (idx > 0) {
+      [panes[idx - 1], panes[idx]] = [panes[idx], panes[idx - 1]];
+      render();
+      scheduleSettingsSave();
+    }
+    return;
+  }
+
+  if (action === 'move-tab-right') {
+    const idx = getFocusedIndex();
+    if (idx !== -1 && idx < panes.length - 1) {
+      [panes[idx], panes[idx + 1]] = [panes[idx + 1], panes[idx]];
+      render();
+      scheduleSettingsSave();
+    }
+    return;
+  }
+
+  if (action === 'pane-color') {
+    if (focusedPaneId) showColorPicker(focusedPaneId);
+    return;
+  }
+
+  if (action === 'keyboard-shortcuts') {
+    openKeymapHelpModal();
+    return;
+  }
 }
 
 function blurFocusedTerminal() {
@@ -2750,6 +2849,16 @@ shellIntegrationInstallBtn.addEventListener('keydown', (event) => {
 
 settingsPanelEl.addEventListener('click', (event) => {
   event.stopPropagation();
+  const tabBtn = event.target.closest('.settings-tab-btn');
+  if (!tabBtn) return;
+  const tabId = tabBtn.dataset.tab;
+  settingsPanelEl.querySelectorAll('.settings-tab-btn').forEach(b => {
+    b.classList.toggle('is-active', b === tabBtn);
+    b.setAttribute('aria-selected', b === tabBtn ? 'true' : 'false');
+  });
+  settingsPanelEl.querySelectorAll('.settings-tab-panel').forEach(p => {
+    p.classList.toggle('is-hidden', p.id !== `settings-tab-${tabId}`);
+  });
 });
 
 fontSizeRangeEl.addEventListener('input', () => {
@@ -2827,8 +2936,11 @@ showStatusBarToggleEl.addEventListener('change', () => {
   scheduleSettingsSave();
 });
 
-colorModeSelectEl.addEventListener('change', () => {
-  settings.colorMode = colorModeSelectEl.value;
+colorModeSegmentedEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('.settings-segment');
+  if (!btn) return;
+  settings.colorMode = btn.dataset.value;
+  applyColorModeUI(settings.colorMode);
   applyColorMode(settings.colorMode);
   scheduleSettingsSave();
 });
