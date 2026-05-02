@@ -59,7 +59,7 @@ fn main() {
             // ── Shell menu ────────────────────────────────────────────────
             let new_tab_item = MenuItemBuilder::new(ml("新建标签页", "新しいタブ", "New Tab"))
                 .id("new-pane")
-                .accelerator("CmdOrCtrl+N")
+                .accelerator("CmdOrCtrl+T")
                 .build(app)?;
             let close_tab_item = MenuItemBuilder::new(ml("关闭标签页", "タブを閉じる", "Close Tab"))
                 .id("close-pane")
@@ -143,7 +143,7 @@ fn main() {
                     .build(app)?;
             let navigation_mode_item = MenuItemBuilder::new(ml("导航模式", "ナビゲーションモード", "Navigation Mode"))
                 .id("toggle-navigation-mode")
-                .accelerator("CmdOrCtrl+Shift+N")
+                .accelerator("CmdOrCtrl+B")
                 .build(app)?;
 
             let view_menu = SubmenuBuilder::new(app, ml("视图", "表示", "View"))

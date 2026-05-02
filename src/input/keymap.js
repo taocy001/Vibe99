@@ -32,8 +32,8 @@ export const KEYMAP = [
   { id: 'navigation-mode', mode: '*', chord: 'Cmd+B',  action: 'enterNav',              hint: 'navigate',  skipInInput: true, stopPropagation: true },
   { id: 'new-tab',         mode: '*', chord: 'Cmd+T',  action: 'newPane',               hint: 'new tab' },
   { id: 'close-tab',       mode: '*', chord: 'Cmd+W',  action: 'closePane',             hint: 'close tab', skipInInput: true },
-  { id: 'navigate-left',   mode: '*', chord: 'Cmd+[',  action: 'navigateLeft',          hint: '← pane' },
-  { id: 'navigate-right',  mode: '*', chord: 'Cmd+]',  action: 'navigateRight',         hint: '→ pane' },
+  { id: 'navigate-left',   mode: '*', chord: 'Cmd+Shift+[',  action: 'navigateLeft',  hint: '← tab' },
+  { id: 'navigate-right',  mode: '*', chord: 'Cmd+Shift+]',  action: 'navigateRight', hint: '→ tab' },
   { id: 'copy',            mode: '*', chord: 'Cmd+C',  action: 'copyTerminalSelection', hint: 'copy',      skipInInput: true },
   { id: 'paste',           mode: '*', chord: 'Cmd+V',  action: 'pasteIntoTerminal',     hint: 'paste',     skipInInput: true },
 
@@ -146,6 +146,10 @@ function matchesChordAlt(event, alt) {
   if (alt.key === 'Tab') {
     if (event.code !== 'Tab') return false;
     if (event.repeat) return false;
+  } else if (alt.key === '[' || alt.key === ']') {
+    // Match [ and ] by physical key code so Shift doesn't remap them to { / }.
+    const expected = alt.key === '[' ? 'BracketLeft' : 'BracketRight';
+    if (event.code !== expected) return false;
   } else {
     if (normalizeKey(event.key) !== normalizeKey(alt.key)) return false;
   }
