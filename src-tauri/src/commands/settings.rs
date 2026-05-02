@@ -189,6 +189,7 @@ fn sanitize_ui_config(ui: Option<&Value>) -> Value {
 }
 
 /// Read the saved language code from the settings file without full sanitization.
+/// Falls back to the macOS system language when the setting is absent.
 /// Used at startup to localise native menu items before settings are fully loaded.
 pub fn get_saved_language(app: &AppHandle) -> String {
     settings_path(app)
@@ -201,7 +202,40 @@ pub fn get_saved_language(app: &AppHandle) -> String {
                 .and_then(|l| l.as_str())
                 .map(str::to_string)
         })
-        .unwrap_or_else(|| "en".to_string())
+        .unwrap_or_else(get_system_language)
+}
+
+/// Detect the macOS display language from system preferences.
+/// Returns one of "zh-CN", "zh-TW", "ja", or "en".
+fn get_system_language() -> String {
+    // `defaults read -g AppleLanguages` returns an array like ("zh-Hans-US", "en-US")
+    let output = std::process::Command::new("defaults")
+        .args(["read", "-g", "AppleLanguages"])
+        .output()
+        .ok();
+
+    if let Some(out) = output {
+        let text = String::from_utf8_lossy(&out.stdout);
+        if text.contains("zh-Hans") || text.contains("zh-CN") {
+            return "zh-CN".to_string();
+        }
+        if text.contains("zh-Hant") || text.contains("zh-TW") {
+            return "zh-TW".to_string();
+        }
+        if text.contains("\"ja\"") || text.contains("ja-") {
+            return "ja".to_string();
+        }
+    }
+
+    // Fallback: LANG env var (e.g. "zh_CN.UTF-8")
+    std::env::var("LANG")
+        .map(|l| {
+            if l.contains("zh_CN") { "zh-CN".to_string() }
+            else if l.contains("zh_TW") { "zh-TW".to_string() }
+            else if l.starts_with("ja_") { "ja".to_string() }
+            else { "en".to_string() }
+        })
+        .unwrap_or_else(|_| "en".to_string())
 }
 
 /// Sanitize the `session` block of a config.
