@@ -1052,6 +1052,7 @@ body.hide-status-bar {
 
 /* Panels inside a split: disable the slide transition and adjust border */
 .pane.has-splits {
+  box-shadow: none;
   transition:
     box-shadow 120ms ease;
 }
@@ -1059,8 +1060,7 @@ body.hide-status-bar {
 .pane.has-splits.is-focused {
   border-color: color-mix(in srgb, var(--pane-accent) 60%, transparent);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--pane-accent) 40%, transparent) inset,
-    0 4px 14px rgba(0, 0, 0, 0.3);
+    0 0 0 1px color-mix(in srgb, var(--pane-accent) 40%, transparent) inset;
 }
 
 /* Light mode overrides for split dividers */
@@ -1224,6 +1224,11 @@ body.is-dragging-tabs {
 
 .terminal-host .xterm-viewport {
   overflow: hidden !important;
+}
+
+/* Hide xterm's VS Code-style custom scrollbar widget; mouse-wheel scroll still works */
+.terminal-host .xterm .xterm-scrollable-element > .scrollbar {
+  display: none !important;
 }
 
 .context-menu {

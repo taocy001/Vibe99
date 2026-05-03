@@ -721,7 +721,7 @@ function restoreSession(session) {
           layout = deserializeLayout(p.layout, (leafData) => {
             const panelId = leafData.isRoot ? id : genPanelId();
             panelDataMap.set(panelId, {
-              cwd: (typeof leafData.cwd === 'string' && leafData.cwd) || bridge.defaultCwd,
+              cwd: validCwd(leafData.cwd),
               shellProfileId: (typeof leafData.shellProfileId === 'string' && leafData.shellProfileId) || null,
               accent: (typeof p.accent === 'string' && p.accent) || '#888888',
               breathingMonitor: leafData.breathingMonitor !== false,
@@ -741,7 +741,7 @@ function restoreSession(session) {
         id,
         title: (typeof p.title === 'string' && p.title) || null,
         terminalTitle: bridge.defaultTabTitle,
-        cwd: (typeof p.cwd === 'string' && p.cwd) || bridge.defaultCwd,
+        cwd: validCwd(p.cwd),
         accent: p.accent,
         customColor: (typeof p.customColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.customColor) && p.customColor) || undefined,
         shellProfileId: (typeof p.shellProfileId === 'string' && p.shellProfileId) || null,
@@ -1471,11 +1471,7 @@ function createPane(pane, { tabId = null } = {}) {
   const accentColor = pane.customColor || pane.accent;
   paneEl.style.setProperty('--pane-accent', accentColor);
   paneEl.addEventListener('click', () => {
-    if (isSplitPanel) {
-      focusSplitPanel(pane.id);
-    } else {
-      focusPane(pane.id);
-    }
+    focusSplitPanel(pane.id);
   });
 
   // Panel header — only visible when has-splits (via CSS)
@@ -1528,7 +1524,6 @@ function createPane(pane, { tabId = null } = {}) {
     fontSize: settings.fontSize,
     lineHeight: 1.2,
     scrollback: 5000,
-    overviewRulerWidth: 15,
     theme: createTerminalTheme(accentColor),
   });
   const fitAddon = new FitAddon();
@@ -1786,6 +1781,11 @@ function ensurePaneNodes() {
   }
 }
 
+function validCwd(cwd) {
+  if (typeof cwd !== 'string' || !cwd || cwd === '/' || cwd === '.') return bridge.defaultCwd;
+  return cwd;
+}
+
 function createPaneData() {
   const usedAccents = new Set(panes.map((p) => p.accent.toLowerCase()));
   const accent = ColorsRegistry.ACCENT_PALETTE.find((c) => !usedAccents.has(c.toLowerCase()))
@@ -1796,7 +1796,7 @@ function createPaneData() {
     id,
     title: null,
     terminalTitle: bridge.defaultTabTitle,
-    cwd: focusedPane?.cwd || bridge.defaultCwd,
+    cwd: bridge.defaultCwd,
     accent,
     shellProfileId: null,
     layout: null,
@@ -2064,10 +2064,12 @@ function getPanelDropZone(panelEl, mouseX, mouseY) {
 }
 
 function getHoveredPanelInfo(mouseX, mouseY, excludeId) {
-  // Find the topmost .pane element under the cursor (excluding the source panel)
+  const focusedPane = panes[getFocusedIndex()];
+  if (!focusedPane?.layout) return null;
+  const panelIds = new Set(collectPanelIds(focusedPane.layout));
   for (const [panelId, node] of paneNodeMap.entries()) {
     if (panelId === excludeId) continue;
-    if (node.root.style.display === 'none') continue;
+    if (!panelIds.has(panelId)) continue;
     const rect = node.root.getBoundingClientRect();
     if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
       return { panelId, node, zone: getPanelDropZone(node.root, mouseX, mouseY) };
@@ -2475,6 +2477,7 @@ function renderPanes(refit = false) {
         const node = paneNodeMap.get(leafNode.panelId);
         if (!node) return;
         const isPanelFocused = leafNode.panelId === pane.focusedPanelId;
+        node.root.style.clipPath = '';
         applyPanelStyle(node, accentColor, x, y, w, h, panes.length + 10, isPanelFocused, true);
         if (refit || node.needsFit) fitTerminal(node, true);
         visiblePanelIds.add(leafNode.panelId);
@@ -2486,6 +2489,12 @@ function renderPanes(refit = false) {
       if (node) {
         const left = getPaneLeft(index, previewWidth, focusedIndex);
         const w = panes.length === 1 ? stageWidth : settings.paneWidth;
+        // Clip non-focused panes to their visible preview strip so their
+        // border/shadow cannot bleed into the focused tab's split panels.
+        const clipInset = (!isFocusedTab && panes.length > 1 && previewWidth < settings.paneWidth)
+          ? `inset(0 ${settings.paneWidth - previewWidth}px 0 0)`
+          : '';
+        node.root.style.clipPath = clipInset;
         applyPanelStyle(node, accentColor, left, 0, w, stageHeight, index + 1, isFocusedTab, false);
         if (refit || node.needsFit) fitTerminal(node, true);
         visiblePanelIds.add(displayPanelId);
@@ -2500,7 +2509,7 @@ function renderPanes(refit = false) {
     }
   }
 
-  // Tab-level dividers between adjacent tabs
+  // Tab-level dividers between adjacent tabs — hidden when focused tab has a split layout
   const dividerCount = panes.length - 1;
   dividerEls.forEach((el, i) => {
     if (i >= dividerCount) {
