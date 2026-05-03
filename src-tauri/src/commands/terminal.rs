@@ -89,13 +89,15 @@ pub fn exit_app(state: State<'_, AppState>) {
 #[tauri::command]
 pub fn get_cwd() -> Result<String, String> {
     // On macOS the app bundle process starts at '/'; prefer $HOME as the
-    // sensible default cwd for new terminals.
-    std::env::var("HOME")
-        .or_else(|_| {
-            std::env::current_dir()
-                .map(|p| p.display().to_string())
-                .map_err(|e| format!("{e}"))
-        })
+    // sensible default cwd for new terminals.  Validate the path before
+    // returning it so the JS side always receives a real directory.
+    if let Ok(home) = std::env::var("HOME") {
+        if std::path::Path::new(&home).is_dir() {
+            return Ok(home);
+        }
+    }
+    std::env::current_dir()
+        .map(|p| p.display().to_string())
         .map_err(|e| format!("failed to get cwd: {e}"))
 }
 

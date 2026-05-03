@@ -295,6 +295,11 @@ const panelDataMap = new Map();
 let nextPanelSeq = 1;
 function genPanelId() { return `panel-${nextPanelSeq++}`; }
 
+function validCwd(cwd) {
+  if (typeof cwd !== 'string' || !cwd || cwd === '/' || cwd === '.') return bridge.defaultCwd;
+  return cwd;
+}
+
 // splitNode (object identity) → HTMLElement for split dividers
 const splitDividerElMap = new Map();
 // el (WeakMap) → { splitNode, direction, usableSize } — updated each render
@@ -313,17 +318,26 @@ const dividerEls = Array.from({ length: MAX_DIVIDERS }, () => {
 
 // RAF-throttle: drop mousemove callbacks that arrive faster than one animation
 // frame.  The latest event is always used so no state is lost.
+// Call .cancel() in the corresponding mouseup to discard any pending frame,
+// preventing a stale RAF from firing against a newly-started drag.
 function rafThrottle(fn) {
   let raf = null;
   let latest = null;
-  return function (e) {
+  function throttled(e) {
     latest = e;
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = null;
       fn(latest);
     });
+  }
+  throttled.cancel = () => {
+    if (raf !== null) {
+      cancelAnimationFrame(raf);
+      raf = null;
+    }
   };
+  return throttled;
 }
 
 let dividerDrag = null;
@@ -354,7 +368,7 @@ dividerEls.forEach((el) => {
   });
 });
 
-document.addEventListener('mousemove', rafThrottle((e) => {
+const onDividerMouseMove = rafThrottle((e) => {
   if (!dividerDrag) return;
   const { startX, initialDividerX, focusedIndex, paneCount, stageWidth, isLeftOfFocused, initialPaneWidth } = dividerDrag;
   const dx = e.clientX - startX;
@@ -371,13 +385,16 @@ document.addEventListener('mousemove', rafThrottle((e) => {
     applySettings();
     renderPanes(true);
   }
-}));
+});
+document.addEventListener('mousemove', onDividerMouseMove);
 
 document.addEventListener('mouseup', () => {
   if (!dividerDrag) return;
+  onDividerMouseMove.cancel();
   dividerDrag.el.classList.remove('is-dragging');
   document.body.style.cursor = '';
   dividerDrag = null;
+  renderPanes(true);
   scheduleSettingsSave();
 });
 
@@ -408,7 +425,7 @@ stageEl.addEventListener('mousedown', (e) => {
   document.body.style.cursor = divData.direction === 'v' ? 'col-resize' : 'row-resize';
 });
 
-document.addEventListener('mousemove', rafThrottle((e) => {
+const onSplitDividerMouseMove = rafThrottle((e) => {
   if (!splitDividerDrag) return;
   const { direction, startPos, initialRatio, usableSize, splitNode } = splitDividerDrag;
   const currentPos = direction === 'v' ? e.clientX : e.clientY;
@@ -421,10 +438,12 @@ document.addEventListener('mousemove', rafThrottle((e) => {
     // every mousemove; refit happens once on mouseup.
     renderPanes(false);
   }
-}));
+});
+document.addEventListener('mousemove', onSplitDividerMouseMove);
 
 document.addEventListener('mouseup', () => {
   if (!splitDividerDrag) return;
+  onSplitDividerMouseMove.cancel();
   splitDividerDrag.el.classList.remove('is-dragging');
   document.body.style.cursor = '';
   splitDividerDrag = null;
@@ -1490,6 +1509,12 @@ function createPane(pane, { tabId = null } = {}) {
   paneEl.className = 'pane';
   const accentColor = pane.customColor || pane.accent;
   paneEl.style.setProperty('--pane-accent', accentColor);
+  // Release the GPU compositor layer once the slide animation ends.
+  paneEl.addEventListener('transitionend', (e) => {
+    if (e.propertyName === 'transform') {
+      paneEl.style.willChange = '';
+    }
+  });
   paneEl.addEventListener('click', () => {
     focusSplitPanel(pane.id);
   });
@@ -1607,11 +1632,7 @@ function createPane(pane, { tabId = null } = {}) {
 
   terminalHost.addEventListener('contextmenu', (event) => {
     event.preventDefault();
-    if (isSplitPanel) {
-      focusSplitPanel(node.paneId, { focusTerminal: false });
-    } else {
-      focusPane(node.paneId, { focusTerminal: false });
-    }
+    focusSplitPanel(node.paneId, { focusTerminal: false });
     void showTerminalContextMenu(node, event);
   });
 
@@ -1799,11 +1820,6 @@ function ensurePaneNodes() {
       }
     }
   }
-}
-
-function validCwd(cwd) {
-  if (typeof cwd !== 'string' || !cwd || cwd === '/' || cwd === '.') return bridge.defaultCwd;
-  return cwd;
 }
 
 function createPaneData() {
@@ -2159,7 +2175,7 @@ stageEl.addEventListener('mousedown', (e) => {
   };
 }, true);
 
-document.addEventListener('mousemove', rafThrottle((e) => {
+const onPanelDragMouseMove = rafThrottle((e) => {
   if (!panelDragState) return;
   const { sourcePanelId, startX, startY } = panelDragState;
 
@@ -2206,10 +2222,12 @@ document.addEventListener('mousemove', rafThrottle((e) => {
     panelDragState.currentZone = null;
     if (panelDragState.dropOverlay) panelDragState.dropOverlay.style.display = 'none';
   }
-}));
+});
+document.addEventListener('mousemove', onPanelDragMouseMove);
 
 document.addEventListener('mouseup', (e) => {
   if (!panelDragState) return;
+  onPanelDragMouseMove.cancel();
   const { sourcePanelId, active, currentTargetId, currentZone, ghost, dropOverlay } = panelDragState;
   ghost?.remove();
   dropOverlay?.remove();
@@ -2383,6 +2401,9 @@ function getTabDropIndex(clientX) {
   return slot;
 }
 
+// Returns a string that captures everything visible in the tab bar.
+// Intentionally excludes pane.layout / focusedPanelId — tabs don't display
+// split state, so those changes don't require a tab DOM rebuild.
 function getTabsSig() {
   const d = dragState;
   return panes.map((p) =>
@@ -2447,6 +2468,9 @@ function applyPanelStyle(node, accentColor, x, y, w, h, zIndex, isFocused, hasSp
   } else {
     // Tab-slide panels: translateX keeps layout stable so the browser only
     // needs a composite pass (no layout recalculation) on each animation frame.
+    // Promote to compositor layer just before the transform changes; the
+    // transitionend listener in createPane removes it when the slide finishes.
+    node.root.style.willChange = 'transform';
     node.root.style.left = '0';
     node.root.style.top = '0';
     node.root.style.transform = `translateX(${x}px)`;
@@ -2545,6 +2569,8 @@ function renderPanes(refit = false) {
         const w = panes.length === 1 ? stageWidth : settings.paneWidth;
         // Clip non-focused panes to their visible preview strip so their
         // border/shadow cannot bleed into the focused tab's split panels.
+        // When previewWidth >= paneWidth the element doesn't overflow, so no
+        // clip is needed (empty string removes any previously set value).
         const clipInset = (!isFocusedTab && panes.length > 1 && previewWidth < settings.paneWidth)
           ? `inset(0 ${settings.paneWidth - previewWidth}px 0 0)`
           : '';
@@ -3714,6 +3740,13 @@ bridge.onOpenSettings(() => {
 
 let _resizeTimer = null;
 window.addEventListener('resize', () => {
+  // Reposition panes immediately so they track the window edge during drag.
+  // fitTerminal (the expensive part) is debounced until the resize ends.
+  try {
+    renderPanes(false);
+  } catch (error) {
+    reportError(error);
+  }
   clearTimeout(_resizeTimer);
   _resizeTimer = setTimeout(() => {
     try {
@@ -3721,7 +3754,7 @@ window.addEventListener('resize', () => {
     } catch (error) {
       reportError(error);
     }
-  }, 16);
+  }, 120);
 });
 
 window.addEventListener('DOMContentLoaded', async () => {

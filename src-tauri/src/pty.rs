@@ -694,10 +694,10 @@ fn build_command(candidate: &ShellCandidate, cwd: &Path) -> Result<CommandBuilde
 
 /// Resolve the working directory for a new PTY session.
 ///
-/// Mirrors `electron/main.js` → `getSpawnWorkingDirectory()`:
 /// 1. Use the provided `cwd` if it is a valid directory.
-/// 2. Fall back to the current working directory.
-/// 3. Fall back to the user's home directory.
+/// 2. Fall back to `$HOME` (preferred over process cwd on macOS app bundles
+///    which start at `/`).
+/// 3. Fall back to the process working directory.
 fn resolve_working_directory(cwd: Option<&str>) -> PathBuf {
     if let Some(cwd) = cwd {
         let p = PathBuf::from(cwd);

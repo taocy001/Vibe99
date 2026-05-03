@@ -835,7 +835,8 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   transition:
     transform 150ms cubic-bezier(0.2, 0.85, 0.32, 1),
     box-shadow 120ms ease;
-  will-change: transform;
+  /* will-change is set dynamically in JS just before a tab-slide transition
+     and cleared on transitionend to avoid holding permanent compositor layers */
 }
 
 /* Overlay mask: solid pane-accent board on top.
