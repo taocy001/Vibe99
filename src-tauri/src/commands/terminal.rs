@@ -83,6 +83,33 @@ pub fn exit_app(state: State<'_, AppState>) {
     std::process::exit(0);
 }
 
+/// Return username and hostname for window title format variables (\u, \h, \H).
+#[tauri::command]
+pub fn get_system_info() -> SystemInfo {
+    SystemInfo {
+        username: std::env::var("USER").unwrap_or_default(),
+        hostname: get_hostname(),
+    }
+}
+
+#[derive(serde::Serialize)]
+pub struct SystemInfo {
+    pub username: String,
+    pub hostname: String,
+}
+
+fn get_hostname() -> String {
+    if let Ok(h) = std::env::var("HOSTNAME") {
+        if !h.is_empty() { return h; }
+    }
+    std::process::Command::new("hostname")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default()
+}
+
 /// Return the current working directory as a string.
 ///
 /// Used by the frontend to derive the default tab title (directory basename).

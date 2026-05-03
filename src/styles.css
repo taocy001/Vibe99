@@ -408,6 +408,18 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   color: rgba(255, 255, 255, 0.85);
 }
 
+.settings-caption {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  line-height: 1.4;
+}
+
+.settings-caption code {
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.55);
+}
+
 .settings-section-header {
   font-size: 11px;
   font-weight: 600;
@@ -2025,6 +2037,14 @@ body.is-dragging-tabs {
 
 .theme-light .settings-label {
   color: rgba(0, 0, 0, 0.80);
+}
+
+.theme-light .settings-caption {
+  color: rgba(0, 0, 0, 0.38);
+}
+
+.theme-light .settings-caption code {
+  color: rgba(0, 0, 0, 0.55);
 }
 
 .theme-light input[type="range"] {

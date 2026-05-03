@@ -249,6 +249,7 @@ fn main() {
             terminal::terminal_resize,
             terminal::terminal_destroy,
             terminal::get_cwd,
+            terminal::get_system_info,
             terminal::exit_app,
             settings::settings_load,
             settings::settings_save,

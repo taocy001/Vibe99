@@ -126,6 +126,8 @@ function createUnavailableBridge() {
     detectShellProfiles: () => Promise.resolve([]),
     installShellIntegration: fail,
     setWindowTheme: () => Promise.resolve(),
+    setWindowTitle: () => Promise.resolve(),
+    getSystemInfo: () => Promise.resolve({ username: '', hostname: '' }),
     onTerminalData: () => () => {},
     onTerminalExit: () => () => {},
     onMenuAction: () => () => {},
@@ -210,6 +212,8 @@ function createTauriBridge(tauri) {
     detectShellProfiles: () => invoke('shell_profiles_detect'),
     installShellIntegration: () => invoke('install_shell_integration'),
     setWindowTheme: (mode) => invoke('set_window_theme', { mode }),
+    setWindowTitle: (title) => getCurrentWindow().setTitle(title).catch(() => {}),
+    getSystemInfo: () => invoke('get_system_info'),
     onTerminalData: (handler) => onTauriEvent('vibe99:terminal-data', handler),
     onTerminalExit: (handler) => onTauriEvent('vibe99:terminal-exit', handler),
     onMenuAction: (handler) => onTauriEvent('vibe99:menu-action', handler),
@@ -298,6 +302,54 @@ function genPanelId() { return `panel-${nextPanelSeq++}`; }
 function validCwd(cwd) {
   if (typeof cwd !== 'string' || !cwd || cwd === '/' || cwd === '.') return bridge.defaultCwd;
   return cwd;
+}
+
+// Return a display-friendly path with the home directory replaced by '~'.
+function abbreviatePath(path) {
+  if (!path) return '';
+  const home = bridge.defaultCwd;
+  if (home && path === home) return '~';
+  if (home && path.startsWith(home + '/')) return '~' + path.slice(home.length);
+  return path;
+}
+
+// panelId → current working directory, updated live by OSC 7 sequences.
+const activeCwdMap = new Map();
+
+// Username and hostname for \u, \h, \H format variables — fetched once at startup.
+let sysInfo = { username: '', hostname: '' };
+bridge.getSystemInfo().then((info) => { sysInfo = info; }).catch(() => {});
+
+// Shared PS1-compatible format string expansion used by both window title and status bar.
+// Variables: \w abbrev-cwd  \W cwd-basename  \u username  \h short-host  \H full-host  \p panel-indicator
+function expandTitleVars(fmt, focusedPane, panelIndicator = '') {
+  const activePanelId = focusedPane?.focusedPanelId ?? focusedPane?.id;
+  const rawCwd = activeCwdMap.get(activePanelId)
+    ?? panelDataMap.get(activePanelId)?.cwd
+    ?? focusedPane?.cwd
+    ?? '';
+  const abbrCwd = abbreviatePath(rawCwd);
+  const cwdBase = abbrCwd ? (abbrCwd === '~' ? '~' : basename(abbrCwd)) : '';
+  const shortHost = sysInfo.hostname.split('.')[0];
+  return fmt
+    .replace(/\\w/g, abbrCwd)
+    .replace(/\\W/g, cwdBase)
+    .replace(/\\u/g, sysInfo.username)
+    .replace(/\\H/g, sysInfo.hostname)
+    .replace(/\\h/g, shortHost)
+    .replace(/\\p/g, panelIndicator);
+}
+
+function getPanelIndicator(focusedPane) {
+  if (!focusedPane?.layout) return '';
+  const activePanelId = focusedPane.focusedPanelId ?? focusedPane.id;
+  const ids = collectPanelIds(focusedPane.layout);
+  return ids.length > 1 ? `  ·  ${ids.indexOf(activePanelId) + 1}/${ids.length}` : '';
+}
+
+function formatWindowTitle(fmt) {
+  const focusedPane = panes[getFocusedIndex()];
+  return expandTitleVars(fmt, focusedPane, getPanelIndicator(focusedPane));
 }
 
 // splitNode (object identity) → HTMLElement for split dividers
@@ -472,6 +524,7 @@ const paneMaskOpacityRangeEl = document.getElementById('pane-mask-alpha-range');
 const paneMaskOpacityValueEl = document.getElementById('pane-mask-alpha-value');
 const breathingAlertToggleEl = document.getElementById('breathing-alert-toggle');
 const showStatusBarToggleEl = document.getElementById('show-status-bar-toggle');
+const windowTitleFormatInputEl = document.getElementById('window-title-format');
 const colorModeSegmentedEl = document.getElementById('color-mode-segmented');
 
 function applyColorModeUI(mode) {
@@ -502,6 +555,7 @@ const settings = {
   showStatusBar: false,
   colorMode: 'dark',
   language: 'en',
+  windowTitleFormat: '\\w',
 };
 let pendingSettingsSave = null;
 
@@ -648,6 +702,7 @@ function applySettings() {
   applyColorModeUI(settings.colorMode);
   applyColorMode(settings.colorMode);
   languageSelectEl.value = settings.language;
+  if (windowTitleFormatInputEl) windowTitleFormatInputEl.value = settings.windowTitleFormat;
 }
 
 function applyPersistedSettings(nextSettings) {
@@ -705,6 +760,10 @@ function applyPersistedSettings(nextSettings) {
   if (typeof uiSettings.language === 'string') {
     settings.language = uiSettings.language;
     setLocale(uiSettings.language);
+  }
+
+  if (typeof uiSettings.windowTitleFormat === 'string') {
+    settings.windowTitleFormat = uiSettings.windowTitleFormat;
   }
 
   // Load keyboard shortcuts
@@ -1505,6 +1564,9 @@ function createTab(pane, index, focusedIndex, dragMeta) {
 function createPane(pane, { tabId = null } = {}) {
   const owningTabId = tabId ?? pane.id;
   const isSplitPanel = tabId !== null;
+  // Seed the live cwd map from the stored pane cwd so the window title
+  // shows a useful path immediately, before any OSC 7 update arrives.
+  if (pane.cwd) activeCwdMap.set(pane.id, pane.cwd);
   const paneEl = document.createElement('article');
   paneEl.className = 'pane';
   const accentColor = pane.customColor || pane.accent;
@@ -3330,9 +3392,8 @@ function cancelNavigationMode() {
 
 function updateStatus() {
   const focusedPane = panes[getFocusedIndex()];
-  const focusedPaneLabel = getPaneLabel(focusedPane) || focusedPane.id;
+  const focusedPaneLabel = getPaneLabel(focusedPane) || focusedPane?.id || '';
 
-  // Use the hint bar system
   const keymap = ShortcutsRegistry.getActiveKeymap();
   const { modeLabel, hintsHtml } = renderHintBar(
     keymap,
@@ -3344,6 +3405,9 @@ function updateStatus() {
   statusLabelEl.textContent = modeLabel;
   statusLabelEl.classList.toggle('is-navigation-mode', currentMode === 'nav');
   statusHintEl.innerHTML = hintsHtml;
+
+  const titleText = formatWindowTitle(settings.windowTitleFormat).trim();
+  bridge.setWindowTitle(titleText || 'Vibe99');
 }
 
 // ---------------------------------------------------------------------------
@@ -3629,6 +3693,12 @@ languageSelectEl.addEventListener('change', () => {
   settings.language = languageSelectEl.value;
   setLocale(settings.language);
   applyTranslations();
+  updateStatus();
+  scheduleSettingsSave();
+});
+
+windowTitleFormatInputEl?.addEventListener('input', () => {
+  settings.windowTitleFormat = windowTitleFormatInputEl.value;
   updateStatus();
   scheduleSettingsSave();
 });
