@@ -1666,6 +1666,36 @@ function createPane(pane, { tabId = null } = {}) {
   fixXtermViewportBg(terminalHost, settings.colorMode);
   terminal.loadAddon(new ImageAddon());
   try { terminal.loadAddon(new WebglAddon()); } catch {}
+
+  // xterm.js 6.x multiplies trackpad scroll delta by 0.3 (heuristic for small
+  // per-event deltas), which makes scrolling unusably slow on ProMotion displays
+  // that fire events at 120 Hz with proportionally smaller deltas.  We intercept
+  // wheel events in the capture phase — before xterm's bubble-phase listener on
+  // the inner canvas — and implement a clean delta→lines conversion that skips
+  // the 0.3 penalty while still accumulating fractional lines correctly.
+  let _scrollAccum = 0;
+  terminalHost.addEventListener('wheel', (ev) => {
+    if (ev.deltaY === 0) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    const fastMult = (ev.altKey || ev.ctrlKey || ev.shiftKey)
+      ? (terminal.options.fastScrollSensitivity ?? 5)
+      : 1;
+    let lines;
+    if (ev.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+      lines = ev.deltaY * fastMult;
+    } else if (ev.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      lines = Math.round(ev.deltaY * terminal.rows * fastMult);
+    } else {
+      // DOM_DELTA_PIXEL — macOS trackpad; normalize to cell height in CSS px
+      const pixelsPerLine = terminal.options.fontSize * terminal.options.lineHeight;
+      _scrollAccum += (ev.deltaY / pixelsPerLine) * fastMult;
+      lines = Math.trunc(_scrollAccum);
+      _scrollAccum -= lines;
+    }
+    if (lines !== 0) terminal.scrollLines(lines);
+  }, { capture: true, passive: false });
+
   terminal.attachCustomKeyEventHandler((event) => {
     // Ctrl+Tab is reserved for pane MRU cycling — never let xterm forward
     // the literal Tab keystroke to the PTY.

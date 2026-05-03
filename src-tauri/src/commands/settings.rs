@@ -516,6 +516,55 @@ pub fn set_ns_window_bg_ptr(ptr: *mut std::ffi::c_void, is_light: bool) {
     }
 }
 
+/// Walk the WKWebView layer hierarchy and set preferredFrameRateRange to allow
+/// up to 120 Hz rendering on ProMotion displays (macOS 12+).
+///
+/// wry places the WKWebView as subviews[0] of the NSWindow contentView.
+/// Must be called on the main thread.
+#[cfg(target_os = "macos")]
+pub fn configure_promotion_frame_rate(ns_window_ptr: *mut std::ffi::c_void) {
+    // CAFrameRateRange — available since macOS 12. Three f32 fields.
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct CAFrameRateRange { minimum: f32, maximum: f32, preferred: f32 }
+    unsafe impl objc2::encode::Encode for CAFrameRateRange {
+        const ENCODING: objc2::encode::Encoding = objc2::encode::Encoding::Struct(
+            "CAFrameRateRange",
+            &[f32::ENCODING, f32::ENCODING, f32::ENCODING],
+        );
+    }
+
+    unsafe {
+        use objc2::runtime::AnyObject;
+        use objc2::msg_send;
+        use objc2::sel;
+        use objc2_app_kit::NSWindow;
+
+        let ns_win: &NSWindow = &*(ns_window_ptr as *const NSWindow);
+        let content_view: *mut AnyObject = msg_send![ns_win, contentView];
+        if content_view.is_null() { return; }
+
+        let subviews: *mut AnyObject = msg_send![content_view, subviews];
+        let count: usize = msg_send![subviews, count];
+        if count == 0 { return; }
+
+        // WKWebView is the first subview of the wry WryWebViewParent
+        let webview: *mut AnyObject = msg_send![subviews, objectAtIndex: 0usize];
+        let () = msg_send![webview, setWantsLayer: true];
+        let layer: *mut AnyObject = msg_send![webview, layer];
+        if layer.is_null() { return; }
+
+        // Runtime guard: setPreferredFrameRateRange: only exists on macOS 12+
+        let sel = sel!(setPreferredFrameRateRange:);
+        let responds: bool = msg_send![layer, respondsToSelector: sel];
+        if !responds { return; }
+
+        // minimum=0 means no floor; maximum=120 cap; preferred=0 means "maximum available"
+        let range = CAFrameRateRange { minimum: 0.0, maximum: 120.0, preferred: 0.0 };
+        let () = msg_send![layer, setPreferredFrameRateRange: range];
+    }
+}
+
 /// Load the application settings from disk.
 ///
 /// Returns the sanitized config. If the file does not exist or cannot be

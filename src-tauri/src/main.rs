@@ -225,6 +225,20 @@ fn main() {
                 .item(&help_menu)
                 .build()?;
             app.set_menu(menu)?;
+
+            // Enable ProMotion (up to 120 Hz) on the WKWebView layer so the
+            // WebGL renderer and scroll animations run at the display's full
+            // refresh rate on MacBook Pro / Studio Display.
+            #[cfg(target_os = "macos")]
+            if let Some(win) = app.get_webview_window("main") {
+                let win2 = win.clone();
+                let _ = win.run_on_main_thread(move || {
+                    if let Ok(ptr) = win2.ns_window() {
+                        settings::configure_promotion_frame_rate(ptr);
+                    }
+                });
+            }
+
             Ok(())
         })
         .on_menu_event(|app, event| {
