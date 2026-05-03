@@ -159,58 +159,43 @@ fn sanitize_ui_config(ui: Option<&Value>) -> Value {
         "paneWidth": pane_width,
     });
 
+    // Helper: insert into the result object (always safe — result is json!({})).
+    let obj = result.as_object_mut().expect("json!({}) is always an Object");
+
     if !font_family.is_empty() {
-        result.as_object_mut().unwrap().insert(
-            "fontFamily".into(),
-            Value::String(font_family.to_string()),
-        );
+        obj.insert("fontFamily".into(), Value::String(font_family.to_string()));
     }
 
     // Preserve keyboard shortcuts if present
     if let Some(shortcuts) = ui.get("shortcuts").and_then(|v| v.as_object()) {
-        result.as_object_mut().unwrap().insert(
-            "shortcuts".into(),
-            Value::Object(shortcuts.clone()),
-        );
+        obj.insert("shortcuts".into(), Value::Object(shortcuts.clone()));
     }
 
     // Preserve language setting
     const VALID_LANGS: &[&str] = &["en", "zh-CN", "zh-TW", "ja"];
     if let Some(lang) = ui.get("language").and_then(|v| v.as_str()) {
         if VALID_LANGS.contains(&lang) {
-            result.as_object_mut().unwrap().insert(
-                "language".into(),
-                Value::String(lang.to_string()),
-            );
+            obj.insert("language".into(), Value::String(lang.to_string()));
         }
     }
 
     // Preserve showStatusBar boolean
     if let Some(show) = ui.get("showStatusBar").and_then(|v| v.as_bool()) {
-        result.as_object_mut().unwrap().insert(
-            "showStatusBar".into(),
-            Value::Bool(show),
-        );
+        obj.insert("showStatusBar".into(), Value::Bool(show));
     }
 
     // Preserve colorMode string
     const VALID_COLOR_MODES: &[&str] = &["dark", "light", "auto"];
     if let Some(mode) = ui.get("colorMode").and_then(|v| v.as_str()) {
         if VALID_COLOR_MODES.contains(&mode) {
-            result.as_object_mut().unwrap().insert(
-                "colorMode".into(),
-                Value::String(mode.to_string()),
-            );
+            obj.insert("colorMode".into(), Value::String(mode.to_string()));
         }
     }
 
     // Preserve scrollback line count (1000..=50000)
     if let Some(v) = ui.get("scrollback").and_then(|v| v.as_f64()) {
         let clamped = v.round().clamp(1000.0, 50000.0) as u64;
-        result.as_object_mut().unwrap().insert(
-            "scrollback".into(),
-            Value::Number(clamped.into()),
-        );
+        obj.insert("scrollback".into(), Value::Number(clamped.into()));
     }
 
     result
@@ -354,10 +339,12 @@ pub(crate) fn sanitize_config(candidate: &Value) -> Value {
         .and_then(|o| o.get("version"))
         .and_then(|v| v.as_u64());
 
+    // version.is_some() implies candidate is a JSON object (from the .and_then chain above),
+    // so as_object() is guaranteed to succeed in the Some(_) arms.
     match version {
         Some(v) if v >= 2 => {
             // Version 2+ format: sanitize ui, shell, and optionally session blocks.
-            let obj = candidate.as_object().unwrap();
+            let Some(obj) = candidate.as_object() else { unreachable!() };
             let profiles = sanitize_shell_profiles(obj.get("shell").and_then(|s| s.get("profiles")));
             let session = sanitize_session(obj.get("session"));
 
@@ -368,14 +355,17 @@ pub(crate) fn sanitize_config(candidate: &Value) -> Value {
             });
 
             if !session.is_null() {
-                result.as_object_mut().unwrap().insert("session".into(), session);
+                result
+                    .as_object_mut()
+                    .expect("json!({}) is always an Object")
+                    .insert("session".into(), session);
             }
 
             result
         }
         Some(v) if v == 1 => {
             // Version 1 → 2 migration: preserve ui, add empty shell block.
-            let obj = candidate.as_object().unwrap();
+            let Some(obj) = candidate.as_object() else { unreachable!() };
             serde_json::json!({
                 "version": CURRENT_CONFIG_VERSION,
                 "ui": sanitize_ui_config(obj.get("ui")),

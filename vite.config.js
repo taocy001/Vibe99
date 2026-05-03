@@ -15,4 +15,9 @@ export default defineConfig({
     strictPort: true,
   },
   clearScreen: false,
+  test: {
+    root: '.',
+    include: ['src/**/*.test.{js,ts}'],
+    environment: 'node',
+  },
 });

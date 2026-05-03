@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::wsl;
@@ -34,7 +34,8 @@ pub struct ShellCandidate {
 /// Non-alphanumeric runs become a single `-`; leading/trailing dashes are stripped.
 pub fn display_name_to_id(name: &str) -> String {
     use regex::Regex;
-    let re = Regex::new(r"[^a-z0-9]+").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"[^a-z0-9]+").expect("static regex is valid"));
     re.replace_all(&name.to_lowercase(), "-")
         .trim_matches('-')
         .to_string()

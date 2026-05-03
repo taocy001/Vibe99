@@ -352,8 +352,8 @@ mod tests {
     #[test]
     fn roundtrip() {
         let original = r"C:\Users\dev\project";
-        let wsl = windows_to_wsl_path(original).unwrap();
-        let back = wsl_to_windows_path(&wsl).unwrap();
+        let wsl = windows_to_wsl_path(original).expect("valid Windows path");
+        let back = wsl_to_windows_path(&wsl).expect("valid WSL path");
         assert_eq!(back, original);
     }
 
