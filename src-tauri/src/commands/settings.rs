@@ -204,6 +204,15 @@ fn sanitize_ui_config(ui: Option<&Value>) -> Value {
         }
     }
 
+    // Preserve scrollback line count (1000..=50000)
+    if let Some(v) = ui.get("scrollback").and_then(|v| v.as_f64()) {
+        let clamped = v.round().clamp(1000.0, 50000.0) as u64;
+        result.as_object_mut().unwrap().insert(
+            "scrollback".into(),
+            Value::Number(clamped.into()),
+        );
+    }
+
     result
 }
 

@@ -3728,6 +3728,9 @@ fontSizeRangeEl.addEventListener('input', () => {
 scrollbackInputEl.addEventListener('input', () => {
   settings.scrollback = Number(scrollbackInputEl.value);
   applySettings();
+  for (const [, node] of paneNodeMap) {
+    node.terminal.options.scrollback = settings.scrollback;
+  }
   scheduleSettingsSave();
 });
 
