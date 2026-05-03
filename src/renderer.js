@@ -308,8 +308,11 @@ function validCwd(cwd) {
 function abbreviatePath(path) {
   if (!path) return '';
   const home = bridge.defaultCwd;
-  if (home && path === home) return '~';
-  if (home && path.startsWith(home + '/')) return '~' + path.slice(home.length);
+  if (!home) return path;
+  if (path === home) return '~';
+  if (path.startsWith(home + '/') || path.startsWith(home + '\\')) {
+    return '~' + path.slice(home.length);
+  }
   return path;
 }
 
@@ -511,15 +514,19 @@ document.addEventListener('mouseup', () => {
 const tabsListEl = document.getElementById('tabs-list');
 const statusLabelEl = document.getElementById('status-label');
 const statusHintEl = document.getElementById('status-hint');
+const broadcastIndicatorEl = document.getElementById('broadcast-indicator');
 const addPaneButtonEl = document.getElementById('tabs-add');
 let broadcastEnabled = false;
 
 function setBroadcastEnabled(enabled) {
   broadcastEnabled = enabled;
+  broadcastIndicatorEl?.classList.toggle('is-active', enabled);
 }
 const settingsPanelEl = document.getElementById('settings-panel');
 const fontSizeRangeEl = document.getElementById('font-size-input');
 const fontSizeDisplayEl = document.getElementById('font-size-display');
+const scrollbackInputEl = document.getElementById('scrollback-input');
+const scrollbackDisplayEl = document.getElementById('scrollback-display');
 const fontFamilyInputEl = document.getElementById('font-family-input');
 const paneWidthRangeEl = document.getElementById('pane-width-range');
 const paneWidthValueEl = document.getElementById('pane-width-value');
@@ -558,6 +565,7 @@ const settings = {
   paneOpacity: 0.8,
   paneMaskOpacity: 0.75,
   paneWidth: 720,
+  scrollback: 5000,
   breathingAlertEnabled: true,
   showStatusBar: false,
   colorMode: 'dark',
@@ -697,6 +705,8 @@ function applySettings() {
   document.documentElement.style.setProperty('--pane-width', `${settings.paneWidth}px`);
   fontSizeRangeEl.value = String(settings.fontSize);
   fontSizeDisplayEl.textContent = String(settings.fontSize);
+  scrollbackInputEl.value = String(settings.scrollback);
+  scrollbackDisplayEl.textContent = String(settings.scrollback);
   fontFamilyInputEl.value = settings.fontFamily;
   paneWidthRangeEl.value = String(settings.paneWidth);
   paneWidthValueEl.textContent = `${settings.paneWidth}px`;
@@ -728,6 +738,10 @@ function applyPersistedSettings(nextSettings) {
 
   if (Number.isFinite(uiSettings.fontSize)) {
     settings.fontSize = uiSettings.fontSize;
+  }
+
+  if (Number.isFinite(uiSettings.scrollback)) {
+    settings.scrollback = Math.max(1000, Math.min(50000, uiSettings.scrollback));
   }
 
   if (typeof uiSettings.fontFamily === 'string') {
@@ -1649,7 +1663,7 @@ function createPane(pane, { tabId = null } = {}) {
     fontFamily: settings.fontFamily || getDefaultFontFamily(bridge.platform),
     fontSize: settings.fontSize,
     lineHeight: 1.2,
-    scrollback: 5000,
+    scrollback: settings.scrollback,
     theme: createTerminalTheme(accentColor),
   });
   const fitAddon = new FitAddon();
@@ -3583,6 +3597,24 @@ const keyboardActions = createActions({
   splitPanel,
   closeActivePanel,
   focusPanelDelta,
+  fontSizeIncrease: () => {
+    settings.fontSize = Math.min(24, settings.fontSize + 1);
+    applySettings();
+    render(true);
+    scheduleSettingsSave();
+  },
+  fontSizeDecrease: () => {
+    settings.fontSize = Math.max(10, settings.fontSize - 1);
+    applySettings();
+    render(true);
+    scheduleSettingsSave();
+  },
+  fontSizeReset: () => {
+    settings.fontSize = 13;
+    applySettings();
+    render(true);
+    scheduleSettingsSave();
+  },
 });
 
 const dispatchKeydown = createDispatcher({
@@ -3690,6 +3722,12 @@ fontSizeRangeEl.addEventListener('input', () => {
   settings.fontSize = Number(fontSizeRangeEl.value);
   applySettings();
   render(true);
+  scheduleSettingsSave();
+});
+
+scrollbackInputEl.addEventListener('input', () => {
+  settings.scrollback = Number(scrollbackInputEl.value);
+  applySettings();
   scheduleSettingsSave();
 });
 

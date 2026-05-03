@@ -87,7 +87,9 @@ pub fn exit_app(state: State<'_, AppState>) {
 #[tauri::command]
 pub fn get_system_info() -> SystemInfo {
     SystemInfo {
-        username: std::env::var("USER").unwrap_or_default(),
+        username: std::env::var("USER")
+            .or_else(|_| std::env::var("USERNAME"))
+            .unwrap_or_default(),
         hostname: get_hostname(),
     }
 }

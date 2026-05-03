@@ -63,5 +63,10 @@ export function createActions(deps) {
     splitDown:       () => deps.splitPanel('h'),
     focusPanelPrev:  () => deps.focusPanelDelta(-1),
     focusPanelNext:  () => deps.focusPanelDelta(1),
+
+    // Font size
+    fontSizeIncrease: () => deps.fontSizeIncrease(),
+    fontSizeDecrease: () => deps.fontSizeDecrease(),
+    fontSizeReset:    () => deps.fontSizeReset(),
   };
 }

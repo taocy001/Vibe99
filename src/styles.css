@@ -2143,3 +2143,16 @@ body.is-dragging-tabs {
     linear-gradient(180deg, rgba(0, 0, 0, 0.01), rgba(0, 0, 0, 0)),
     rgba(0, 0, 0, 0.01);
 }
+
+/* Broadcast mode indicator */
+#broadcast-indicator {
+  display: none;
+  flex: 0 0 auto;
+  color: #ff6b6b;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+#broadcast-indicator.is-active {
+  display: inline;
+}

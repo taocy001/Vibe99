@@ -48,6 +48,14 @@
 
               <div class="settings-divider"></div>
 
+              <label class="settings-row" for="scrollback-input">
+                <span data-i18n="settings.scrollback">Scrollback</span>
+                <span id="scrollback-display" class="settings-value">5000</span>
+              </label>
+              <input id="scrollback-input" type="range" min="1000" max="50000" step="1000" value="5000" />
+
+              <div class="settings-divider"></div>
+
               <label class="settings-row" for="show-status-bar-toggle">
                 <span data-i18n="settings.showStatusBar">Show status bar</span>
                 <input id="show-status-bar-toggle" class="settings-toggle" type="checkbox" />
@@ -137,6 +145,7 @@
       </main>
 
       <footer class="status-bar">
+        <span id="broadcast-indicator">⊕ BROADCAST</span>
         <span id="status-label"></span>
         <span class="status-hint" id="status-hint"></span>
       </footer>

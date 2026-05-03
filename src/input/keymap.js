@@ -40,6 +40,9 @@ export const KEYMAP = [
   { id: 'split-down',      mode: '*', chord: 'Cmd+Shift+D',  action: 'splitDown',       hint: 'split ↓',   skipInInput: true },
   { id: 'focus-panel-prev', mode: '*', chord: 'Cmd+[',       action: 'focusPanelPrev',  hint: '← panel',   skipInInput: true },
   { id: 'focus-panel-next', mode: '*', chord: 'Cmd+]',       action: 'focusPanelNext',  hint: '→ panel',   skipInInput: true },
+  { id: 'font-size-increase', mode: '*', chord: 'Cmd+=',  action: 'fontSizeIncrease', hint: 'font +', skipInInput: true },
+  { id: 'font-size-decrease', mode: '*', chord: 'Cmd+-',  action: 'fontSizeDecrease', hint: 'font -', skipInInput: true },
+  { id: 'font-size-reset',    mode: '*', chord: 'Cmd+0',  action: 'fontSizeReset',    hint: 'font reset', skipInInput: true },
 
   // Navigation mode - non-customizable arrow keys (always available)
   { mode: 'nav', chord: 'ArrowLeft',  action: 'focusPrev',   hint: '← prev',     stopPropagation: true },
