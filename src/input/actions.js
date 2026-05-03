@@ -68,5 +68,8 @@ export function createActions(deps) {
     fontSizeIncrease: () => deps.fontSizeIncrease(),
     fontSizeDecrease: () => deps.fontSizeDecrease(),
     fontSizeReset:    () => deps.fontSizeReset(),
+
+    // Terminal search
+    toggleSearch: () => deps.toggleSearch(),
   };
 }

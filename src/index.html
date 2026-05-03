@@ -151,6 +151,14 @@
       </footer>
     </div>
 
+    <div class="search-bar is-hidden" id="search-bar" role="search" aria-label="Terminal search">
+      <input type="text" id="search-input" class="search-input" placeholder="Search…" aria-label="Search terminal" autocomplete="off" spellcheck="false" />
+      <span id="search-count" class="search-count" aria-live="polite"></span>
+      <button id="search-prev" type="button" class="search-nav" aria-label="Previous match" title="Previous (Shift+Enter)">↑</button>
+      <button id="search-next" type="button" class="search-nav" aria-label="Next match" title="Next (Enter)">↓</button>
+      <button id="search-close" type="button" class="search-close" aria-label="Close search">×</button>
+    </div>
+
     <script type="module" src="./renderer.js"></script>
   </body>
 </html>

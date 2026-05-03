@@ -43,6 +43,7 @@ export const KEYMAP = [
   { id: 'font-size-increase', mode: '*', chord: 'Cmd+=|Cmd+Shift+=',  action: 'fontSizeIncrease', hint: 'font +', skipInInput: true },
   { id: 'font-size-decrease', mode: '*', chord: 'Cmd+-',  action: 'fontSizeDecrease', hint: 'font -', skipInInput: true },
   { id: 'font-size-reset',    mode: '*', chord: 'Cmd+0',  action: 'fontSizeReset',    hint: 'font reset', skipInInput: true },
+  { id: 'search',             mode: '*', chord: 'Cmd+F',  action: 'toggleSearch',     hint: 'find', stopPropagation: true },
 
   // Navigation mode - non-customizable arrow keys (always available)
   { mode: 'nav', chord: 'ArrowLeft',  action: 'focusPrev',   hint: '← prev',     stopPropagation: true },

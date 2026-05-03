@@ -1,5 +1,6 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
@@ -19,6 +20,7 @@ import * as ColorsRegistry from './colors-registry.js';
 import { createActions } from './input/actions.js';
 import { createDispatcher } from './input/dispatcher.js';
 import { renderHintBar } from './hint-bar.js';
+import { showContextMenu, hideContextMenu } from './context-menu.js';
 import { t, setLocale, getLocale, SUPPORTED_LOCALES } from './i18n.js';
 import {
   leaf as layoutLeaf,
@@ -299,6 +301,22 @@ const panelDataMap = new Map();
 let nextPanelSeq = 1;
 function genPanelId() { return `panel-${nextPanelSeq++}`; }
 
+// Centralized panel teardown: cleans every registry and disposes the xterm
+// instance. Always call this instead of manually removing from each map.
+function destroyPanelNode(panelId, node, { destroyTerminal = true } = {}) {
+  // If the destroyed panel was the search target, clear its decorations first.
+  if (!searchBarEl?.classList.contains('is-hidden') && focusedPaneId === panelId) {
+    node.searchAddon?.clearDecorations();
+  }
+  paneActivityWatcher.forget(panelId);
+  if (destroyTerminal) bridge.destroyTerminal({ paneId: panelId });
+  node.terminal.dispose();
+  node.root.remove();
+  paneNodeMap.delete(panelId);
+  panelDataMap.delete(panelId);
+  activeCwdMap.delete(panelId);
+}
+
 function validCwd(cwd) {
   if (typeof cwd !== 'string' || !cwd || cwd === '/' || cwd === '.') return bridge.defaultCwd;
   return cwd;
@@ -511,12 +529,121 @@ document.addEventListener('mouseup', () => {
   scheduleSettingsSave();
 });
 
+// P4-2: Double-click split divider → ratio preset menu
+let _pendingRatioNode = null;
+
+stageEl.addEventListener('dblclick', (e) => {
+  const el = e.target.closest('.pane-split-divider');
+  if (!el) return;
+  const divData = splitDividerDataMap.get(el);
+  if (!divData) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  _pendingRatioNode = divData.splitNode;
+  const isV = divData.direction === 'v';
+  const items = [
+    { label: 'Equal (50/50)',                                   action: 'split-ratio:0.5',  shortcut: Math.abs(divData.splitNode.ratio - 0.5)  < 0.02 ? '✓' : '' },
+    { label: isV ? 'Left larger (67/33)'  : 'Top larger (67/33)',    action: 'split-ratio:0.67', shortcut: Math.abs(divData.splitNode.ratio - 0.67) < 0.02 ? '✓' : '' },
+    { label: isV ? 'Right larger (33/67)' : 'Bottom larger (33/67)', action: 'split-ratio:0.33', shortcut: Math.abs(divData.splitNode.ratio - 0.33) < 0.02 ? '✓' : '' },
+  ];
+  showContextMenu(items, e.clientX, e.clientY,
+    (action) => handleMenuAction(action, null),
+    () => { _pendingRatioNode = null; },
+  );
+});
+
 const tabsListEl = document.getElementById('tabs-list');
 const statusLabelEl = document.getElementById('status-label');
 const statusHintEl = document.getElementById('status-hint');
 const broadcastIndicatorEl = document.getElementById('broadcast-indicator');
 const addPaneButtonEl = document.getElementById('tabs-add');
 let broadcastEnabled = false;
+
+// ── Terminal search bar ───────────────────────────────────────────────────────
+
+const searchBarEl = document.getElementById('search-bar');
+const searchInputEl = document.getElementById('search-input');
+const searchCountEl = document.getElementById('search-count');
+const searchPrevEl = document.getElementById('search-prev');
+const searchNextEl = document.getElementById('search-next');
+const searchCloseEl = document.getElementById('search-close');
+
+function getActiveSearchAddon() {
+  return focusedPaneId ? paneNodeMap.get(focusedPaneId)?.searchAddon : null;
+}
+
+const SEARCH_DECORATION_OPTS = {
+  matchBackground: '#ffdd5540',
+  matchBorder: '#ffdd5580',
+  matchOverviewRuler: '#ffdd55',
+  activeMatchBackground: '#ff990080',
+  activeMatchBorder: '#ff9900',
+  activeMatchColorOverviewRuler: '#ff9900',
+};
+
+// incremental=true only for live typing (expands selection in-place as user types).
+// Explicit Next/Prev calls use incremental=false so they always advance past the
+// current match.
+function runSearch(direction = 'next', { incremental = false } = {}) {
+  const addon = getActiveSearchAddon();
+  if (!addon) return;
+  const term = searchInputEl.value;
+  if (!term) {
+    addon.clearDecorations();
+    searchCountEl.textContent = '';
+    searchInputEl.classList.remove('no-match');
+    return;
+  }
+  const opts = { decorations: SEARCH_DECORATION_OPTS, incremental };
+  if (direction === 'next') {
+    addon.findNext(term, opts);
+  } else {
+    addon.findPrevious(term, opts);
+  }
+  // Count and no-match state are driven by onDidChangeResults; no local update here.
+}
+
+function openSearch() {
+  searchBarEl.classList.remove('is-hidden');
+  searchInputEl.focus();
+  searchInputEl.select();
+  runSearch('next');
+}
+
+function closeSearch() {
+  searchBarEl.classList.add('is-hidden');
+  const addon = getActiveSearchAddon();
+  addon?.clearDecorations();
+  searchInputEl.value = '';
+  searchCountEl.textContent = '';
+  searchInputEl.classList.remove('no-match');
+  paneNodeMap.get(focusedPaneId)?.terminal.focus();
+}
+
+function toggleSearch() {
+  if (searchBarEl.classList.contains('is-hidden')) {
+    openSearch();
+  } else {
+    closeSearch();
+  }
+}
+
+searchInputEl.addEventListener('input', () => runSearch('next', { incremental: true }));
+
+searchInputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    runSearch(e.shiftKey ? 'prev' : 'next');
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeSearch();
+  }
+});
+
+searchPrevEl.addEventListener('click', () => runSearch('prev'));
+searchNextEl.addEventListener('click', () => runSearch('next'));
+searchCloseEl.addEventListener('click', closeSearch);
 
 function setBroadcastEnabled(enabled) {
   broadcastEnabled = enabled;
@@ -973,6 +1100,18 @@ function createProfileActionButton(label, title, onClick) {
     onClick();
   });
   return btn;
+}
+
+function restartPane(paneId) {
+  const node = paneNodeMap.get(paneId);
+  if (!node) return;
+  node._shellChanging = true;
+  node._shellChangeTime = Date.now();
+  node.sessionReady = false;
+  node.terminal.clear();
+  initializePaneTerminal(node).finally(() => {
+    node._shellChanging = false;
+  });
 }
 
 function changePaneShell(paneId, profileId) {
@@ -1670,8 +1809,24 @@ function createPane(pane, { tabId = null } = {}) {
     theme: createTerminalTheme(accentColor),
   });
   const fitAddon = new FitAddon();
+  const searchAddon = new SearchAddon();
   const webLinksAddon = new WebLinksAddon(handleTerminalLinkActivation);
   terminal.loadAddon(fitAddon);
+  terminal.loadAddon(searchAddon);
+  searchAddon.onDidChangeResults(({ resultIndex, resultCount }) => {
+    if (searchBarEl.classList.contains('is-hidden')) return;
+    if (focusedPaneId !== pane.id) return;
+    const term = searchInputEl.value;
+    if (!term) return;
+    if (resultCount === 0) {
+      searchCountEl.textContent = 'No results';
+    } else if (resultIndex === -1) {
+      searchCountEl.textContent = `${resultCount}+`;
+    } else {
+      searchCountEl.textContent = `${resultIndex + 1} / ${resultCount}`;
+    }
+    searchInputEl.classList.toggle('no-match', resultCount === 0);
+  });
   terminal.loadAddon(webLinksAddon);
   // Unicode 11 width tables align xterm.js's wcwidth with what modern CLI
   // apps (Node.js / Ink-based UIs like Claude Code) assume, so CJK
@@ -1751,6 +1906,7 @@ function createPane(pane, { tabId = null } = {}) {
     terminalHost,
     terminal,
     fitAddon,
+    searchAddon,
     titleEl: panelTitleText,
     sessionReady: false,
     sizeKey: '',
@@ -1894,6 +2050,7 @@ function fitTerminal(node, force = false) {
 }
 
 async function initializePaneTerminal(node) {
+  if (!paneNodeMap.has(node.paneId)) return;
   fitTerminal(node, true);
   const pane = panes.find((p) => p.id === node.paneId);
   const panelData = panelDataMap.get(node.paneId);
@@ -1930,11 +2087,7 @@ function ensurePaneNodes() {
   // Remove stale nodes
   for (const [panelId, node] of paneNodeMap.entries()) {
     if (!activeIds.has(panelId)) {
-      paneActivityWatcher.forget(panelId);
-      bridge.destroyTerminal({ paneId: panelId });
-      node.terminal.dispose();
-      node.root.remove();
-      paneNodeMap.delete(panelId);
+      destroyPanelNode(panelId, node);
     }
   }
 
@@ -2075,8 +2228,12 @@ function closePane(index, options = {}) {
     clearPendingTabFocus();
   }
 
-  if (destroyTerminal) {
-    bridge.destroyTerminal({ paneId: closingPane.id });
+  // Destroy all panel nodes for this tab (primary + any split panels).
+  // Removing them from paneNodeMap here prevents ensurePaneNodes from
+  // calling bridge.destroyTerminal a second time for the same panels.
+  for (const panelId of collectPanelIds(getTabLayout(closingPane))) {
+    const node = paneNodeMap.get(panelId);
+    if (node) destroyPanelNode(panelId, node, { destroyTerminal });
   }
 
   const remainingPanes = panes.filter((_, paneIndex) => paneIndex !== index);
@@ -2185,15 +2342,14 @@ function closeActivePanel() {
   const newLayout = removeLeaf(focusedPane.layout, panelId);
 
   // Clean up the panel node
-  paneActivityWatcher.forget(panelId);
-  bridge.destroyTerminal({ paneId: panelId });
   const node = paneNodeMap.get(panelId);
   if (node) {
-    node.terminal.dispose();
-    node.root.remove();
-    paneNodeMap.delete(panelId);
+    destroyPanelNode(panelId, node);
+  } else {
+    // Node not yet created (rare) — still clean up the data maps
+    panelDataMap.delete(panelId);
+    activeCwdMap.delete(panelId);
   }
-  panelDataMap.delete(panelId);
 
   // Determine new focused panel
   let newFocusId;
@@ -2883,6 +3039,14 @@ function getPaneIndex(paneId) {
   return panes.findIndex((pane) => pane.id === paneId);
 }
 
+// For split panels, panelId != tab pane.id — find the owning tab.
+function getOwningTabId(panelId) {
+  const direct = panes.find((p) => p.id === panelId);
+  if (direct) return panelId;
+  const owner = panes.find((p) => collectPanelIds(getTabLayout(p)).includes(panelId));
+  return owner?.id ?? null;
+}
+
 function getPaneNode(paneId) {
   return paneNodeMap.get(paneId) ?? null;
 }
@@ -2950,123 +3114,16 @@ function selectAllInTerminal(paneId = focusedPaneId) {
   return true;
 }
 
-function showContextMenu(items, x, y, paneId) {
-  hideContextMenu();
-
-  const menu = document.createElement('div');
-  menu.className = 'context-menu';
-  menu.setAttribute('role', 'menu');
-
-  for (const item of items) {
-    if (item.type === 'separator') {
-      const sep = document.createElement('div');
-      sep.className = 'context-menu-separator';
-      menu.appendChild(sep);
-      continue;
-    }
-
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'context-menu-item';
-    row.setAttribute('role', 'menuitem');
-    row.disabled = item.disabled || false;
-
-    const label = document.createElement('span');
-    label.className = 'context-menu-label';
-    label.textContent = item.label;
-    row.appendChild(label);
-
-    if (item.shortcut) {
-      const shortcut = document.createElement('span');
-      shortcut.className = 'context-menu-shortcut';
-      shortcut.textContent = item.shortcut;
-      row.appendChild(shortcut);
-    }
-
-    row.addEventListener('click', (e) => {
-      e.stopPropagation();
-      hideContextMenu();
-      handleMenuAction(item.action, paneId);
-    });
-
-    if (item.children?.length) {
-      row.classList.add('context-menu-parent');
-      const submenu = document.createElement('div');
-      submenu.className = 'context-menu-submenu';
-      submenu.setAttribute('role', 'menu');
-      for (const child of item.children) {
-        const childRow = document.createElement('button');
-        childRow.type = 'button';
-        childRow.className = 'context-menu-item';
-        childRow.setAttribute('role', 'menuitem');
-        childRow.disabled = child.disabled || false;
-
-        const childLabel = document.createElement('span');
-        childLabel.className = 'context-menu-label';
-        childLabel.textContent = child.label;
-        childRow.appendChild(childLabel);
-
-        if (child.isDefault) {
-          const check = document.createElement('span');
-          check.className = 'context-menu-shortcut';
-          check.textContent = '★';
-          childRow.appendChild(check);
-        }
-
-        childRow.addEventListener('click', (e) => {
-          e.stopPropagation();
-          hideContextMenu();
-          handleMenuAction(child.action, paneId);
-        });
-
-        submenu.appendChild(childRow);
-      }
-      row.appendChild(submenu);
-    }
-
-    menu.appendChild(row);
-  }
-
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
-  document.body.appendChild(menu);
-
-  requestAnimationFrame(() => {
-    const rect = menu.getBoundingClientRect();
-    const winW = window.innerWidth;
-    const winH = window.innerHeight;
-
-    if (rect.right > winW) {
-      menu.style.left = `${Math.max(0, x - rect.width)}px`;
-    }
-    if (rect.bottom > winH) {
-      menu.style.top = `${Math.max(0, y - rect.height)}px`;
-    }
-  });
-
-  queueMicrotask(() => {
-    document.addEventListener('pointerdown', dismissContextMenuOnOutside);
-    window.addEventListener('blur', hideContextMenu);
-  });
-}
-
-function hideContextMenu() {
-  const menu = document.querySelector('.context-menu');
-  if (menu) {
-    menu.remove();
-  }
-  document.removeEventListener('pointerdown', dismissContextMenuOnOutside);
-  window.removeEventListener('blur', hideContextMenu);
-}
-
-function dismissContextMenuOnOutside(event) {
-  if (!event.target.closest('.context-menu')) {
-    hideContextMenu();
-  }
-}
+// showContextMenu and hideContextMenu are imported from ./context-menu.js
 
 async function showTerminalContextMenu(node, event) {
   const clipboardSnapshot = await getClipboardSnapshot();
+
+  const tabId = getOwningTabId(node.paneId);
+  const tabPane = tabId ? panes[getPaneIndex(tabId)] : null;
+  const breathingOn = tabPane && tabPane.breathingMonitor !== false;
+  const hasSplit = !!(tabPane?.layout);
+  const isOnlyTab = panes.length <= 1;
 
   const shellChildren = shellProfiles.map((p) => ({
     label: p.name || p.id,
@@ -3074,21 +3131,26 @@ async function showTerminalContextMenu(node, event) {
     isDefault: p.id === defaultShellProfileId,
   }));
 
-  const pane = panes[getPaneIndex(node.paneId)];
-  const breathingOn = pane && pane.breathingMonitor !== false;
-
   const items = [
-    { label: t('menu.copy'), action: 'terminal-copy', disabled: !node.terminal.hasSelection(), shortcut: '⇧⌘C' },
-    { label: t('menu.paste'), action: 'terminal-paste', disabled: !clipboardSnapshot.text, shortcut: '⇧⌘V' },
+    { label: t('menu.copy'),       action: 'terminal-copy',        disabled: !node.terminal.hasSelection(), shortcut: '⇧⌘C' },
+    { label: t('menu.paste'),      action: 'terminal-paste',       disabled: !clipboardSnapshot.text, shortcut: '⇧⌘V' },
     { label: t('menu.pasteImage'), action: 'terminal-paste-image', disabled: !clipboardSnapshot.hasImage },
+    { label: t('menu.selectAll'),  action: 'terminal-select-all',  shortcut: '⌘A' },
     { type: 'separator' },
+    { label: t('menu.find'),        action: 'terminal-find',       shortcut: '⌘F' },
+    { type: 'separator' },
+    { label: t('menu.splitRight'), action: 'split-right',  shortcut: '⌘D' },
+    { label: t('menu.splitDown'),  action: 'split-down',   shortcut: '⌘⇧D' },
+    ...(hasSplit ? [{ label: t('menu.closePanel'), action: 'close-pane', shortcut: '⌘W' }] : []),
+    { type: 'separator' },
+    { label: t('menu.newTab'),   action: 'new-pane',  shortcut: '⌘T' },
+    { label: t('menu.closeTab'), action: 'terminal-close-tab', disabled: isOnlyTab },
+    { type: 'separator' },
+    { label: t('menu.clearBuffer'), action: 'clear-scrollback' },
+    { label: t('menu.restart'),     action: 'terminal-restart' },
+    { type: 'separator' },
+    { label: t('menu.backgroundActivityAlert'), action: 'pane-toggle-breathing', shortcut: breathingOn ? '✓' : '' },
     { label: t('menu.changeColor'), action: 'terminal-change-color' },
-    {
-      label: t('menu.backgroundActivityAlert'),
-      action: 'pane-toggle-breathing',
-      shortcut: breathingOn ? '✓' : '',
-    },
-    { label: t('menu.selectAll'), action: 'terminal-select-all', shortcut: '⌘A' },
   ];
 
   if (shellChildren.length > 0) {
@@ -3098,7 +3160,9 @@ async function showTerminalContextMenu(node, event) {
     );
   }
 
-  showContextMenu(items, event.clientX, event.clientY, node.paneId);
+  showContextMenu(items, event.clientX, event.clientY,
+    (action) => handleMenuAction(action, node.paneId),
+  );
 }
 
 function showTabContextMenu(paneId, event) {
@@ -3113,15 +3177,32 @@ function showTabContextMenu(paneId, event) {
   render();
 
   const pane = panes[paneIndex];
-  const hasCustomColor = pane && pane.customColor !== undefined;
+  const breathingOn = pane && pane.breathingMonitor !== false;
+  const isOnlyTab = panes.length <= 1;
+  const canMoveLeft  = paneIndex > 0;
+  const canMoveRight = paneIndex < panes.length - 1;
 
   const items = [
-    { label: t('menu.changeColor'), action: 'tab-change-color' },
+    { label: t('menu.newTab'),   action: 'new-pane', shortcut: '⌘T' },
     { type: 'separator' },
     { label: t('menu.renameTab'), action: 'tab-rename' },
-    { label: t('menu.closeTab'), action: 'tab-close' },
+    { label: t('menu.closeTab'),  action: 'tab-close', disabled: isOnlyTab },
+    { type: 'separator' },
+    { label: t('menu.splitRight'), action: 'split-right', shortcut: '⌘D' },
+    { label: t('menu.splitDown'),  action: 'split-down',  shortcut: '⌘⇧D' },
+    { type: 'separator' },
+    { label: t('menu.moveTabLeft'),  action: 'move-tab-left',  disabled: !canMoveLeft },
+    { label: t('menu.moveTabRight'), action: 'move-tab-right', disabled: !canMoveRight },
+    { type: 'separator' },
+    { label: t('menu.changeColor'),            action: 'tab-change-color' },
+    { label: t('menu.backgroundActivityAlert'), action: 'pane-toggle-breathing', shortcut: breathingOn ? '✓' : '' },
+    { type: 'separator' },
+    { label: t('menu.clearBuffer'), action: 'clear-scrollback' },
+    { label: t('menu.restart'),     action: 'terminal-restart' },
   ];
-  showContextMenu(items, event.clientX, event.clientY, paneId);
+  showContextMenu(items, event.clientX, event.clientY,
+    (action) => handleMenuAction(action, paneId),
+  );
 }
 
 function showColorPicker(paneId) {
@@ -3279,6 +3360,45 @@ function handleMenuAction(action, paneId) {
     return;
   }
 
+  if (action === 'terminal-find') {
+    toggleSearch();
+    return;
+  }
+
+  if (action === 'terminal-restart') {
+    restartPane(paneId);
+    return;
+  }
+
+  if (action === 'terminal-close-tab') {
+    const tabId = getOwningTabId(paneId);
+    if (tabId) {
+      const idx = getPaneIndex(tabId);
+      if (idx !== -1) closePane(idx);
+    }
+    return;
+  }
+
+  if (action === 'move-tab-left') {
+    const idx = getPaneIndex(paneId);
+    if (idx > 0) {
+      [panes[idx - 1], panes[idx]] = [panes[idx], panes[idx - 1]];
+      render();
+      scheduleSettingsSave();
+    }
+    return;
+  }
+
+  if (action === 'move-tab-right') {
+    const idx = getPaneIndex(paneId);
+    if (idx !== -1 && idx < panes.length - 1) {
+      [panes[idx], panes[idx + 1]] = [panes[idx + 1], panes[idx]];
+      render();
+      scheduleSettingsSave();
+    }
+    return;
+  }
+
   if (action === 'tab-rename') {
     const paneIndex = getPaneIndex(paneId);
     if (paneIndex !== -1) {
@@ -3339,6 +3459,17 @@ function handleMenuAction(action, paneId) {
 
   if (action === 'split-down') {
     splitPanel('h');
+    return;
+  }
+
+  if (action.startsWith('split-ratio:')) {
+    const ratio = parseFloat(action.slice('split-ratio:'.length));
+    if (!Number.isNaN(ratio) && _pendingRatioNode) {
+      _pendingRatioNode.ratio = Math.max(MIN_RATIO, Math.min(MAX_RATIO, ratio));
+      _pendingRatioNode = null;
+      renderPanes(true);
+      scheduleSettingsSave();
+    }
     return;
   }
 
@@ -3634,6 +3765,7 @@ const keyboardActions = createActions({
     render(true);
     scheduleSettingsSave();
   },
+  toggleSearch,
 });
 
 const dispatchKeydown = createDispatcher({
