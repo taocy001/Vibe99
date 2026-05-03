@@ -352,6 +352,11 @@ function formatWindowTitle(fmt) {
   return expandTitleVars(fmt, focusedPane, getPanelIndicator(focusedPane));
 }
 
+function formatStatusBar(fmt) {
+  const focusedPane = panes[getFocusedIndex()];
+  return expandTitleVars(fmt, focusedPane, getPanelIndicator(focusedPane));
+}
+
 // splitNode (object identity) → HTMLElement for split dividers
 const splitDividerElMap = new Map();
 // el (WeakMap) → { splitNode, direction, usableSize } — updated each render
@@ -525,6 +530,8 @@ const paneMaskOpacityValueEl = document.getElementById('pane-mask-alpha-value');
 const breathingAlertToggleEl = document.getElementById('breathing-alert-toggle');
 const showStatusBarToggleEl = document.getElementById('show-status-bar-toggle');
 const windowTitleFormatInputEl = document.getElementById('window-title-format');
+const statusBarFormatInputEl = document.getElementById('status-bar-format');
+const statusBarHintsInputEl = document.getElementById('status-bar-hints');
 const colorModeSegmentedEl = document.getElementById('color-mode-segmented');
 
 function applyColorModeUI(mode) {
@@ -556,6 +563,8 @@ const settings = {
   colorMode: 'dark',
   language: 'en',
   windowTitleFormat: '\\w',
+  statusBarFormat: '\\w\\p',
+  statusBarHints: '*',
 };
 let pendingSettingsSave = null;
 
@@ -703,6 +712,8 @@ function applySettings() {
   applyColorMode(settings.colorMode);
   languageSelectEl.value = settings.language;
   if (windowTitleFormatInputEl) windowTitleFormatInputEl.value = settings.windowTitleFormat;
+  if (statusBarFormatInputEl) statusBarFormatInputEl.value = settings.statusBarFormat;
+  if (statusBarHintsInputEl) statusBarHintsInputEl.value = settings.statusBarHints;
 }
 
 function applyPersistedSettings(nextSettings) {
@@ -764,6 +775,14 @@ function applyPersistedSettings(nextSettings) {
 
   if (typeof uiSettings.windowTitleFormat === 'string') {
     settings.windowTitleFormat = uiSettings.windowTitleFormat;
+  }
+
+  if (typeof uiSettings.statusBarFormat === 'string') {
+    settings.statusBarFormat = uiSettings.statusBarFormat;
+  }
+
+  if (typeof uiSettings.statusBarHints === 'string') {
+    settings.statusBarHints = uiSettings.statusBarHints;
   }
 
   // Load keyboard shortcuts
@@ -1727,6 +1746,29 @@ function createPane(pane, { tabId = null } = {}) {
     if (selection) {
       bridge.writeClipboardText(selection);
     }
+  });
+
+  // OSC 7 — shell reports current working directory.
+  // Format: file://hostname/path  OR  bare /path (some shells omit the prefix).
+  terminal.parser.registerOscHandler(7, (data) => {
+    let path = data;
+    try {
+      const url = new URL(data);
+      if (url.protocol === 'file:') path = decodeURIComponent(url.pathname);
+    } catch {}
+    path = path.trim();
+    if (!path || path === '/') return true;
+    activeCwdMap.set(pane.id, path);
+    if (isSplitPanel) {
+      const pd = panelDataMap.get(pane.id);
+      if (pd) pd.cwd = path;
+    } else {
+      panes = panes.map(p => p.id === owningTabId ? { ...p, cwd: path } : p);
+    }
+    const focusedPane = panes[getFocusedIndex()];
+    const activePanelId = focusedPane?.focusedPanelId ?? focusedPane?.id;
+    if (activePanelId === pane.id) updateStatus();
+    return true;
   });
 
   terminal.parser.registerOscHandler(52, (data) => {
@@ -3395,12 +3437,21 @@ function updateStatus() {
   const focusedPaneLabel = getPaneLabel(focusedPane) || focusedPane?.id || '';
 
   const keymap = ShortcutsRegistry.getActiveKeymap();
-  const { modeLabel, hintsHtml } = renderHintBar(
+  const { modeLabel: hintModeLabel, hintsHtml } = renderHintBar(
     keymap,
     currentMode,
     focusedPaneLabel,
-    bridge.platform
+    bridge.platform,
+    settings.statusBarHints
   );
+
+  let modeLabel;
+  if (currentMode !== 'terminal') {
+    modeLabel = hintModeLabel;
+  } else {
+    const formatted = formatStatusBar(settings.statusBarFormat);
+    modeLabel = formatted.trim() ? formatted : focusedPaneLabel;
+  }
 
   statusLabelEl.textContent = modeLabel;
   statusLabelEl.classList.toggle('is-navigation-mode', currentMode === 'nav');
@@ -3699,6 +3750,18 @@ languageSelectEl.addEventListener('change', () => {
 
 windowTitleFormatInputEl?.addEventListener('input', () => {
   settings.windowTitleFormat = windowTitleFormatInputEl.value;
+  updateStatus();
+  scheduleSettingsSave();
+});
+
+statusBarFormatInputEl?.addEventListener('input', () => {
+  settings.statusBarFormat = statusBarFormatInputEl.value;
+  updateStatus();
+  scheduleSettingsSave();
+});
+
+statusBarHintsInputEl?.addEventListener('input', () => {
+  settings.statusBarHints = statusBarHintsInputEl.value;
   updateStatus();
   scheduleSettingsSave();
 });

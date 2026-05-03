@@ -8,10 +8,22 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-export function renderHintBar(keymap, currentMode, focusedPaneLabel, platform = 'linux') {
+// allowedActions: null | '*' = show all; '' = show none;
+// comma-separated action IDs = show only those (e.g. 'enterNav,newPane').
+export function renderHintBar(keymap, currentMode, focusedPaneLabel, platform = 'linux', allowedActions = null) {
+  if (allowedActions === '') {
+    const modeLabel = currentMode === 'nav' ? t('hint.navigationMode') : (focusedPaneLabel || t('hint.terminal'));
+    return { modeLabel, hintsHtml: '' };
+  }
+
+  const allowSet = (!allowedActions || allowedActions === '*')
+    ? null
+    : new Set(allowedActions.split(',').map(s => s.trim()).filter(Boolean));
+
   // Filter keymap entries for current mode
   let entries = keymap.filter(entry =>
-    (entry.mode === currentMode) || (currentMode === 'terminal' && entry.mode === '*')
+    ((entry.mode === currentMode) || (currentMode === 'terminal' && entry.mode === '*')) &&
+    (!allowSet || allowSet.has(entry.action))
   );
 
   // Special handling: merge Ctrl+Tab and Ctrl+Shift+Tab hints

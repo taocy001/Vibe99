@@ -53,6 +53,16 @@
                 <input id="show-status-bar-toggle" class="settings-toggle" type="checkbox" />
               </label>
 
+              <div class="settings-divider"></div>
+
+              <label class="settings-label" for="status-bar-format" data-i18n="settings.statusBarFormat">Status bar format</label>
+              <input class="settings-number" id="status-bar-format" type="text" placeholder="\w\p" value="\w\p" />
+              <p class="settings-caption"><code>\w</code> dir &nbsp; <code>\W</code> dirname &nbsp; <code>\u</code> user &nbsp; <code>\h</code> host &nbsp; <code>\H</code> full host &nbsp; <code>\p</code> panel</p>
+
+              <label class="settings-label" for="status-bar-hints" data-i18n="settings.statusBarHints">Hints</label>
+              <input class="settings-number" id="status-bar-hints" type="text" placeholder="*" value="*" />
+              <p class="settings-caption"><code>*</code> all &nbsp; empty = none &nbsp; or action IDs: <code>enterNav,newPane,cycleRecent</code></p>
+
             </div>
           </div>
 
