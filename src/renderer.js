@@ -261,6 +261,8 @@ let focusedPaneId = panes[0].id;
 let nextPaneNumber = panes.length + 1;
 let renamingPaneId = null;
 let isRenderingTabs = false; // Guard against re-entrant renderTabs calls
+let _tabsLastSig = '';
+let _tabsLastFocused = -1;
 let dragState = null;
 let currentMode = 'terminal'; // 'terminal' | 'nav'
 let enterNavSourcePaneId = null; // Track which pane was focused when entering nav mode
@@ -309,6 +311,21 @@ const dividerEls = Array.from({ length: MAX_DIVIDERS }, () => {
   return el;
 });
 
+// RAF-throttle: drop mousemove callbacks that arrive faster than one animation
+// frame.  The latest event is always used so no state is lost.
+function rafThrottle(fn) {
+  let raf = null;
+  let latest = null;
+  return function (e) {
+    latest = e;
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = null;
+      fn(latest);
+    });
+  };
+}
+
 let dividerDrag = null;
 
 dividerEls.forEach((el) => {
@@ -337,7 +354,7 @@ dividerEls.forEach((el) => {
   });
 });
 
-document.addEventListener('mousemove', (e) => {
+document.addEventListener('mousemove', rafThrottle((e) => {
   if (!dividerDrag) return;
   const { startX, initialDividerX, focusedIndex, paneCount, stageWidth, isLeftOfFocused, initialPaneWidth } = dividerDrag;
   const dx = e.clientX - startX;
@@ -354,7 +371,7 @@ document.addEventListener('mousemove', (e) => {
     applySettings();
     renderPanes(true);
   }
-});
+}));
 
 document.addEventListener('mouseup', () => {
   if (!dividerDrag) return;
@@ -391,7 +408,7 @@ stageEl.addEventListener('mousedown', (e) => {
   document.body.style.cursor = divData.direction === 'v' ? 'col-resize' : 'row-resize';
 });
 
-document.addEventListener('mousemove', (e) => {
+document.addEventListener('mousemove', rafThrottle((e) => {
   if (!splitDividerDrag) return;
   const { direction, startPos, initialRatio, usableSize, splitNode } = splitDividerDrag;
   const currentPos = direction === 'v' ? e.clientX : e.clientY;
@@ -400,15 +417,18 @@ document.addEventListener('mousemove', (e) => {
   newRatio = Math.max(MIN_RATIO, Math.min(MAX_RATIO, newRatio));
   if (Math.abs(newRatio - splitNode.ratio) > 0.0005) {
     splitNode.ratio = newRatio;
-    renderPanes(true);
+    // Skip fitTerminal (refit=false) during drag to avoid forced reflows on
+    // every mousemove; refit happens once on mouseup.
+    renderPanes(false);
   }
-});
+}));
 
 document.addEventListener('mouseup', () => {
   if (!splitDividerDrag) return;
   splitDividerDrag.el.classList.remove('is-dragging');
   document.body.style.cursor = '';
   splitDividerDrag = null;
+  renderPanes(true);
   scheduleSettingsSave();
 });
 
@@ -2139,7 +2159,7 @@ stageEl.addEventListener('mousedown', (e) => {
   };
 }, true);
 
-document.addEventListener('mousemove', (e) => {
+document.addEventListener('mousemove', rafThrottle((e) => {
   if (!panelDragState) return;
   const { sourcePanelId, startX, startY } = panelDragState;
 
@@ -2186,7 +2206,7 @@ document.addEventListener('mousemove', (e) => {
     panelDragState.currentZone = null;
     if (panelDragState.dropOverlay) panelDragState.dropOverlay.style.display = 'none';
   }
-});
+}));
 
 document.addEventListener('mouseup', (e) => {
   if (!panelDragState) return;
@@ -2363,12 +2383,36 @@ function getTabDropIndex(clientX) {
   return slot;
 }
 
+function getTabsSig() {
+  const d = dragState;
+  return panes.map((p) =>
+    `${p.id}:${p.title || ''}:${p.terminalTitle || ''}:${p.accent}:${p.customColor || ''}` +
+    `:${pendingClosePaneId === p.id ? 'P' : ''}:${renamingPaneId === p.id ? 'R' : ''}`
+  ).join('|') + `|${currentMode}|${d ? d.paneId + ':' + (d.dropIndex ?? -1) : ''}`;
+}
+
 function renderTabs() {
-  if (isRenderingTabs) {
+  if (isRenderingTabs) return;
+
+  const focusedIndex = getFocusedIndex();
+  const sig = getTabsSig();
+
+  // Fast path: only focus changed — patch classes without rebuilding the DOM.
+  if (!dragState && sig === _tabsLastSig) {
+    if (focusedIndex !== _tabsLastFocused) {
+      const tabs = tabsListEl.querySelectorAll('.tab');
+      tabs.forEach((tab, i) => {
+        tab.classList.toggle('is-focused', i === focusedIndex);
+        tab.querySelector('.tab-main')?.setAttribute('aria-pressed', String(i === focusedIndex));
+      });
+      _tabsLastFocused = focusedIndex;
+    }
     return;
   }
+
   isRenderingTabs = true;
-  const focusedIndex = getFocusedIndex();
+  _tabsLastSig = sig;
+  _tabsLastFocused = focusedIndex;
   const draggedPaneId = dragState?.paneId ?? null;
   let slot = 0;
 
@@ -2395,8 +2439,18 @@ function applyPanelStyle(node, accentColor, x, y, w, h, zIndex, isFocused, hasSp
   node.root.classList.toggle('is-navigation-target', isFocused && currentMode === 'nav');
   node.root.classList.toggle('has-splits', hasSplits);
   node.root.style.setProperty('--pane-accent', accentColor);
-  node.root.style.left = `${x}px`;
-  node.root.style.top = `${y}px`;
+  if (hasSplits) {
+    // Split panels are repositioned without animation; use left/top directly.
+    node.root.style.left = `${x}px`;
+    node.root.style.top = `${y}px`;
+    node.root.style.transform = '';
+  } else {
+    // Tab-slide panels: translateX keeps layout stable so the browser only
+    // needs a composite pass (no layout recalculation) on each animation frame.
+    node.root.style.left = '0';
+    node.root.style.top = '0';
+    node.root.style.transform = `translateX(${x}px)`;
+  }
   node.root.style.width = `${w}px`;
   node.root.style.height = `${h}px`;
   node.root.style.zIndex = String(zIndex);
@@ -3658,12 +3712,16 @@ bridge.onOpenSettings(() => {
   });
 }
 
+let _resizeTimer = null;
 window.addEventListener('resize', () => {
-  try {
-    render(true);
-  } catch (error) {
-    reportError(error);
-  }
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => {
+    try {
+      render(true);
+    } catch (error) {
+      reportError(error);
+    }
+  }, 16);
 });
 
 window.addEventListener('DOMContentLoaded', async () => {

@@ -833,9 +833,9 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   overflow: hidden;
   cursor: pointer;
   transition:
-    left 150ms cubic-bezier(0.2, 0.85, 0.32, 1),
+    transform 150ms cubic-bezier(0.2, 0.85, 0.32, 1),
     box-shadow 120ms ease;
-  will-change: left;
+  will-change: transform;
 }
 
 /* Overlay mask: solid pane-accent board on top.
