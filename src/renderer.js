@@ -654,7 +654,11 @@ const fontSizeRangeEl = document.getElementById('font-size-input');
 const fontSizeDisplayEl = document.getElementById('font-size-display');
 const scrollbackInputEl = document.getElementById('scrollback-input');
 const scrollbackDisplayEl = document.getElementById('scrollback-display');
+const fontFamilySelectEl = document.getElementById('font-family-select');
 const fontFamilyInputEl = document.getElementById('font-family-input');
+const FONT_PRESET_VALUES = new Set(
+  Array.from(fontFamilySelectEl.options).map((o) => o.value).filter((v) => v !== '__custom__')
+);
 const paneWidthRangeEl = document.getElementById('pane-width-range');
 const paneWidthValueEl = document.getElementById('pane-width-value');
 const paneOpacityRangeEl = document.getElementById('pane-opacity-range');
@@ -834,7 +838,14 @@ function applySettings() {
   fontSizeDisplayEl.textContent = String(settings.fontSize);
   scrollbackInputEl.value = String(settings.scrollback);
   scrollbackDisplayEl.textContent = String(settings.scrollback);
-  fontFamilyInputEl.value = settings.fontFamily;
+  if (FONT_PRESET_VALUES.has(settings.fontFamily)) {
+    fontFamilySelectEl.value = settings.fontFamily;
+    fontFamilyInputEl.classList.add('is-hidden');
+  } else {
+    fontFamilySelectEl.value = '__custom__';
+    fontFamilyInputEl.value = settings.fontFamily;
+    fontFamilyInputEl.classList.remove('is-hidden');
+  }
   paneWidthRangeEl.value = String(settings.paneWidth);
   paneWidthValueEl.textContent = `${settings.paneWidth}px`;
   paneOpacityRangeEl.value = settings.paneOpacity.toFixed(2);
@@ -3883,6 +3894,19 @@ scrollbackInputEl.addEventListener('input', () => {
     node.terminal.options.scrollback = settings.scrollback;
   }
   scheduleSettingsSave();
+});
+
+fontFamilySelectEl.addEventListener('change', () => {
+  if (fontFamilySelectEl.value === '__custom__') {
+    fontFamilyInputEl.classList.remove('is-hidden');
+    fontFamilyInputEl.focus();
+  } else {
+    fontFamilyInputEl.classList.add('is-hidden');
+    settings.fontFamily = fontFamilySelectEl.value;
+    applySettings();
+    render(true);
+    scheduleSettingsSave();
+  }
 });
 
 fontFamilyInputEl.addEventListener('change', () => {

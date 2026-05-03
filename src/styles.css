@@ -481,6 +481,14 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   appearance: auto;
 }
 
+#font-family-input.is-hidden {
+  display: none;
+}
+
+#font-family-input:not(.is-hidden) {
+  margin-top: 4px;
+}
+
 .settings-color {
   width: 56px;
   height: 24px;
