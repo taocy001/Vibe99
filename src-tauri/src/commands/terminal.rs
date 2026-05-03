@@ -88,8 +88,14 @@ pub fn exit_app(state: State<'_, AppState>) {
 /// Used by the frontend to derive the default tab title (directory basename).
 #[tauri::command]
 pub fn get_cwd() -> Result<String, String> {
-    std::env::current_dir()
-        .map(|p| p.display().to_string())
+    // On macOS the app bundle process starts at '/'; prefer $HOME as the
+    // sensible default cwd for new terminals.
+    std::env::var("HOME")
+        .or_else(|_| {
+            std::env::current_dir()
+                .map(|p| p.display().to_string())
+                .map_err(|e| format!("{e}"))
+        })
         .map_err(|e| format!("failed to get cwd: {e}"))
 }
 

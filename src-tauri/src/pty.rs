@@ -706,13 +706,14 @@ fn resolve_working_directory(cwd: Option<&str>) -> PathBuf {
         }
     }
 
-    if let Ok(cwd) = std::env::current_dir() {
-        if cwd.is_dir() {
-            return cwd;
+    // Prefer HOME over process cwd; on macOS the app bundle starts at '/'.
+    if let Some(home) = dirs_home() {
+        if home.is_dir() {
+            return home;
         }
     }
 
-    dirs_home().unwrap_or_else(|| PathBuf::from("/"))
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"))
 }
 
 /// Return the user's home directory.
