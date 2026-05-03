@@ -703,7 +703,7 @@ const settings = {
   language: 'en',
   windowTitleFormat: '\\w',
   statusBarFormat: '\\w\\p',
-  statusBarHints: '*',
+  statusBarHints: 'cycleRecent,enterNav,newPane,closePane,toggleSearch,splitRight',
 };
 let pendingSettingsSave = null;
 

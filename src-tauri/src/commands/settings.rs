@@ -184,6 +184,14 @@ fn sanitize_ui_config(ui: Option<&Value>) -> Value {
         obj.insert("showStatusBar".into(), Value::Bool(show));
     }
 
+    // Preserve status bar format and hints strings
+    if let Some(fmt) = ui.get("statusBarFormat").and_then(|v| v.as_str()) {
+        obj.insert("statusBarFormat".into(), Value::String(fmt.to_string()));
+    }
+    if let Some(hints) = ui.get("statusBarHints").and_then(|v| v.as_str()) {
+        obj.insert("statusBarHints".into(), Value::String(hints.to_string()));
+    }
+
     // Preserve colorMode string
     const VALID_COLOR_MODES: &[&str] = &["dark", "light", "auto"];
     if let Some(mode) = ui.get("colorMode").and_then(|v| v.as_str()) {
