@@ -1003,6 +1003,16 @@ body.hide-status-bar {
   display: flex;
   align-items: center;
   min-width: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  user-select: none;
+  letter-spacing: 0.01em;
+}
+:root.theme-light .panel-title {
+  color: rgba(0, 0, 0, 0.4);
 }
 
 .panel-title:active {

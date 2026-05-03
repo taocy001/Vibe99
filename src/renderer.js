@@ -1809,6 +1809,9 @@ function createPane(pane, { tabId = null } = {}) {
     } else {
       panes = panes.map(p => p.id === owningTabId ? { ...p, cwd: path } : p);
     }
+    // Update panel header title for this panel regardless of focus
+    const titleEl = paneNodeMap.get(pane.id)?.root.querySelector('.panel-title');
+    if (titleEl) titleEl.textContent = abbreviatePath(path) || '~';
     const focusedPane = panes[getFocusedIndex()];
     const activePanelId = focusedPane?.focusedPanelId ?? focusedPane?.id;
     if (activePanelId === pane.id) updateStatus();
@@ -2752,6 +2755,18 @@ function renderPanes(refit = false) {
 
   // Split panel dividers for the focused tab
   renderSplitDividers(focusedPane, focusedTabX, focusedTabW, stageHeight);
+
+  // Update panel header titles with abbreviated cwd (only meaningful when splits exist)
+  if (focusedPane?.layout) {
+    for (const [panelId, node] of paneNodeMap.entries()) {
+      const titleEl = node.root.querySelector('.panel-title');
+      if (!titleEl) continue;
+      const cwd = activeCwdMap.get(panelId)
+        ?? panelDataMap.get(panelId)?.cwd
+        ?? '';
+      titleEl.textContent = abbreviatePath(cwd) || '~';
+    }
+  }
 }
 
 function render(refit = false) {
