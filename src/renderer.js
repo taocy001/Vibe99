@@ -1621,6 +1621,9 @@ function createPane(pane, { tabId = null } = {}) {
   const panelDragHandle = document.createElement('div');
   panelDragHandle.className = 'panel-title';
   panelDragHandle.dataset.panelId = pane.id;
+  const panelTitleText = document.createElement('span');
+  panelTitleText.className = 'panel-title-text';
+  panelDragHandle.append(panelTitleText);
 
   const panelCloseBtn = document.createElement('button');
   panelCloseBtn.type = 'button';
@@ -1748,6 +1751,7 @@ function createPane(pane, { tabId = null } = {}) {
     terminalHost,
     terminal,
     fitAddon,
+    titleEl: panelTitleText,
     sessionReady: false,
     sizeKey: '',
     needsFit: true,
@@ -1810,8 +1814,8 @@ function createPane(pane, { tabId = null } = {}) {
       panes = panes.map(p => p.id === owningTabId ? { ...p, cwd: path } : p);
     }
     // Update panel header title for this panel regardless of focus
-    const titleEl = paneNodeMap.get(pane.id)?.root.querySelector('.panel-title');
-    if (titleEl) titleEl.textContent = abbreviatePath(path) || '~';
+    const titleNode = paneNodeMap.get(pane.id);
+    if (titleNode?.titleEl) titleNode.titleEl.textContent = abbreviatePath(path) || '~';
     const focusedPane = panes[getFocusedIndex()];
     const activePanelId = focusedPane?.focusedPanelId ?? focusedPane?.id;
     if (activePanelId === pane.id) updateStatus();
@@ -2756,15 +2760,15 @@ function renderPanes(refit = false) {
   // Split panel dividers for the focused tab
   renderSplitDividers(focusedPane, focusedTabX, focusedTabW, stageHeight);
 
-  // Update panel header titles with abbreviated cwd (only meaningful when splits exist)
+  // Update panel header titles — only panels in the focused tab's split layout
   if (focusedPane?.layout) {
-    for (const [panelId, node] of paneNodeMap.entries()) {
-      const titleEl = node.root.querySelector('.panel-title');
-      if (!titleEl) continue;
+    for (const panelId of collectPanelIds(focusedPane.layout)) {
+      const node = paneNodeMap.get(panelId);
+      if (!node?.titleEl) continue;
       const cwd = activeCwdMap.get(panelId)
         ?? panelDataMap.get(panelId)?.cwd
         ?? '';
-      titleEl.textContent = abbreviatePath(cwd) || '~';
+      node.titleEl.textContent = abbreviatePath(cwd) || '~';
     }
   }
 }
