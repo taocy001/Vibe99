@@ -847,13 +847,15 @@ function createPane(pane, { tabId = null } = {}) {
                   foldBtn.textContent = '−';
                   foldBtn.title = 'Collapse output';
                 } else {
+                  if (outputMk.isDisposed) return;
                   foldDec = terminal.registerDecoration({ marker: outputMk, height: outputRows });
                   foldDec?.onRender((foldEl) => {
+                    // Re-read theme on every render so theme changes stay in sync.
+                    const bg = (terminal.options.theme?.background ?? '#111111').slice(0, 7);
+                    foldEl.style.background = bg;
                     if (foldEl.dataset.init) return;
                     foldEl.dataset.init = '1';
                     foldEl.classList.add('cmd-block-fold-cover');
-                    const bg = (terminal.options.theme?.background ?? '#111111').slice(0, 7);
-                    foldEl.style.background = bg;
                     const summary = document.createElement('span');
                     summary.textContent = `▶ ${outputRows} line${outputRows !== 1 ? 's' : ''}`;
                     const expandBtn = document.createElement('button');
@@ -876,7 +878,13 @@ function createPane(pane, { tabId = null } = {}) {
           el.style.display = 'flex';
         });
 
-        // System notification when window is not focused
+        // System notification when window is not focused.
+        // Also cancel any pending silence notification — the cmd-done notif already covers it.
+        const pendingSilence = _silenceNotifTimers.get(node.paneId);
+        if (pendingSilence != null) {
+          clearTimeout(pendingSilence);
+          _silenceNotifTimers.delete(node.paneId);
+        }
         if (settings.notificationsEnabled && !document.hasFocus()) {
           const pane  = st.panes.find(p => p.id === node.paneId);
           const label = pane?.title || pane?.terminalTitle || node.paneId;

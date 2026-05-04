@@ -122,8 +122,8 @@ export function createSettingsUI({
     { value: 'Consolas, monospace',                                           label: 'Consolas',        system: false },
     { value: "'Hack', 'Hack Nerd Font', monospace",                           label: 'Hack',            system: false },
     { value: "'Source Code Pro', 'SauceCodePro Nerd Font', monospace",        label: 'Source Code Pro', system: false },
-    { value: "'Inconsolata', 'InconsolataLGC Nerd Font', monospace",          label: 'Inconsolata',     system: false },
-    { value: "'MesloLGS NF', 'Meslo LG S for Powerline', monospace",         label: 'MesloLGS NF',     system: false },
+    { value: "'Inconsolata', 'Inconsolata Nerd Font', monospace",              label: 'Inconsolata',     system: false },
+    { value: "'MesloLGS NF', 'MesloLGS Nerd Font', monospace",               label: 'MesloLGS NF',     system: false },
     { value: "'DejaVu Sans Mono', 'DejaVuSansMono Nerd Font', monospace",     label: 'DejaVu Sans Mono',system: false },
     // Courier New: system: true because the monospace CSS generic often resolves to Courier/
     // Courier New, making canvas measureText return an identical width and falsely flag it
@@ -181,6 +181,7 @@ export function createSettingsUI({
   const breathingAlertToggleEl  = document.getElementById('breathing-alert-toggle');
   const notificationsToggleEl   = document.getElementById('notifications-toggle');
   const notificationSilenceEl   = document.getElementById('notifications-silence');
+  const notificationSilenceRow  = document.getElementById('notifications-silence-row');
   const showStatusBarToggleEl  = document.getElementById('show-status-bar-toggle');
   const windowTitleFormatInputEl = document.getElementById('window-title-format');
   const statusBarFormatInputEl   = document.getElementById('status-bar-format');
@@ -271,6 +272,7 @@ export function createSettingsUI({
     paneActivityWatcher.setGlobalEnabled(settings.breathingAlertEnabled);
     if (notificationsToggleEl) notificationsToggleEl.checked = settings.notificationsEnabled;
     if (notificationSilenceEl) notificationSilenceEl.value = String(Math.round(settings.notificationSilenceMs / 1000));
+    if (notificationSilenceRow) notificationSilenceRow.classList.toggle('is-hidden', !settings.notificationsEnabled);
     showStatusBarToggleEl.checked = settings.showStatusBar;
     document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
     applyColorModeUI(settings.colorMode);
@@ -301,9 +303,21 @@ export function createSettingsUI({
       settings.fontFamily = uiSettings.fontFamily;
       // Migrate old multi-fallback default values to the current single-family format
       const FONT_MIGRATIONS = {
+        // Legacy multi-fallback defaults → single-family format
         'Menlo, Monaco, "SF Mono", monospace': 'Menlo, monospace',
         'Consolas, "Cascadia Mono", "Courier New", monospace': 'Consolas, monospace',
         '"DejaVu Sans Mono", "Liberation Mono", "Ubuntu Mono", monospace': "'DejaVu Sans Mono', monospace",
+        // Pre-P1.4 presets → Nerd Font fallback stacks
+        "'JetBrains Mono', monospace": "'JetBrains Mono', 'JetBrainsMono Nerd Font', monospace",
+        "'Fira Code', monospace": "'Fira Code', 'FiraCode Nerd Font', monospace",
+        "'Cascadia Code', monospace": "'Cascadia Code', 'CaskaydiaCove Nerd Font', monospace",
+        "'Hack', monospace": "'Hack', 'Hack Nerd Font', monospace",
+        "'Source Code Pro', monospace": "'Source Code Pro', 'SauceCodePro Nerd Font', monospace",
+        "'Inconsolata', monospace": "'Inconsolata', 'Inconsolata Nerd Font', monospace",
+        "'Inconsolata', 'InconsolataLGC Nerd Font', monospace": "'Inconsolata', 'Inconsolata Nerd Font', monospace",
+        "'MesloLGS NF', monospace": "'MesloLGS NF', 'MesloLGS Nerd Font', monospace",
+        "'MesloLGS NF', 'Meslo LG S for Powerline', monospace": "'MesloLGS NF', 'MesloLGS Nerd Font', monospace",
+        "'DejaVu Sans Mono', monospace": "'DejaVu Sans Mono', 'DejaVuSansMono Nerd Font', monospace",
       };
       if (settings.fontFamily in FONT_MIGRATIONS) {
         settings.fontFamily = FONT_MIGRATIONS[settings.fontFamily];
@@ -863,6 +877,7 @@ export function createSettingsUI({
 
   notificationsToggleEl?.addEventListener('change', () => {
     settings.notificationsEnabled = notificationsToggleEl.checked;
+    if (notificationSilenceRow) notificationSilenceRow.classList.toggle('is-hidden', !settings.notificationsEnabled);
     scheduleSettingsSave();
   });
 
