@@ -38,31 +38,7 @@
               <div class="settings-divider"></div>
 
               <label class="settings-label" for="font-family-select" data-i18n="settings.font">Font</label>
-              <select class="settings-select" id="font-family-select">
-                <optgroup label="macOS">
-                  <option value="Menlo, monospace">Menlo</option>
-                  <option value="Monaco, monospace">Monaco</option>
-                  <option value="'SF Mono', monospace">SF Mono</option>
-                </optgroup>
-                <optgroup label="Windows">
-                  <option value="Consolas, monospace">Consolas</option>
-                  <option value="'Cascadia Code', monospace">Cascadia Code</option>
-                </optgroup>
-                <optgroup label="Popular">
-                  <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
-                  <option value="'Fira Code', monospace">Fira Code</option>
-                  <option value="'Cascadia Code', monospace">Cascadia Code</option>
-                  <option value="'Hack', monospace">Hack</option>
-                  <option value="'Source Code Pro', monospace">Source Code Pro</option>
-                  <option value="'Inconsolata', monospace">Inconsolata</option>
-                  <option value="'MesloLGS NF', monospace">MesloLGS NF</option>
-                  <option value="'DejaVu Sans Mono', monospace">DejaVu Sans Mono</option>
-                  <option value="'Courier New', monospace">Courier New</option>
-                </optgroup>
-                <optgroup label="">
-                  <option value="__custom__" data-i18n="settings.fontCustom">Custom…</option>
-                </optgroup>
-              </select>
+              <select class="settings-select" id="font-family-select"><!-- populated by settings-ui.js --></select>
               <input class="settings-number is-hidden" id="font-family-input" type="text" placeholder="MesloLGS NF, Menlo, monospace" value="" />
 
               <label class="settings-row" for="font-size-input">

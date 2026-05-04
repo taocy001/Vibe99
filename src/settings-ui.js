@@ -106,9 +106,59 @@ export function createSettingsUI({
   const scrollbackDisplayEl   = document.getElementById('scrollback-display');
   const fontFamilySelectEl    = document.getElementById('font-family-select');
   const fontFamilyInputEl     = document.getElementById('font-family-input');
-  const FONT_PRESET_VALUES    = new Set(
-    Array.from(fontFamilySelectEl.options).map((o) => o.value).filter((v) => v !== '__custom__')
+
+  // Master font list: system = always available on macOS; others detected at runtime
+  const FONT_PRESETS_DEF = [
+    { value: 'Menlo, monospace',             label: 'Menlo',           system: true  },
+    { value: 'Monaco, monospace',            label: 'Monaco',          system: true  },
+    { value: "'SF Mono', monospace",         label: 'SF Mono',         system: true  },
+    { value: "'JetBrains Mono', monospace",  label: 'JetBrains Mono',  system: false },
+    { value: "'Fira Code', monospace",       label: 'Fira Code',       system: false },
+    { value: "'Cascadia Code', monospace",   label: 'Cascadia Code',   system: false },
+    { value: 'Consolas, monospace',          label: 'Consolas',        system: false },
+    { value: "'Hack', monospace",            label: 'Hack',            system: false },
+    { value: "'Source Code Pro', monospace", label: 'Source Code Pro', system: false },
+    { value: "'Inconsolata', monospace",     label: 'Inconsolata',     system: false },
+    { value: "'MesloLGS NF', monospace",     label: 'MesloLGS NF',    system: false },
+    { value: "'DejaVu Sans Mono', monospace",label: 'DejaVu Sans Mono',system: false },
+    { value: "'Courier New', monospace",     label: 'Courier New',     system: false },
+  ];
+  const FONT_PRESET_VALUES = new Set(FONT_PRESETS_DEF.map((f) => f.value));
+
+  function _buildFontSelectGroups(available, popular) {
+    const makeOpt = (v, l) => Object.assign(document.createElement('option'), { value: v, textContent: l });
+    fontFamilySelectEl.replaceChildren();
+    if (available.length) {
+      const g = document.createElement('optgroup');
+      g.label = 'Available';
+      available.forEach((f) => g.appendChild(makeOpt(f.value, f.label)));
+      fontFamilySelectEl.appendChild(g);
+    }
+    if (popular.length) {
+      const g = document.createElement('optgroup');
+      g.label = 'Popular';
+      popular.forEach((f) => g.appendChild(makeOpt(f.value, f.label)));
+      fontFamilySelectEl.appendChild(g);
+    }
+    fontFamilySelectEl.appendChild(makeOpt('__custom__', 'Custom…'));
+  }
+
+  // Sync initial build: system fonts are available, rest goes to Popular
+  _buildFontSelectGroups(
+    FONT_PRESETS_DEF.filter((f) => f.system),
+    FONT_PRESETS_DEF.filter((f) => !f.system),
   );
+
+  // After fonts load, regroup by detected availability and restore selection
+  document.fonts.ready.then(() => {
+    const isInstalled = (label) => document.fonts.check(`16px "${label}"`);
+    const available = FONT_PRESETS_DEF.filter((f) => f.system || isInstalled(f.label));
+    const popular   = FONT_PRESETS_DEF.filter((f) => !f.system && !isInstalled(f.label));
+    _buildFontSelectGroups(available, popular);
+    if (FONT_PRESET_VALUES.has(settings.fontFamily)) {
+      fontFamilySelectEl.value = settings.fontFamily;
+    }
+  });
   const paneWidthRangeEl      = document.getElementById('pane-width-range');
   const paneWidthValueEl      = document.getElementById('pane-width-value');
   const paneOpacityRangeEl    = document.getElementById('pane-opacity-range');
