@@ -121,7 +121,10 @@ export function createSettingsUI({
     { value: "'Inconsolata', monospace",     label: 'Inconsolata',     system: false },
     { value: "'MesloLGS NF', monospace",     label: 'MesloLGS NF',    system: false },
     { value: "'DejaVu Sans Mono', monospace",label: 'DejaVu Sans Mono',system: false },
-    { value: "'Courier New', monospace",     label: 'Courier New',     system: false },
+    // Courier New: system: true because the monospace CSS generic often resolves to Courier/
+    // Courier New, making canvas measureText return an identical width and falsely flag it
+    // as "not installed". It is available on all macOS and Windows systems.
+    { value: "'Courier New', monospace",     label: 'Courier New',     system: true  },
   ];
   const FONT_PRESET_VALUES = new Set(FONT_PRESETS_DEF.map((f) => f.value));
 
@@ -703,10 +706,12 @@ export function createSettingsUI({
     }
     buildFn(settingsSubpageContentEl);
     settingsSubpageEl.classList.remove('is-hidden');
+    settingsPanelEl.classList.add('has-subpage');
   }
 
   function closeSubPage() {
     settingsSubpageEl.classList.add('is-hidden');
+    settingsPanelEl.classList.remove('has-subpage');
     settingsSubpageContentEl.replaceChildren();
     _spShellListEl = null;
     _spShellEditorEl = null;

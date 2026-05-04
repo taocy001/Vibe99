@@ -389,34 +389,46 @@ function createPane(pane, { tabId = null } = {}) {
   let _compositionData = '';
   const _ta = () => terminalHost.querySelector('textarea.xterm-helper-textarea');
 
-  // beforeinput fires before DOM modification — most reliable data source
+  // compositionstart — clear stale data from any previous aborted composition
+  terminalHost.addEventListener('compositionstart', () => {
+    _compositionData = '';
+  }, { capture: true, signal });
+
+  // beforeinput fires before DOM modification — most reliable data source.
+  // Covers both composition commits and direct substitutions (e.g. smart quotes on macOS).
   terminalHost.addEventListener('beforeinput', (e) => {
-    if (e.data && (e.inputType === 'insertCompositionText' || e.inputType === 'insertReplacementText')) {
+    if (e.data && (
+      e.inputType === 'insertCompositionText' ||
+      e.inputType === 'insertReplacementText' ||
+      e.inputType === 'insertFromComposition'
+    )) {
       _compositionData = e.data;
     }
   }, { capture: true, signal });
 
-  // compositionupdate — additional fallback
+  // compositionupdate — additional fallback for browsers that don't fire beforeinput
   terminalHost.addEventListener('compositionupdate', (e) => {
     if (e.data) _compositionData = e.data;
   }, { capture: true, signal });
 
-  // compositionend — patch textarea.value for path A
+  // compositionend — patch textarea.value for path A.
+  // Use `ta.value !== data` rather than `!ta.value` to also catch the stale-value
+  // variant of the WKWebView bug where the textarea is left with a previous composition.
   terminalHost.addEventListener('compositionend', (e) => {
     const data = e.data || _compositionData;
     _compositionData = '';
     const ta = _ta();
-    if (data && ta && !ta.value) ta.value = data;
+    if (data && ta && ta.value !== data) ta.value = data;
   }, { capture: true, signal });
 
-  // input — patch textarea.value for path B (direct substitution, no composition events)
+  // input — patch textarea.value for path B (direct substitution, no composition events).
   // _compositionData is cleared by compositionend on path A, so this only triggers on path B.
   terminalHost.addEventListener('input', () => {
     const data = _compositionData;
     if (!data) return;
     _compositionData = '';
     const ta = _ta();
-    if (ta && !ta.value) ta.value = data;
+    if (ta && ta.value !== data) ta.value = data;
   }, { capture: true, signal });
 
   // xterm.js 6.x multiplies trackpad scroll delta by 0.3 (heuristic for small

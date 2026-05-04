@@ -307,6 +307,7 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   display: grid;
   gap: 0;
   width: 340px;
+  max-height: calc(100vh - var(--tabs-height) - 24px);
   padding: 0 0 4px;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 10px;
@@ -320,6 +321,13 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   overflow: hidden;
   z-index: 50;
   font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* When subpage is open, hide the tab bar and all tab panels so the panel
+   height is driven by the subpage content rather than the underlying tabs. */
+.settings-panel.has-subpage > .settings-tabs,
+.settings-panel.has-subpage > .settings-tab-panel {
+  display: none;
 }
 
 .settings-panel.is-hidden {
@@ -368,13 +376,9 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
 
 /* ── Settings sub-page (inline navigation) ───────────────────── */
 .settings-subpage {
-  position: absolute;
-  inset: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(30, 30, 32, 0.96);
   border-radius: 10px;
-  z-index: 2;
   overflow: hidden;
 }
 
