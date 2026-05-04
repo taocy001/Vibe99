@@ -149,13 +149,21 @@ export function createSettingsUI({
     FONT_PRESETS_DEF.filter((f) => !f.system),
   );
 
-  // After fonts load, regroup by detected availability and restore selection
+  // After fonts load, regroup by canvas-based availability detection and restore selection.
+  // document.fonts.check() is unreliable in WKWebView for non-CSS-loaded fonts; canvas
+  // measurement detects any font installed on the system.
   document.fonts.ready.then(() => {
-    const isInstalled = (label) => document.fonts.check(`16px "${label}"`);
+    const _fc = document.createElement('canvas').getContext('2d');
+    const _testStr = 'mmmmwwwwllll||||iiii';
+    _fc.font = '16px monospace';
+    const _refW = _fc.measureText(_testStr).width;
+    const isInstalled = (label) => {
+      _fc.font = `16px "${label}", monospace`;
+      return _fc.measureText(_testStr).width !== _refW;
+    };
     const available = FONT_PRESETS_DEF.filter((f) => f.system || isInstalled(f.label));
     const popular   = FONT_PRESETS_DEF.filter((f) => !f.system && !isInstalled(f.label));
     _buildFontSelectGroups(available, popular);
-    // Restore select value after replaceChildren() cleared it
     fontFamilySelectEl.value = FONT_PRESET_VALUES.has(settings.fontFamily)
       ? settings.fontFamily
       : '__custom__';
