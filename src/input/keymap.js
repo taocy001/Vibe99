@@ -32,8 +32,9 @@ export const KEYMAP = [
   { id: 'navigation-mode', mode: '*', chord: 'Cmd+B',  action: 'enterNav',              hint: 'navigate',  skipInInput: true, stopPropagation: true },
   { id: 'new-tab',         mode: '*', chord: 'Cmd+T',  action: 'newPane',               hint: 'new tab' },
   { id: 'close-tab',       mode: '*', chord: 'Cmd+W',  action: 'closePane',             hint: 'close tab', skipInInput: true },
-  { id: 'navigate-left',   mode: '*', chord: 'Cmd+Shift+[',  action: 'navigateLeft',  hint: '← tab' },
-  { id: 'navigate-right',  mode: '*', chord: 'Cmd+Shift+]',  action: 'navigateRight', hint: '→ tab' },
+  { id: 'navigate-left',        mode: '*', chord: 'Cmd+Shift+[|Cmd+ArrowLeft',  action: 'navigateLeft',  hint: '← tab', skipInInput: true, stopPropagation: true },
+  { id: 'navigate-right',       mode: '*', chord: 'Cmd+Shift+]|Cmd+ArrowRight', action: 'navigateRight', hint: '→ tab', skipInInput: true, stopPropagation: true },
+  { id: 'jump-to-tab',          mode: '*', chord: 'Cmd+1|Cmd+2|Cmd+3|Cmd+4|Cmd+5|Cmd+6|Cmd+7|Cmd+8|Cmd+9', action: 'jumpTo', hint: 'jump to tab', skipInInput: true },
   { id: 'copy',            mode: '*', chord: 'Cmd+C',  action: 'copyTerminalSelection', hint: 'copy',      skipInInput: true },
   { id: 'paste',           mode: '*', chord: 'Cmd+V',  action: 'pasteIntoTerminal',     hint: 'paste',     skipInInput: true },
   { id: 'split-right',     mode: '*', chord: 'Cmd+D',        action: 'splitRight',      hint: 'split →',   skipInInput: true },
@@ -44,6 +45,13 @@ export const KEYMAP = [
   { id: 'font-size-decrease', mode: '*', chord: 'Cmd+-',  action: 'fontSizeDecrease', hint: 'font -', skipInInput: true },
   { id: 'font-size-reset',    mode: '*', chord: 'Cmd+0',  action: 'fontSizeReset',    hint: 'font reset', skipInInput: true },
   { id: 'search',             mode: '*', chord: 'Cmd+F',  action: 'toggleSearch',     hint: 'find', stopPropagation: true },
+  { id: 'clear-scrollback',   mode: '*', chord: 'Cmd+K',  action: 'clearScrollback',  hint: 'clear', skipInInput: true },
+
+  // Scrollback navigation
+  { id: 'scroll-to-top',    mode: '*', chord: 'Cmd+Home',    action: 'scrollToTop',    hint: 'scroll top',  skipInInput: true },
+  { id: 'scroll-to-bottom', mode: '*', chord: 'Cmd+End',     action: 'scrollToBottom', hint: 'scroll end',  skipInInput: true },
+  { id: 'scroll-page-up',   mode: '*', chord: 'Cmd+PageUp',  action: 'scrollPageUp',   hint: 'page ↑',      skipInInput: true },
+  { id: 'scroll-page-down', mode: '*', chord: 'Cmd+PageDown', action: 'scrollPageDown', hint: 'page ↓',     skipInInput: true },
 
   // Navigation mode - non-customizable arrow keys (always available)
   { mode: 'nav', chord: 'ArrowLeft',  action: 'focusPrev',   hint: '← prev',     stopPropagation: true },

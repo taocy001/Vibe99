@@ -1361,6 +1361,11 @@ const keyboardActions = createActions({
   fontSizeDecrease: () => { settings.fontSize = Math.max(10, settings.fontSize - 1); applySettings(); layoutRenderer.render(true); scheduleSettingsSave(); },
   fontSizeReset: () => { settings.fontSize = 13; applySettings(); layoutRenderer.render(true); scheduleSettingsSave(); },
   toggleSearch,
+  clearScrollback: () => { const node = paneNodeMap.get(st.focusedPaneId); if (node) node.terminal.clear(); },
+  scrollToTop:     () => { const node = paneNodeMap.get(st.focusedPaneId); if (node) node.terminal.scrollToTop(); },
+  scrollToBottom:  () => { const node = paneNodeMap.get(st.focusedPaneId); if (node) node.terminal.scrollToBottom(); },
+  scrollPageUp:    () => { const node = paneNodeMap.get(st.focusedPaneId); if (node) node.terminal.scrollPages(-1); },
+  scrollPageDown:  () => { const node = paneNodeMap.get(st.focusedPaneId); if (node) node.terminal.scrollPages(1); },
 });
 
 const dispatchKeydown = createDispatcher({

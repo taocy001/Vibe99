@@ -71,5 +71,12 @@ export function createActions(deps) {
 
     // Terminal search
     toggleSearch: () => deps.toggleSearch(),
+
+    // Scrollback
+    clearScrollback: () => deps.clearScrollback(),
+    scrollToTop:     () => deps.scrollToTop(),
+    scrollToBottom:  () => deps.scrollToBottom(),
+    scrollPageUp:    () => deps.scrollPageUp(),
+    scrollPageDown:  () => deps.scrollPageDown(),
   };
 }
