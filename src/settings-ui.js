@@ -155,9 +155,10 @@ export function createSettingsUI({
     const available = FONT_PRESETS_DEF.filter((f) => f.system || isInstalled(f.label));
     const popular   = FONT_PRESETS_DEF.filter((f) => !f.system && !isInstalled(f.label));
     _buildFontSelectGroups(available, popular);
-    if (FONT_PRESET_VALUES.has(settings.fontFamily)) {
-      fontFamilySelectEl.value = settings.fontFamily;
-    }
+    // Restore select value after replaceChildren() cleared it
+    fontFamilySelectEl.value = FONT_PRESET_VALUES.has(settings.fontFamily)
+      ? settings.fontFamily
+      : '__custom__';
   });
   const paneWidthRangeEl      = document.getElementById('pane-width-range');
   const paneWidthValueEl      = document.getElementById('pane-width-value');

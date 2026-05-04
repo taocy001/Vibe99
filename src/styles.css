@@ -2304,7 +2304,8 @@ body.is-dragging-tabs {
   border-right-color: rgba(0, 0, 0, 0.08);
 }
 .theme-light .shell-profiles-editor-placeholder {
-  color: rgba(0, 0, 0, 0.35);
+  color: rgba(0, 0, 0, 0.40);
+  opacity: 1;
 }
 
 /* Shell profile list items */
