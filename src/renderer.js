@@ -50,12 +50,12 @@ function getRuntimePlatform() {
 
 function getDefaultFontFamily(platform = getRuntimePlatform()) {
   if (platform === 'win32' || platform === 'windows') {
-    return 'Consolas, "Cascadia Mono", "Courier New", monospace';
+    return 'Consolas, monospace';
   }
   if (platform === 'darwin') {
-    return 'Menlo, Monaco, "SF Mono", monospace';
+    return 'Menlo, monospace';
   }
-  return '"DejaVu Sans Mono", "Liberation Mono", "Ubuntu Mono", monospace';
+  return "'DejaVu Sans Mono', monospace";
 }
 
 function basename(path) {
@@ -840,9 +840,11 @@ function applySettings() {
   scrollbackDisplayEl.textContent = String(settings.scrollback);
   if (FONT_PRESET_VALUES.has(settings.fontFamily)) {
     fontFamilySelectEl.value = settings.fontFamily;
+    fontFamilySelectEl.classList.remove('is-hidden');
     fontFamilyInputEl.classList.add('is-hidden');
   } else {
     fontFamilySelectEl.value = '__custom__';
+    fontFamilySelectEl.classList.add('is-hidden');
     fontFamilyInputEl.value = settings.fontFamily;
     fontFamilyInputEl.classList.remove('is-hidden');
   }
@@ -3898,8 +3900,11 @@ scrollbackInputEl.addEventListener('input', () => {
 
 fontFamilySelectEl.addEventListener('change', () => {
   if (fontFamilySelectEl.value === '__custom__') {
+    fontFamilySelectEl.classList.add('is-hidden');
+    fontFamilyInputEl.value = settings.fontFamily;
     fontFamilyInputEl.classList.remove('is-hidden');
     fontFamilyInputEl.focus();
+    fontFamilyInputEl.select();
   } else {
     fontFamilyInputEl.classList.add('is-hidden');
     settings.fontFamily = fontFamilySelectEl.value;
@@ -3910,10 +3915,31 @@ fontFamilySelectEl.addEventListener('change', () => {
 });
 
 fontFamilyInputEl.addEventListener('change', () => {
-  settings.fontFamily = fontFamilyInputEl.value.trim() || getDefaultFontFamily(bridge.platform);
+  const val = fontFamilyInputEl.value.trim() || getDefaultFontFamily(bridge.platform);
+  settings.fontFamily = val;
+  fontFamilyInputEl.classList.add('is-hidden');
+  fontFamilySelectEl.classList.remove('is-hidden');
+  if (FONT_PRESET_VALUES.has(settings.fontFamily)) {
+    fontFamilySelectEl.value = settings.fontFamily;
+  } else {
+    fontFamilySelectEl.value = '__custom__';
+  }
   applySettings();
   render(true);
   scheduleSettingsSave();
+});
+
+fontFamilyInputEl.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.stopPropagation();
+    fontFamilyInputEl.classList.add('is-hidden');
+    fontFamilySelectEl.classList.remove('is-hidden');
+    if (FONT_PRESET_VALUES.has(settings.fontFamily)) {
+      fontFamilySelectEl.value = settings.fontFamily;
+    } else {
+      fontFamilySelectEl.value = '__custom__';
+    }
+  }
 });
 
 function updatePaneWidth(nextValue) {
