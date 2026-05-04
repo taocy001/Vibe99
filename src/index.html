@@ -21,10 +21,11 @@
           <!-- Tab navigation -->
           <nav class="settings-tabs" role="tablist">
             <button class="settings-tab-btn is-active" role="tab" data-tab="appearance" aria-selected="true" data-i18n="settings.tab.appearance">Appearance</button>
+            <button class="settings-tab-btn" role="tab" data-tab="window" aria-selected="false" data-i18n="settings.tab.window">Window</button>
             <button class="settings-tab-btn" role="tab" data-tab="general" aria-selected="false" data-i18n="settings.tab.general">General</button>
           </nav>
 
-          <!-- Appearance tab -->
+          <!-- Appearance tab: theme, font, activity indicator -->
           <div class="settings-tab-panel" id="settings-tab-appearance" role="tabpanel">
             <div class="settings-section">
 
@@ -45,6 +46,38 @@
                 <span id="font-size-display" class="settings-value">13</span>
               </label>
               <input id="font-size-input" type="range" min="10" max="24" step="1" value="13" />
+
+              <div class="settings-divider"></div>
+
+              <label class="settings-row" for="breathing-alert-toggle">
+                <span data-i18n="settings.activityIndicator">Activity indicator</span>
+                <input id="breathing-alert-toggle" class="settings-toggle" type="checkbox" checked />
+              </label>
+
+            </div>
+          </div>
+
+          <!-- Window tab: pane layout, scrollback, status bar, window title -->
+          <div class="settings-tab-panel is-hidden" id="settings-tab-window" role="tabpanel">
+            <div class="settings-section">
+
+              <label class="settings-row" for="pane-width-range">
+                <span data-i18n="settings.paneWidth">Width</span>
+                <span id="pane-width-value" class="settings-value">720px</span>
+              </label>
+              <input id="pane-width-range" type="range" min="520" max="2000" step="10" value="720" />
+
+              <label class="settings-row" for="pane-opacity-range">
+                <span data-i18n="settings.paneOpacity">Opacity</span>
+                <span id="pane-opacity-value" class="settings-value">0.80</span>
+              </label>
+              <input id="pane-opacity-range" type="range" min="0.55" max="1" step="0.01" value="0.8" />
+
+              <label class="settings-row" for="pane-mask-alpha-range">
+                <span data-i18n="settings.inactiveTint">Inactive dim</span>
+                <span id="pane-mask-alpha-value" class="settings-value">0.25</span>
+              </label>
+              <input id="pane-mask-alpha-range" type="range" min="0" max="1" step="0.01" value="0.25" />
 
               <div class="settings-divider"></div>
 
@@ -73,33 +106,6 @@
 
               <div class="settings-divider"></div>
 
-              <label class="settings-row" for="pane-width-range">
-                <span data-i18n="settings.paneWidth">Width</span>
-                <span id="pane-width-value" class="settings-value">720px</span>
-              </label>
-              <input id="pane-width-range" type="range" min="520" max="2000" step="10" value="720" />
-
-              <label class="settings-row" for="pane-opacity-range">
-                <span data-i18n="settings.paneOpacity">Opacity</span>
-                <span id="pane-opacity-value" class="settings-value">0.80</span>
-              </label>
-              <input id="pane-opacity-range" type="range" min="0.55" max="1" step="0.01" value="0.8" />
-
-              <label class="settings-row" for="pane-mask-alpha-range">
-                <span data-i18n="settings.inactiveTint">Inactive dim</span>
-                <span id="pane-mask-alpha-value" class="settings-value">0.25</span>
-              </label>
-              <input id="pane-mask-alpha-range" type="range" min="0" max="1" step="0.01" value="0.25" />
-
-              <div class="settings-divider"></div>
-
-              <label class="settings-row" for="breathing-alert-toggle">
-                <span data-i18n="settings.activityIndicator">Activity indicator</span>
-                <input id="breathing-alert-toggle" class="settings-toggle" type="checkbox" checked />
-              </label>
-
-              <div class="settings-divider"></div>
-
               <label class="settings-label" for="window-title-format" data-i18n="settings.windowTitleFormat">Window title</label>
               <input class="settings-number" id="window-title-format" type="text" placeholder="\w" value="\w" />
               <p class="settings-caption"><code>\w</code> dir &nbsp; <code>\W</code> dirname &nbsp; <code>\u</code> user &nbsp; <code>\h</code> host &nbsp; <code>\H</code> full host &nbsp; <code>\p</code> panel</p>
@@ -107,7 +113,7 @@
             </div>
           </div>
 
-          <!-- General tab -->
+          <!-- General tab: language, shell profiles, shortcuts, integration -->
           <div class="settings-tab-panel is-hidden" id="settings-tab-general" role="tabpanel">
             <div class="settings-section">
 

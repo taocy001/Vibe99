@@ -343,7 +343,7 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
 /* ── Tab navigation ───────────────────────────────────────────── */
 .settings-tabs {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   padding: 6px 8px 0;
   gap: 2px;
@@ -838,10 +838,7 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
 .shell-profile-editor {
   display: grid;
   gap: 12px;
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 0;
 }
 
 .shell-profile-editor-header {
@@ -2364,11 +2361,7 @@ body.is-dragging-tabs {
   color: rgba(0, 0, 0, 0.80);
 }
 
-/* Shell profile editor */
-.theme-light .shell-profile-editor {
-  border-color: rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.45);
-}
+/* Shell profile editor — no card styling, integrates with the panel */
 .theme-light .shell-profile-editor-header {
   border-bottom-color: rgba(0, 0, 0, 0.10);
 }

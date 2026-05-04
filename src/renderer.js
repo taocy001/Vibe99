@@ -377,27 +377,35 @@ function createPane(pane, { tabId = null } = {}) {
   terminal.loadAddon(new ImageAddon());
   try { terminal.loadAddon(new WebglAddon()); } catch {}
 
-  // WKWebView bug: for single-character IME substitutions (Chinese smart quotes,
-  // fullwidth punctuation), the hidden textarea value is not updated before
-  // compositionend fires, so xterm's _finalizeComposition reads an empty string.
+  // WKWebView IME fix: on WKWebView, textarea.value is unreliable after compositionend
+  // (stale, empty, or reset by the browser before xterm's deferred read fires). All
+  // attempts to patch ta.value fail intermittently — especially for Chinese fullwidth
+  // punctuation (？ "" etc.) which causes the "works every other time" symptom.
   //
-  // Two code paths exist on WKWebView:
-  //   A) Composition path: compositionstart → compositionupdate → compositionend → input
-  //   B) Direct-substitution path: no composition events, just beforeinput → input
+  // Root cause: xterm v6 reads ta.value.substring(_compositionPosition.start) in a
+  // setTimeout(0) queued from compositionend. If ta.value is wrong at that point,
+  // xterm sends the wrong text (or nothing). ta.value also accumulates if not cleared,
+  // causing start > 0 on the next composition.
   //
-  // We patch textarea.value in capture phase so xterm reads the correct value.
+  // Fix: bypass xterm's textarea-read path entirely. Capture composition data from
+  // compositionupdate/beforeinput, then in compositionend:
+  //   1. Call terminal.input(data, true) directly — send to shell without touching ta.value.
+  //   2. Clear ta.value immediately and in a queued task so xterm's deferred read sees ''
+  //      and fires nothing (no duplicate).
   let _compositionData = '';
-  let _compositionFailed = false;  // true when compositionend fired with no data
+  let _compositionFailed = false;
   const _ta = () => terminalHost.querySelector('textarea.xterm-helper-textarea');
 
-  // compositionstart — clear stale data from any previous aborted composition
   terminalHost.addEventListener('compositionstart', () => {
     _compositionData = '';
     _compositionFailed = false;
   }, { capture: true, signal });
 
-  // beforeinput fires before DOM modification — most reliable data source.
-  // Covers both composition commits and direct substitutions (e.g. smart quotes on macOS).
+  terminalHost.addEventListener('compositionupdate', (e) => {
+    if (e.data) _compositionData = e.data;
+  }, { capture: true, signal });
+
+  // beforeinput: backup source for direct substitutions (e.g. macOS text replacement).
   terminalHost.addEventListener('beforeinput', (e) => {
     if (e.data && (
       e.inputType === 'insertCompositionText' ||
@@ -408,60 +416,45 @@ function createPane(pane, { tabId = null } = {}) {
     }
   }, { capture: true, signal });
 
-  // compositionupdate — additional fallback for browsers that don't fire beforeinput
-  terminalHost.addEventListener('compositionupdate', (e) => {
-    if (e.data) _compositionData = e.data;
-  }, { capture: true, signal });
-
-  // compositionend — patch textarea.value for path A.
-  // xterm v6 _finalizeComposition reads ta.value inside a setTimeout(0) but never clears it
-  // after reading. This leaves ta.value non-empty, so the NEXT compositionstart sets
-  // _compositionPosition.start = ta.value.length (> 0), causing ta.value.substring(start)
-  // to return '' and the character to be lost ("works every other time" symptom).
-  //
-  // Fix: two-phase deferred work:
-  //   Phase 1 setTimeout(0): fires BEFORE xterm's deferred read (FIFO queue); re-patches
-  //     ta.value if WKWebView reset it synchronously after compositionend.
-  //   Phase 2 nested setTimeout(0): fires AFTER xterm's deferred read (new task); clears
-  //     ta.value so the next composition starts from an empty textarea (start = 0).
   terminalHost.addEventListener('compositionend', (e) => {
     const data = e.data || _compositionData;
     _compositionData = '';
     const ta = _ta();
-    if (!ta) return;
+
     if (data) {
       _compositionFailed = false;
-      if (ta.value !== data) ta.value = data;
-      setTimeout(() => {
-        if (!ta.isConnected) return;
-        if (!ta.value) ta.value = data;
-        setTimeout(() => {
-          if (ta.isConnected && ta.value === data) ta.value = '';
-        }, 0);
-      }, 0);
+      // Inject directly — bypass xterm's deferred ta.value read.
+      terminal.input(data, true);
+      // Clear ta.value so xterm's queued setTimeout(0) reads '' and doesn't duplicate.
+      // Re-clear in the next task in case WKWebView resets it between now and xterm's read.
+      if (ta) {
+        ta.value = '';
+        setTimeout(() => { if (ta.isConnected) ta.value = ''; }, 0);
+      }
     } else {
-      // WKWebView skipped compositionupdate for this character — no data from any source.
-      // Mark as failed; the input event fallback will send via terminal.input(e.data).
+      // WKWebView skipped compositionupdate — no committed text from any sync source.
+      // The input event that follows will carry the text in e.data.
       _compositionFailed = true;
     }
   }, { capture: true, signal });
 
-  // input — path B (direct substitution) or fallback when compositionend had no data.
   terminalHost.addEventListener('input', (e) => {
-    // Path B: beforeinput/compositionupdate captured the data
+    // Fallback for WKWebView path where compositionend fires with no data.
+    // xterm's deferred read is already in the task queue; clear ta.value now
+    // (input fires synchronously before queued tasks) so that read returns ''.
+    if (_compositionFailed && e.data) {
+      _compositionFailed = false;
+      const ta = _ta();
+      if (ta) ta.value = '';
+      terminal.input(e.data, true);
+      return;
+    }
+    // Direct substitution path: no composition events, beforeinput captured the data.
     if (_compositionData) {
       _compositionFailed = false;
       const data = _compositionData;
       _compositionData = '';
-      const ta = _ta();
-      if (ta && ta.value !== data) ta.value = data;
-      return;
-    }
-    // Fallback: compositionend fired with no data (WKWebView skipped compositionupdate).
-    // xterm's _finalizeComposition will read empty ta.value → bypass via terminal.input().
-    if (_compositionFailed && e.data) {
-      _compositionFailed = false;
-      terminal.input(e.data, true);
+      terminal.input(data, true);
     }
   }, { capture: true, signal });
 
