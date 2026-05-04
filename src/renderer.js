@@ -3824,17 +3824,21 @@ addPaneButtonEl.addEventListener('click', () => {
 });
 
 
+function openSubPageModal(openFn) {
+  const wasOpen = !settingsPanelEl.classList.contains('is-hidden');
+  settingsPanelEl.classList.add('is-hidden');
+  openFn(wasOpen ? () => openSettingsToTab('general') : undefined);
+}
+
 // Shell profiles modal button (clickable row)
 shellProfilesSettingsBtn.addEventListener('click', () => {
-  settingsPanelEl.classList.add('is-hidden');
-  openShellProfilesModal(() => openSettingsToTab('general'));
+  openSubPageModal((onClose) => openShellProfilesModal(onClose));
 });
 
 shellProfilesSettingsBtn.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
-    settingsPanelEl.classList.add('is-hidden');
-    openShellProfilesModal(() => openSettingsToTab('general'));
+    openSubPageModal((onClose) => openShellProfilesModal(onClose));
   }
 });
 
@@ -3844,15 +3848,13 @@ shellProfilesSettingsBtn.addEventListener('keydown', (event) => {
 
 // Keyboard shortcuts modal button (clickable row)
 keyboardShortcutsSettingsBtn.addEventListener('click', () => {
-  settingsPanelEl.classList.add('is-hidden');
-  ShortcutsUI.openKeyboardShortcutsModal(bridge, scheduleSettingsSave, () => openSettingsToTab('general'));
+  openSubPageModal((onClose) => ShortcutsUI.openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose));
 });
 
 keyboardShortcutsSettingsBtn.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
-    settingsPanelEl.classList.add('is-hidden');
-    ShortcutsUI.openKeyboardShortcutsModal(bridge, scheduleSettingsSave, () => openSettingsToTab('general'));
+    openSubPageModal((onClose) => ShortcutsUI.openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose));
   }
 });
 
@@ -4092,14 +4094,17 @@ window.addEventListener('keydown', (event) => {
 
 function openSettingsToTab(tabId) {
   settingsPanelEl.classList.remove('is-hidden');
+  let activeBtn = null;
   settingsPanelEl.querySelectorAll('.settings-tab-btn').forEach(b => {
     const match = b.dataset.tab === tabId;
     b.classList.toggle('is-active', match);
     b.setAttribute('aria-selected', match ? 'true' : 'false');
+    if (match) activeBtn = b;
   });
   settingsPanelEl.querySelectorAll('.settings-tab-panel').forEach(p => {
     p.classList.toggle('is-hidden', p.id !== `settings-tab-${tabId}`);
   });
+  activeBtn?.focus();
 }
 
 bridge.onOpenSettings(() => {
