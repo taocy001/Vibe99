@@ -377,35 +377,71 @@ function createPane(pane, { tabId = null } = {}) {
   terminal.loadAddon(new ImageAddon());
   try { terminal.loadAddon(new WebglAddon()); } catch {}
 
-  // WKWebView IME fix: on WKWebView, textarea.value is unreliable after compositionend
-  // (stale, empty, or reset by the browser before xterm's deferred read fires). All
-  // attempts to patch ta.value fail intermittently — especially for Chinese fullwidth
-  // punctuation (？ "" etc.) which causes the "works every other time" symptom.
+  // WKWebView IME fix (diagnosed via event logging).
   //
-  // Root cause: xterm v6 reads ta.value.substring(_compositionPosition.start) in a
-  // setTimeout(0) queued from compositionend. If ta.value is wrong at that point,
-  // xterm sends the wrong text (or nothing). ta.value also accumulates if not cleared,
-  // causing start > 0 on the next composition.
+  // For Chinese Shift+key punctuation (e.g. Shift+/ → ？), WKWebView fires NO composition
+  // events. The character arrives via `input` (insertText) BEFORE keydown 229. Xterm
+  // rejects this path because ev.composed=true && _keyDownSeen=true. We intercept in
+  // the `input` capture handler (Path A) and call terminal.input() directly.
   //
-  // Fix: bypass xterm's textarea-read path entirely. Capture composition data from
-  // compositionupdate/beforeinput, then in compositionend:
-  //   1. Call terminal.input(data, true) directly — send to shell without touching ta.value.
-  //   2. Clear ta.value immediately and in a queued task so xterm's deferred read sees ''
-  //      and fires nothing (no duplicate).
+  // xterm's _keyDown for keyCode 229 returns early (compositionHelper returns false),
+  // leaving _keyDownHandled=false. The subsequent `keypress` event would then pass
+  // xterm's _keyPress guard and double-send the character. We stop keypress propagation
+  // for keyCode 229 before xterm's textarea capture fires.
+  //
+  // For composition-based input (regular pinyin), xterm's _keyDown fires before
+  // compositionstart and sends the first letter. Our compositionstart handler cancels
+  // that letter with a backspace (\x7f), and compositionend delivers the final character
+  // via terminal.input() (bypassing xterm's deferred ta.value read, which WKWebView
+  // clears before xterm's setTimeout fires).
   let _compositionData = '';
   let _compositionFailed = false;
+  let _compositionActive = false;
+  // Tracks the last char xterm sent via _keyDown (when not composing).
+  // Used to detect whether the following `input` event was already handled by xterm.
+  let _xtermLastKeydownData = null;
   const _ta = () => terminalHost.querySelector('textarea.xterm-helper-textarea');
+
+  terminalHost.addEventListener('keydown', (e) => {
+    _xtermLastKeydownData = null;
+    // For the Chinese Shift+key punctuation path (keyCode 229, no active composition),
+    // xterm's _keyDown calls _handleAnyTextareaChanges() which defers a ta.value read.
+    // Clear ta.value now (before that record) and again after (via setTimeout) so the
+    // deferred read sees no diff and doesn't send an extra character.
+    if (e.keyCode === 229 && !_compositionActive) {
+      const ta = _ta();
+      if (ta) {
+        ta.value = '';
+        setTimeout(() => { if (ta.isConnected) ta.value = ''; }, 0);
+      }
+    }
+  }, { capture: true, signal });
+
+  // xterm's _keyPress (capture on textarea) fires after keydown 229 with _keyDownHandled=false
+  // (because _keyDown returned early for IME keys). Without this guard it would send charCode
+  // as a character, duplicating our Path A send. Stop propagation before xterm sees it.
+  terminalHost.addEventListener('keypress', (e) => {
+    if (e.keyCode === 229) e.stopPropagation();
+  }, { capture: true, signal });
 
   terminalHost.addEventListener('compositionstart', () => {
     _compositionData = '';
     _compositionFailed = false;
+    _compositionActive = true;
+    // If xterm's _keyDown sent a raw ASCII char (e.g. '?' for Shift+/) before
+    // compositionstart fired, cancel it with a backspace so the shell only sees
+    // the final composed character.
+    const prevData = _xtermLastKeydownData;
+    _xtermLastKeydownData = null;
+    if (prevData !== null && prevData.length === 1 && node.sessionReady) {
+      bridge.writeTerminal({ paneId: node.paneId, data: '\x7f' });
+    }
   }, { capture: true, signal });
 
   terminalHost.addEventListener('compositionupdate', (e) => {
     if (e.data) _compositionData = e.data;
   }, { capture: true, signal });
 
-  // beforeinput: backup source for direct substitutions (e.g. macOS text replacement).
   terminalHost.addEventListener('beforeinput', (e) => {
     if (e.data && (
       e.inputType === 'insertCompositionText' ||
@@ -417,41 +453,49 @@ function createPane(pane, { tabId = null } = {}) {
   }, { capture: true, signal });
 
   terminalHost.addEventListener('compositionend', (e) => {
+    _compositionActive = false;
     const data = e.data || _compositionData;
     _compositionData = '';
     const ta = _ta();
 
     if (data) {
       _compositionFailed = false;
-      // Inject directly — bypass xterm's deferred ta.value read.
       terminal.input(data, true);
-      // Clear ta.value so xterm's queued setTimeout(0) reads '' and doesn't duplicate.
-      // Re-clear in the next task in case WKWebView resets it between now and xterm's read.
       if (ta) {
         ta.value = '';
         setTimeout(() => { if (ta.isConnected) ta.value = ''; }, 0);
       }
     } else {
-      // WKWebView skipped compositionupdate — no committed text from any sync source.
-      // The input event that follows will carry the text in e.data.
       _compositionFailed = true;
     }
   }, { capture: true, signal });
 
   terminalHost.addEventListener('input', (e) => {
-    // Fallback for WKWebView path where compositionend fires with no data.
-    // xterm's deferred read is already in the task queue; clear ta.value now
-    // (input fires synchronously before queued tasks) so that read returns ''.
-    if (_compositionFailed && e.data) {
-      _compositionFailed = false;
+    // Path A: Chinese Shift+key punctuation (e.g. Shift+/ → ？) on WKWebView/macOS.
+    // These arrive as insertText WITHOUT composition events. Xterm's _inputEvent
+    // rejects them because (ev.composed=true && _keyDownSeen=true). We detect this
+    // case by checking that xterm didn't already send this char via _keyDown
+    // (_xtermLastKeydownData is null since only a Shift modifier preceded the input).
+    if (e.inputType === 'insertText' && e.data && !_compositionActive && _xtermLastKeydownData !== e.data) {
+      e.stopPropagation(); // prevent xterm's _inputEvent (textarea capture) from also seeing this
       const ta = _ta();
       if (ta) ta.value = '';
       terminal.input(e.data, true);
       return;
     }
-    // Direct substitution path: no composition events, beforeinput captured the data.
+    // Path B: WKWebView compositionend fired with empty data; input carries the text.
+    if (_compositionFailed && e.data) {
+      _compositionFailed = false;
+      _compositionActive = false;
+      const ta = _ta();
+      if (ta) ta.value = '';
+      terminal.input(e.data, true);
+      return;
+    }
+    // Path C: beforeinput captured data during a direct substitution.
     if (_compositionData) {
       _compositionFailed = false;
+      _compositionActive = false;
       const data = _compositionData;
       _compositionData = '';
       terminal.input(data, true);
@@ -518,6 +562,7 @@ function createPane(pane, { tabId = null } = {}) {
 
   terminal.onData((data) => {
     if (!node.sessionReady) return;
+    if (!_compositionActive) _xtermLastKeydownData = data;
     if (broadcastEnabled) {
       for (const pnode of paneNodeMap.values()) {
         if (pnode.sessionReady) bridge.writeTerminal({ paneId: pnode.paneId, data });
