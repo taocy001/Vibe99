@@ -594,6 +594,7 @@ layoutRenderer = createLayoutRenderer(st, {
   beginRenamePane: (index) => paneManager.beginRenamePane(index),
   commitRenamePane: (paneId, value) => paneManager.commitRenamePane(paneId, value),
   cancelRenamePane: () => paneManager.cancelRenamePane(),
+  ensurePaneNodes,
 });
 
 // Wire the renderTabs callback back into pane-manager so tab dragging can

@@ -56,6 +56,7 @@ export function createLayoutRenderer(st, {
   beginRenamePane,
   commitRenamePane,
   cancelRenamePane,
+  ensurePaneNodes,
 }) {
 
   // ── Status / title helpers ─────────────────────────────────────────────────
@@ -300,6 +301,8 @@ export function createLayoutRenderer(st, {
   // ── Main pane render ────────────────────────────────────────────────────────
 
   function renderPanes(refit = false) {
+    ensurePaneNodes();
+
     const stageWidth  = stageEl.clientWidth;
     const stageHeight = stageEl.clientHeight;
     const previewWidth = getPreviewWidth(stageWidth, st.panes.length, settings.paneWidth);
