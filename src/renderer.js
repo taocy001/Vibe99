@@ -795,8 +795,6 @@ function createPane(pane, { tabId = null } = {}) {
         const endMk = terminal.registerMarker(0);
         const block = { promptMk, outputMk, endMk, exitCode };
         _blocks.push(block);
-        const outputRows = Math.max(0, endMk.line - outputMk.line);
-
         // Overview ruler indicator
         terminal.registerDecoration({
           marker: promptMk,
@@ -833,47 +831,7 @@ function createPane(pane, { tabId = null } = {}) {
               bridge.writeClipboardText(lines.join('\n'));
             });
 
-            let foldDec = null;
-            if (outputRows > 0) {
-              const foldBtn = document.createElement('button');
-              foldBtn.classList.add('cmd-block-btn');
-              foldBtn.title = 'Collapse output';
-              foldBtn.textContent = '−';
-
-              const toggleFold = () => {
-                if (foldDec) {
-                  foldDec.dispose();
-                  foldDec = null;
-                  foldBtn.textContent = '−';
-                  foldBtn.title = 'Collapse output';
-                } else {
-                  if (outputMk.isDisposed) return;
-                  foldDec = terminal.registerDecoration({ marker: outputMk, height: outputRows });
-                  foldDec?.onRender((foldEl) => {
-                    // Re-read theme on every render so theme changes stay in sync.
-                    const bg = (terminal.options.theme?.background ?? '#111111').slice(0, 7);
-                    foldEl.style.background = bg;
-                    if (foldEl.dataset.init) return;
-                    foldEl.dataset.init = '1';
-                    foldEl.classList.add('cmd-block-fold-cover');
-                    const summary = document.createElement('span');
-                    summary.textContent = `▶ ${outputRows} line${outputRows !== 1 ? 's' : ''}`;
-                    const expandBtn = document.createElement('button');
-                    expandBtn.className = 'cmd-block-fold-expand';
-                    expandBtn.textContent = 'Expand';
-                    expandBtn.addEventListener('click', (ev) => { ev.stopPropagation(); toggleFold(); });
-                    foldEl.append(summary, expandBtn);
-                  });
-                  foldBtn.textContent = '+';
-                  foldBtn.title = 'Expand output';
-                }
-              };
-
-              foldBtn.addEventListener('click', (ev) => { ev.stopPropagation(); toggleFold(); });
-              el.append(statusEl, copyBtn, foldBtn);
-            } else {
-              el.append(statusEl, copyBtn);
-            }
+            el.append(statusEl, copyBtn);
           }
           el.style.display = 'flex';
         });
