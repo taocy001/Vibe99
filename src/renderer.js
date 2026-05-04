@@ -824,12 +824,9 @@ function applyColorMode(mode) {
   });
 }
 
-function fixXtermViewportBg(terminalHost, mode) {
+function fixXtermViewportBg(terminalHost, _mode) {
   const vp = terminalHost.querySelector('.xterm-viewport');
-  const effective = mode === 'auto'
-    ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-    : mode;
-  if (vp) vp.style.backgroundColor = effective === 'light' ? '#f4f0ea' : '';
+  if (vp) vp.style.backgroundColor = resolveEffectiveColorMode() === 'light' ? '#f4f0ea' : '';
 }
 
 function applySettings() {
@@ -4171,12 +4168,6 @@ window.addEventListener('resize', () => {
   }, 120);
 });
 
-window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
-  if (settings.colorMode === 'auto') {
-    applyColorMode('auto');
-  }
-});
-
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     await bridge.cwdReady;
@@ -4184,6 +4175,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     const savedSettings = await bridge.loadSettings();
     applyPersistedSettings(savedSettings);
     applySettings();
+
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+      if (settings.colorMode === 'auto') {
+        applyColorMode('auto');
+      }
+    });
     applyTranslations();
     loadShellProfiles();
 
