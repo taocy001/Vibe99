@@ -56,6 +56,7 @@ const bridge = window.__TAURI__
   ? createTauriBridge(window.__TAURI__)
   : window.vibe99 ?? createUnavailableBridge();
 
+
 // ── Initial panes ─────────────────────────────────────────────────────────────
 const _initialPanes = [
   { id: 'p1', title: null, terminalTitle: bridge.defaultTabTitle, cwd: bridge.defaultCwd, accent: ColorsRegistry.ACCENT_PALETTE[0], shellProfileId: null, layout: null, focusedPanelId: 'p1' },
@@ -533,6 +534,30 @@ function createPane(pane, { tabId = null } = {}) {
     if (event.type === 'keydown' && event.ctrlKey && !event.metaKey && !event.altKey && event.code === 'Tab') return false;
     if (event.type === 'keydown' && event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey &&
         (event.key === 'C' || event.key === 'c' || event.key === 'V' || event.key === 'v')) return false;
+    // Cmd+↑/↓ — navigate between command blocks
+    if (event.type === 'keydown' && event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey &&
+        (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      // preventDefault stops WKWebView from firing its native Cmd+↑ scroll-to-top,
+      // which would corrupt the terminal's viewport state.
+      event.preventDefault();
+      const dir = event.key === 'ArrowUp' ? -1 : 1;
+      const buf = terminal.buffer.active;
+      // Navigate relative to the active block; fall back to viewport edges when none.
+      // Using _activeBlock (not viewportY) lets repeated Cmd+↑ step through all
+      // blocks including those already visible in the current viewport.
+      const refLine = _activeBlock && !_activeBlock.promptMk.isDisposed
+        ? _activeBlock.promptMk.line
+        : dir === -1 ? buf.baseY + terminal.rows : buf.viewportY - 1;
+      const completedMarkers = _blocks.map(b => b.promptMk).filter(m => !m.isDisposed);
+      const target = dir === -1
+        ? completedMarkers.filter(m => m.line < refLine).at(-1)
+        : completedMarkers.find(m => m.line > refLine);
+      if (target) {
+        terminal.scrollToLine(target.line);
+        setActiveBlock(_blocks.find(b => b.promptMk === target));
+      }
+      return false;
+    }
     if (!isWindowsCtrlVPasteHotkey(event)) return true;
     return false;
   });
@@ -558,6 +583,37 @@ function createPane(pane, { tabId = null } = {}) {
     event.preventDefault();
     paneManager.focusSplitPanel(node.paneId, { focusTerminal: false });
     void showTerminalContextMenu(node, event);
+  }, { signal });
+
+  // Block click-to-highlight: single click anywhere in a completed block activates it.
+  let _mousedownPos = { x: 0, y: 0 };
+  terminalHost.addEventListener('mousedown', (e) => { _mousedownPos = { x: e.clientX, y: e.clientY }; }, { signal });
+  terminalHost.addEventListener('click', (e) => {
+    if (e.button !== 0) return;
+    if (Math.abs(e.clientX - _mousedownPos.x) > 5 || Math.abs(e.clientY - _mousedownPos.y) > 5) return;
+    const cellH = terminalHost.offsetHeight / terminal.rows;
+    if (cellH <= 0) return;
+    const buf = terminal.buffer.active;
+    const bufRow = buf.viewportY + Math.floor(e.offsetY / cellH);
+
+    // Completed blocks
+    const hit = _blocks.find(b => !b.promptMk.isDisposed &&
+      bufRow >= b.promptMk.line &&
+      bufRow <= (b.endMk && !b.endMk.isDisposed ? b.endMk.line : b.promptMk.line));
+    if (hit) { setActiveBlock(hit); return; }
+
+    // In-progress block: prompt fired (OSC A) but command not yet done (no OSC D).
+    // Highlight from the prompt line to the current cursor as a point-in-time snapshot.
+    if (_shellPromptMarker && !_shellPromptMarker.isDisposed) {
+      const cursorLine = buf.baseY + buf.cursorY;
+      if (bufRow >= _shellPromptMarker.line && bufRow <= cursorLine) {
+        _activeBlock = null;
+        _applyHighlight(_shellPromptMarker, Math.max(1, cursorLine - _shellPromptMarker.line + 1));
+        return;
+      }
+    }
+
+    setActiveBlock(null);
   }, { signal });
 
   terminal.onData((data) => {
@@ -624,21 +680,53 @@ function createPane(pane, { tabId = null } = {}) {
     return true;
   });
 
-  // OSC 133 — shell integration: A=prompt-start B=command-start C=output-start D=command-done
-  let _shellPromptMarker = null;  // A: prompt line (badge anchor)
-  let _shellOutputMarker = null;  // C: first output row (fold anchor)
+  // OSC 133 — shell integration: A=prompt-start C=output-start D=command-done
+  // _promptMarkers: ordered list of all prompt markers for Cmd+↑/↓ block navigation
+  // _blocks: completed command blocks { promptMk, outputMk, endMk, exitCode }
+  const _promptMarkers = [];
+  const _blocks = [];
+  let _shellPromptMarker = null;
+  let _shellOutputMarker = null;
+
+  let _activeBlock = null;
+  let _activeHighlightDecoration = null;
+
+  function _applyHighlight(marker, height) {
+    if (_activeHighlightDecoration) { _activeHighlightDecoration.dispose(); _activeHighlightDecoration = null; }
+    const dec = terminal.registerDecoration({ marker, height, layer: 'bottom' });
+    dec?.onRender((el) => {
+      if (el.style.display === 'none') return;
+      el.classList.add('cmd-block-active-bg');
+      el.style.display = 'block';
+      el.style.width = '100%';
+      el.style.left = '0';
+    });
+    _activeHighlightDecoration = dec;
+  }
+
+  function setActiveBlock(block) {
+    _activeBlock = block || null;
+    if (!block || block.promptMk.isDisposed) {
+      if (_activeHighlightDecoration) { _activeHighlightDecoration.dispose(); _activeHighlightDecoration = null; }
+      return;
+    }
+    const endLine = block.endMk && !block.endMk.isDisposed ? block.endMk.line : block.promptMk.line + 1;
+    _applyHighlight(block.promptMk, Math.max(1, endLine - block.promptMk.line));
+  }
   terminal.parser.registerOscHandler(133, (data) => {
     if (data === 'A') {
       _shellPromptMarker = terminal.registerMarker(0);
+      if (_shellPromptMarker) _promptMarkers.push(_shellPromptMarker);
     } else if (data === 'C') {
       _shellOutputMarker = terminal.registerMarker(0);
     } else if (data === 'D' || data.startsWith('D;')) {
-      const exitCode   = data.length > 2 ? parseInt(data.slice(2), 10) : 0;
-      const promptMk   = _shellPromptMarker;
-      const outputMk   = _shellOutputMarker;
+      const exitCode = data.length > 2 ? parseInt(data.slice(2), 10) : 0;
+      const promptMk = _shellPromptMarker;
+      const outputMk = _shellOutputMarker;
       if (promptMk && outputMk) {
-        const endMk     = terminal.registerMarker(0);
-        const outputRows = Math.max(0, endMk.line - outputMk.line);
+        const endMk = terminal.registerMarker(0);
+        const block = { promptMk, outputMk, endMk, exitCode };
+        _blocks.push(block);
 
         // Overview ruler indicator
         terminal.registerDecoration({
@@ -646,67 +734,39 @@ function createPane(pane, { tabId = null } = {}) {
           overviewRulerOptions: { color: exitCode === 0 ? '#30D158' : '#FF453A', position: 'right' },
         });
 
-        // Right-aligned inline badge: exit status + copy + fold
-        let foldDec = null;
-        const badge = terminal.registerDecoration({ marker: promptMk, anchor: 'right', x: 0, width: exitCode === 0 ? 2 : 3 });
-        badge.onRender((el) => {
-          if (el.dataset.init) return;
-          el.dataset.init = '1';
-          el.className = 'cmd-block-badge' + (exitCode === 0 ? ' cmd-ok' : ' cmd-fail');
+        // Right-aligned badge on the prompt line.
+        // anchor:'right' positions from the right edge; classList.add preserves xterm's
+        // xterm-decoration class (position:absolute) — critical for correct placement.
+        const badge = terminal.registerDecoration({ marker: promptMk, anchor: 'right', x: 0 });
+        badge?.onRender((el) => {
+          if (el.style.display === 'none') return;
+          if (!el.dataset.init) {
+            el.dataset.init = '1';
+            el.classList.add('cmd-block-badge', exitCode === 0 ? 'cmd-ok' : 'cmd-fail');
 
-          const statusEl = document.createElement('span');
-          statusEl.className = 'cmd-block-status';
-          statusEl.textContent = exitCode === 0 ? '✓' : `✗${exitCode || ''}`;
+            const statusEl = document.createElement('span');
+            statusEl.className = 'cmd-block-status';
+            statusEl.textContent = exitCode === 0 ? '✓' : `✗${exitCode || ''}`;
 
-          const copyBtn = document.createElement('button');
-          copyBtn.className = 'cmd-block-btn';
-          copyBtn.title = 'Copy output';
-          copyBtn.textContent = '⎘';
-          copyBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const buf = terminal.buffer.active;
-            const lines = [];
-            for (let i = outputMk.line; i < endMk.line; i++) {
-              const ln = buf.getLine(i);
-              if (ln) lines.push(ln.translateToString(true));
-            }
-            while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-            bridge.writeClipboardText(lines.join('\n'));
-          });
-
-          el.append(statusEl, copyBtn);
-
-          if (outputRows > 0) {
-            const foldBtn = document.createElement('button');
-            foldBtn.className = 'cmd-block-btn';
-            foldBtn.title = 'Collapse';
-            foldBtn.textContent = '−';
-
-            const toggleFold = () => {
-              if (foldDec) {
-                foldDec.dispose(); foldDec = null;
-                foldBtn.textContent = '−'; foldBtn.title = 'Collapse';
-              } else {
-                foldDec = terminal.registerDecoration({ marker: outputMk, height: outputRows });
-                foldDec.onRender((foldEl) => {
-                  if (foldEl.dataset.init) return;
-                  foldEl.dataset.init = '1';
-                  foldEl.className = 'cmd-block-fold-cover';
-                  foldEl.style.background = (terminal.options.theme?.background ?? '#111111').slice(0, 7);
-                  const summary = document.createElement('span');
-                  summary.textContent = `▶ ${outputRows} line${outputRows !== 1 ? 's' : ''}`;
-                  const expandBtn = document.createElement('button');
-                  expandBtn.className = 'cmd-block-btn';
-                  expandBtn.textContent = 'Expand';
-                  expandBtn.addEventListener('click', toggleFold);
-                  foldEl.append(summary, expandBtn);
-                });
-                foldBtn.textContent = '+'; foldBtn.title = 'Expand';
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'cmd-block-btn';
+            copyBtn.title = 'Copy output';
+            copyBtn.textContent = '⎘';
+            copyBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const buf = terminal.buffer.active;
+              const lines = [];
+              for (let i = outputMk.line; i < endMk.line; i++) {
+                const ln = buf.getLine(i);
+                if (ln) lines.push(ln.translateToString(true));
               }
-            };
-            foldBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFold(); });
-            el.append(foldBtn);
+              while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+              bridge.writeClipboardText(lines.join('\n'));
+            });
+
+            el.append(statusEl, copyBtn);
           }
+          el.style.display = 'flex';
         });
 
         // System notification when window is not focused

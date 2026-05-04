@@ -2622,25 +2622,20 @@ body.is-dragging-tabs {
 /* ── Command block badges (OSC 133 shell integration) ──────────────────────── */
 
 .cmd-block-badge {
-  display: flex;
+  /* .xterm-decoration (kept via classList.add) provides position:absolute + z-index:6 */
+  /* xterm sets right:'' (anchor:right,x:0 → clears inline right) so CSS right:0 applies */
+  /* xterm also sets width:9px which we override; display:block which onRender overrides */
+  right: 0;
+  width: auto !important;     /* override xterm's inline width */
+  display: flex;              /* onRender sets this via el.style.display='flex' each frame */
+  justify-content: flex-end;
   align-items: center;
-  gap: 2px;
-  height: 100%;
-  padding: 0 3px;
-  opacity: 0;
-  transition: opacity 120ms ease;
-  pointer-events: none;
-  font-size: 10px;
+  gap: 3px;
+  padding-right: 6px;
+  font-size: 12px;
   font-family: var(--app-font-family, monospace);
-  border-radius: 3px;
   white-space: nowrap;
-}
-
-/* Show on hover of the containing terminal host */
-.terminal-host:hover .cmd-block-badge,
-.cmd-block-badge:focus-within {
-  opacity: 1;
-  pointer-events: auto;
+  pointer-events: none;       /* don't intercept terminal mouse events */
 }
 
 .cmd-block-badge.cmd-ok  .cmd-block-status { color: #30D158; }
@@ -2651,19 +2646,23 @@ body.is-dragging-tabs {
 
 .cmd-block-status {
   font-weight: 600;
-  min-width: 14px;
+  min-width: 16px;
   text-align: center;
+  background: rgba(0, 0, 0, 0.60);
+  border-radius: 3px;
+  padding: 1px 4px;
 }
 
 .cmd-block-btn {
-  background: none;
+  background: rgba(0, 0, 0, 0.60);
   border: none;
   cursor: pointer;
-  padding: 0 2px;
-  font-size: 10px;
-  line-height: 1;
-  color: rgba(255, 255, 255, 0.45);
-  border-radius: 2px;
+  pointer-events: auto;       /* re-enable for buttons specifically */
+  padding: 1px 5px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, 0.70);
+  border-radius: 3px;
   transition: color 80ms ease, background 80ms ease;
 }
 
@@ -2675,18 +2674,15 @@ body.is-dragging-tabs {
 .theme-light .cmd-block-btn       { color: rgba(0, 0, 0, 0.40); }
 .theme-light .cmd-block-btn:hover { color: rgba(0, 0, 0, 0.75); background: rgba(0, 0, 0, 0.08); }
 
-/* Fold cover — overlays the collapsed output rows */
-.cmd-block-fold-cover {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
-  cursor: default;
-  z-index: 5;
+.cmd-block-active-bg {
+  pointer-events: none;
+  background: rgba(99, 136, 255, 0.08);
+  border-left: 2px solid rgba(99, 136, 255, 0.50);
+  box-sizing: border-box;
 }
 
-.theme-light .cmd-block-fold-cover { color: rgba(0, 0, 0, 0.35); }
+.theme-light .cmd-block-active-bg {
+  background: rgba(60, 100, 220, 0.06);
+  border-left: 2px solid rgba(60, 100, 220, 0.40);
+}
+
