@@ -43,6 +43,8 @@ export function createDispatcher({
   }
 
   return function dispatch(event) {
+    if (event.isComposing) return;
+
     const mode = getMode();
     const inputFocused = isInputFocused();
     const paletteOpen = isCommandPaletteOpen();
