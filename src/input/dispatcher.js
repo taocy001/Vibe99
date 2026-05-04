@@ -21,6 +21,13 @@
 
 import { matchesChord, parseChord } from './keymap.js';
 
+// WKWebView (macOS Tauri) bug: the keydown immediately after compositionend
+// still reports event.isComposing = true. Track composition state ourselves
+// via compositionstart/end so the guard is reliable across all WebKit builds.
+let _composing = false;
+window.addEventListener('compositionstart', () => { _composing = true; }, true);
+window.addEventListener('compositionend',   () => { _composing = false; }, true);
+
 export function createDispatcher({
   getKeymap,
   actions,
@@ -43,7 +50,7 @@ export function createDispatcher({
   }
 
   return function dispatch(event) {
-    if (event.isComposing) return;
+    if (_composing || event.isComposing) return;
 
     const mode = getMode();
     const inputFocused = isInputFocused();
