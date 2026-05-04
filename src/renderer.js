@@ -412,18 +412,34 @@ function createPane(pane, { tabId = null } = {}) {
   }, { capture: true, signal });
 
   // compositionend — patch textarea.value for path A.
-  // Use `ta.value !== data` rather than `!ta.value` to also catch the stale-value
-  // variant of the WKWebView bug where the textarea is left with a previous composition.
+  // xterm v6 _finalizeComposition reads ta.value inside a setTimeout(0) but never clears it
+  // after reading. This leaves ta.value non-empty, so the NEXT compositionstart sets
+  // _compositionPosition.start = ta.value.length (> 0), causing ta.value.substring(start)
+  // to return '' and the character to be lost ("works every other time" symptom).
+  //
+  // Fix: two-phase deferred work:
+  //   Phase 1 setTimeout(0): fires BEFORE xterm's deferred read (FIFO queue); re-patches
+  //     ta.value if WKWebView reset it synchronously after compositionend.
+  //   Phase 2 nested setTimeout(0): fires AFTER xterm's deferred read (new task); clears
+  //     ta.value so the next composition starts from an empty textarea (start = 0).
   terminalHost.addEventListener('compositionend', (e) => {
     const data = e.data || _compositionData;
     _compositionData = '';
     const ta = _ta();
-    if (data && ta && ta.value !== data) ta.value = data;
+    if (!data || !ta) return;
+    if (ta.value !== data) ta.value = data;
+    setTimeout(() => {
+      if (!ta.isConnected) return;
+      if (!ta.value) ta.value = data;          // re-patch if WKWebView cleared it
+      setTimeout(() => {
+        if (ta.isConnected && ta.value === data) ta.value = '';  // clear after xterm reads
+      }, 0);
+    }, 0);
   }, { capture: true, signal });
 
   // input — patch textarea.value for path B (direct substitution, no composition events).
   // _compositionData is cleared by compositionend on path A, so this only triggers on path B.
-  terminalHost.addEventListener('input', () => {
+  terminalHost.addEventListener('input', (e) => {
     const data = _compositionData;
     if (!data) return;
     _compositionData = '';
