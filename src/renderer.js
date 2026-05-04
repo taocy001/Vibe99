@@ -1160,7 +1160,7 @@ function changePaneShell(paneId, profileId) {
 // Settings modals for complex settings
 // ----------------------------------------------------------------
 
-function openShellProfilesModal() {
+function openShellProfilesModal(onClose) {
   loadShellProfiles();
 
   const overlay = document.createElement('div');
@@ -1190,6 +1190,7 @@ function openShellProfilesModal() {
     overlay.remove();
     editingShellProfile = null;
     selectedShellProfileId = null;
+    onClose?.();
   };
 
   overlay.addEventListener('click', (e) => {
@@ -3825,13 +3826,15 @@ addPaneButtonEl.addEventListener('click', () => {
 
 // Shell profiles modal button (clickable row)
 shellProfilesSettingsBtn.addEventListener('click', () => {
-  openShellProfilesModal();
+  settingsPanelEl.classList.add('is-hidden');
+  openShellProfilesModal(() => openSettingsToTab('general'));
 });
 
 shellProfilesSettingsBtn.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
-    openShellProfilesModal();
+    settingsPanelEl.classList.add('is-hidden');
+    openShellProfilesModal(() => openSettingsToTab('general'));
   }
 });
 
@@ -3841,13 +3844,15 @@ shellProfilesSettingsBtn.addEventListener('keydown', (event) => {
 
 // Keyboard shortcuts modal button (clickable row)
 keyboardShortcutsSettingsBtn.addEventListener('click', () => {
-  ShortcutsUI.openKeyboardShortcutsModal(bridge, scheduleSettingsSave);
+  settingsPanelEl.classList.add('is-hidden');
+  ShortcutsUI.openKeyboardShortcutsModal(bridge, scheduleSettingsSave, () => openSettingsToTab('general'));
 });
 
 keyboardShortcutsSettingsBtn.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
-    ShortcutsUI.openKeyboardShortcutsModal(bridge, scheduleSettingsSave);
+    settingsPanelEl.classList.add('is-hidden');
+    ShortcutsUI.openKeyboardShortcutsModal(bridge, scheduleSettingsSave, () => openSettingsToTab('general'));
   }
 });
 
@@ -4084,6 +4089,18 @@ window.addEventListener('keydown', (event) => {
     }
   }
 });
+
+function openSettingsToTab(tabId) {
+  settingsPanelEl.classList.remove('is-hidden');
+  settingsPanelEl.querySelectorAll('.settings-tab-btn').forEach(b => {
+    const match = b.dataset.tab === tabId;
+    b.classList.toggle('is-active', match);
+    b.setAttribute('aria-selected', match ? 'true' : 'false');
+  });
+  settingsPanelEl.querySelectorAll('.settings-tab-panel').forEach(p => {
+    p.classList.toggle('is-hidden', p.id !== `settings-tab-${tabId}`);
+  });
+}
 
 bridge.onOpenSettings(() => {
   settingsPanelEl.classList.remove('is-hidden');

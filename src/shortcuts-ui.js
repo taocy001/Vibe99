@@ -96,7 +96,7 @@ function showConfirmDialog(message) {
 /**
  * Open the keyboard shortcuts modal dialog
  */
-export function openKeyboardShortcutsModal(bridge, scheduleSettingsSave) {
+export function openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose) {
   const overlay = document.createElement('div');
   overlay.className = 'settings-modal-overlay';
 
@@ -118,6 +118,7 @@ export function openKeyboardShortcutsModal(bridge, scheduleSettingsSave) {
 
   const closeModal = () => {
     overlay.remove();
+    onClose?.();
   };
 
   overlay.addEventListener('click', (e) => {
