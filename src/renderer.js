@@ -3925,12 +3925,13 @@ fontFamilySelectEl.addEventListener('change', () => {
 fontFamilyInputEl.addEventListener('change', () => {
   const val = fontFamilyInputEl.value.trim() || getDefaultFontFamily(bridge.platform);
   settings.fontFamily = val;
-  fontFamilyInputEl.classList.add('is-hidden');
-  fontFamilySelectEl.classList.remove('is-hidden');
   if (FONT_PRESET_VALUES.has(settings.fontFamily)) {
     fontFamilySelectEl.value = settings.fontFamily;
+    fontFamilyInputEl.classList.add('is-hidden');
+    fontFamilySelectEl.classList.remove('is-hidden');
   } else {
     fontFamilySelectEl.value = '__custom__';
+    // keep the text input visible — no swap back for non-preset values
   }
   applySettings();
   render(true);
