@@ -826,7 +826,10 @@ function applyColorMode(mode) {
 
 function fixXtermViewportBg(terminalHost, mode) {
   const vp = terminalHost.querySelector('.xterm-viewport');
-  if (vp) vp.style.backgroundColor = mode === 'light' ? '#f4f0ea' : '';
+  const effective = mode === 'auto'
+    ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+    : mode;
+  if (vp) vp.style.backgroundColor = effective === 'light' ? '#f4f0ea' : '';
 }
 
 function applySettings() {
@@ -1547,8 +1550,13 @@ function createModalShellProfileEditor() {
   return editor;
 }
 
+function resolveEffectiveColorMode() {
+  if (settings.colorMode !== 'auto') return settings.colorMode;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
 function createTerminalTheme(accent) {
-  if (settings.colorMode === 'light') {
+  if (resolveEffectiveColorMode() === 'light') {
     return {
       background: '#f4f0ea',
       foreground: '#383a42',
@@ -4160,6 +4168,12 @@ window.addEventListener('resize', () => {
       reportError(error);
     }
   }, 120);
+});
+
+window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+  if (settings.colorMode === 'auto') {
+    applyColorMode('auto');
+  }
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
