@@ -129,20 +129,17 @@ export function createSettingsUI({
   const FONT_PRESET_VALUES = new Set(FONT_PRESETS_DEF.map((f) => f.value));
 
   function _buildFontSelectGroups(available, popular) {
-    const makeOpt = (v, l) => Object.assign(document.createElement('option'), { value: v, textContent: l });
+    const makeOpt = (v, l, disabled = false) => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = l; o.disabled = disabled;
+      return o;
+    };
     fontFamilySelectEl.replaceChildren();
-    if (available.length) {
-      const g = document.createElement('optgroup');
-      g.label = 'Available';
-      available.forEach((f) => g.appendChild(makeOpt(f.value, f.label)));
-      fontFamilySelectEl.appendChild(g);
+    available.forEach((f) => fontFamilySelectEl.appendChild(makeOpt(f.value, f.label)));
+    if (available.length && popular.length) {
+      fontFamilySelectEl.appendChild(makeOpt('', '──────────────', true));
     }
-    if (popular.length) {
-      const g = document.createElement('optgroup');
-      g.label = 'Popular';
-      popular.forEach((f) => g.appendChild(makeOpt(f.value, f.label)));
-      fontFamilySelectEl.appendChild(g);
-    }
+    popular.forEach((f) => fontFamilySelectEl.appendChild(makeOpt(f.value, f.label)));
     fontFamilySelectEl.appendChild(makeOpt('__custom__', 'Custom…'));
   }
 
