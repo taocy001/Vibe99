@@ -151,8 +151,11 @@ export function createSettingsUI({
   }
 
   function applyColorMode(mode) {
+    // Resolve 'auto' to the actual effective class so all theme-light/theme-dark
+    // CSS rules apply correctly — theme-auto only has partial CSS coverage.
+    const effectiveClass = mode === 'auto' ? resolveEffectiveColorMode() : mode;
     document.documentElement.classList.remove('theme-dark', 'theme-light', 'theme-auto');
-    document.documentElement.classList.add(`theme-${mode}`);
+    document.documentElement.classList.add(`theme-${effectiveClass}`);
     bridge.setWindowTheme(mode).catch(() => {});
     for (const [, node] of paneNodeMap) {
       const accent = node.accent || '#888888';
@@ -219,7 +222,18 @@ export function createSettingsUI({
 
     if (Number.isFinite(uiSettings.fontSize))    settings.fontSize    = uiSettings.fontSize;
     if (Number.isFinite(uiSettings.scrollback))  settings.scrollback  = Math.max(1000, Math.min(50000, uiSettings.scrollback));
-    if (typeof uiSettings.fontFamily === 'string') settings.fontFamily = uiSettings.fontFamily;
+    if (typeof uiSettings.fontFamily === 'string') {
+      settings.fontFamily = uiSettings.fontFamily;
+      // Migrate old multi-fallback default values to the current single-family format
+      const FONT_MIGRATIONS = {
+        'Menlo, Monaco, "SF Mono", monospace': 'Menlo, monospace',
+        'Consolas, "Cascadia Mono", "Courier New", monospace': 'Consolas, monospace',
+        '"DejaVu Sans Mono", "Liberation Mono", "Ubuntu Mono", monospace': "'DejaVu Sans Mono', monospace",
+      };
+      if (settings.fontFamily in FONT_MIGRATIONS) {
+        settings.fontFamily = FONT_MIGRATIONS[settings.fontFamily];
+      }
+    }
     if (Number.isFinite(uiSettings.paneOpacity))  settings.paneOpacity = Math.max(0.55, Math.min(1, uiSettings.paneOpacity));
     if (Number.isFinite(uiSettings.paneMaskOpacity)) settings.paneMaskOpacity = Math.max(0, Math.min(1, uiSettings.paneMaskOpacity));
     // Migrate legacy paneMaskAlpha → paneMaskOpacity
