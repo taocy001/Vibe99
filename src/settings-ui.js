@@ -125,6 +125,11 @@ export function createSettingsUI({
   const keyboardShortcutsSettingsBtn = document.getElementById('keyboard-shortcuts-settings-btn');
   const shellIntegrationInstallBtn   = document.getElementById('shell-integration-install-btn');
   const languageSelectEl = document.getElementById('language-select');
+  const settingsSubpageEl      = document.getElementById('settings-subpage');
+  const settingsSubpageTitleEl = document.getElementById('settings-subpage-title');
+  const settingsSubpageContentEl = document.getElementById('settings-subpage-content');
+  const settingsSubpageBackEl  = document.getElementById('settings-subpage-back');
+  const settingsSubpageActionEl = document.getElementById('settings-subpage-action');
 
   // Populate language selector
   SUPPORTED_LOCALES.forEach(({ code, label }) => {
@@ -141,6 +146,9 @@ export function createSettingsUI({
   let selectedShellProfileId = null;
   let detectedShellProfiles = [];
   let pendingSettingsSave = null;
+  // Sub-page shell profile container refs (set when sub-page is open)
+  let _spShellListEl = null;
+  let _spShellEditorEl = null;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -377,10 +385,8 @@ export function createSettingsUI({
   }
 
   function renderModalShellProfiles() {
-    const overlay = document.querySelector('.settings-modal-overlay');
-    if (!overlay || !overlay._modalShellProfileList) return;
-    const listEl  = overlay._modalShellProfileList;
-    const editorEl = overlay._modalShellProfileEditor;
+    const listEl  = _spShellListEl;
+    const editorEl = _spShellEditorEl;
     if (!listEl || !editorEl) return;
 
     listEl.replaceChildren();
@@ -608,56 +614,6 @@ export function createSettingsUI({
     return editor;
   }
 
-  function openShellProfilesModal(onClose) {
-    loadShellProfiles();
-    const overlay = document.createElement('div');
-    overlay.className = 'settings-modal-overlay';
-    overlay.innerHTML = `
-      <div class="settings-modal shell-profiles-modal">
-        <div class="settings-modal-header">
-          <div class="settings-modal-title-group">
-            <span>Shell Profiles</span>
-            <button type="button" class="shell-profiles-add-btn" id="modal-shell-profile-add" aria-label="Add Profile">+</button>
-          </div>
-          <button type="button" class="settings-modal-close" aria-label="Close">×</button>
-        </div>
-        <div class="settings-modal-body shell-profiles-modal-body">
-          <div class="shell-profiles-sidebar">
-            <div class="shell-profile-list" id="modal-shell-profile-list"></div>
-          </div>
-          <div class="shell-profiles-editor-panel" id="modal-shell-profile-editor">
-            <div class="shell-profiles-editor-placeholder">Select a profile or create a new one</div>
-          </div>
-        </div>
-      </div>
-    `;
-    const closeModal = () => {
-      overlay.remove();
-      editingShellProfile = null;
-      selectedShellProfileId = null;
-      onClose?.();
-    };
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-    overlay.querySelector('.settings-modal-close').addEventListener('click', closeModal);
-    overlay.querySelector('#modal-shell-profile-add').addEventListener('click', () => {
-      editingShellProfile = { id: '', name: '', command: '', args: '', isNew: true };
-      selectedShellProfileId = null;
-      renderModalShellProfiles();
-    });
-    document.body.appendChild(overlay);
-    overlay._modalShellProfileList   = overlay.querySelector('#modal-shell-profile-list');
-    overlay._modalShellProfileEditor = overlay.querySelector('#modal-shell-profile-editor');
-    if (shellProfiles.length > 0) {
-      const firstProfile = shellProfiles[0];
-      selectedShellProfileId = firstProfile.id;
-      editingShellProfile = { id: firstProfile.id, name: firstProfile.name || '', command: firstProfile.command, args: formatArgs(firstProfile.args ?? []), isNew: false };
-    } else {
-      selectedShellProfileId = null;
-      editingShellProfile = null;
-    }
-    renderModalShellProfiles();
-  }
-
   // ── Settings panel navigation ──────────────────────────────────────────────
 
   function openSettingsToTab(tabId) {
@@ -675,10 +631,58 @@ export function createSettingsUI({
     activeBtn?.focus();
   }
 
-  function openSubPageModal(openFn) {
-    const wasOpen = !settingsPanelEl.classList.contains('is-hidden');
-    settingsPanelEl.classList.add('is-hidden');
-    openFn(wasOpen ? () => openSettingsToTab('general') : undefined);
+  function openSubPage(title, buildFn, actionLabel, onAction) {
+    settingsSubpageTitleEl.textContent = title;
+    settingsSubpageContentEl.replaceChildren();
+    if (actionLabel) {
+      settingsSubpageActionEl.textContent = actionLabel;
+      settingsSubpageActionEl.classList.remove('is-hidden');
+      settingsSubpageActionEl.onclick = onAction ?? null;
+    } else {
+      settingsSubpageActionEl.classList.add('is-hidden');
+      settingsSubpageActionEl.onclick = null;
+    }
+    buildFn(settingsSubpageContentEl);
+    settingsSubpageEl.classList.remove('is-hidden');
+  }
+
+  function closeSubPage() {
+    settingsSubpageEl.classList.add('is-hidden');
+    settingsSubpageContentEl.replaceChildren();
+    _spShellListEl = null;
+    _spShellEditorEl = null;
+    settingsSubpageBackEl.focus();
+  }
+
+  function openShellProfilesSubPage() {
+    loadShellProfiles();
+    openSubPage('Shell Profiles', (contentEl) => {
+      contentEl.innerHTML = `
+        <div class="shell-profiles-modal-body">
+          <div class="shell-profiles-sidebar">
+            <div class="shell-profile-list" id="sp-shell-profile-list"></div>
+          </div>
+          <div class="shell-profiles-editor-panel" id="sp-shell-profile-editor">
+            <div class="shell-profiles-editor-placeholder">Select a profile or create a new one</div>
+          </div>
+        </div>
+      `;
+      _spShellListEl = contentEl.querySelector('#sp-shell-profile-list');
+      _spShellEditorEl = contentEl.querySelector('#sp-shell-profile-editor');
+      if (shellProfiles.length > 0) {
+        const first = shellProfiles[0];
+        selectedShellProfileId = first.id;
+        editingShellProfile = { id: first.id, name: first.name || '', command: first.command, args: formatArgs(first.args ?? []), isNew: false };
+      } else {
+        selectedShellProfileId = null;
+        editingShellProfile = null;
+      }
+      renderModalShellProfiles();
+    }, '+', () => {
+      editingShellProfile = { id: '', name: '', command: '', args: '', isNew: true };
+      selectedShellProfileId = null;
+      renderModalShellProfiles();
+    });
   }
 
   // ── Settings UI event listeners ────────────────────────────────────────────
@@ -856,23 +860,26 @@ export function createSettingsUI({
     }
   });
 
-  shellProfilesSettingsBtn.addEventListener('click', () => {
-    openSubPageModal((onClose) => openShellProfilesModal(onClose));
+  settingsSubpageBackEl.addEventListener('click', () => {
+    closeSubPage();
   });
+
+  shellProfilesSettingsBtn.addEventListener('click', () => { openShellProfilesSubPage(); });
   shellProfilesSettingsBtn.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      openSubPageModal((onClose) => openShellProfilesModal(onClose));
-    }
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openShellProfilesSubPage(); }
   });
 
   keyboardShortcutsSettingsBtn.addEventListener('click', () => {
-    openSubPageModal((onClose) => ShortcutsUI.openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose));
+    openSubPage('Keyboard Shortcuts', (contentEl) => {
+      ShortcutsUI.renderIntoContainer(contentEl, bridge, scheduleSettingsSave);
+    });
   });
   keyboardShortcutsSettingsBtn.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      openSubPageModal((onClose) => ShortcutsUI.openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose));
+      openSubPage('Keyboard Shortcuts', (contentEl) => {
+        ShortcutsUI.renderIntoContainer(contentEl, bridge, scheduleSettingsSave);
+      });
     }
   });
 
@@ -910,7 +917,8 @@ export function createSettingsUI({
     flushSettingsSave,
     buildSessionData,
     openSettingsToTab,
-    openSubPageModal,
+    openSubPage,
+    closeSubPage,
     loadShellProfiles,
     restartPane,
     changePaneShell,

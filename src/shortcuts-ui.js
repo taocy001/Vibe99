@@ -94,6 +94,146 @@ function showConfirmDialog(message) {
 }
 
 /**
+ * Render keyboard shortcuts UI directly into a container element (inline, no overlay).
+ */
+export function renderIntoContainer(container, bridge, scheduleSettingsSave) {
+  container.innerHTML = `
+    <div class="shortcuts-list" id="sp-shortcuts-list"></div>
+    <div class="settings-modal-footer" style="padding:10px 14px;">
+      <button type="button" class="settings-modal-btn" id="sp-shortcuts-reset">Reset to Defaults</button>
+    </div>
+  `;
+  const listEl = container.querySelector('#sp-shortcuts-list');
+  const resetBtn = container.querySelector('#sp-shortcuts-reset');
+
+  function renderList() {
+    listEl.replaceChildren();
+    const shortcuts = ShortcutsRegistry.getKeyboardShortcuts();
+    for (const [id, shortcut] of Object.entries(shortcuts)) {
+      const item = document.createElement('div');
+      item.className = 'shortcut-item';
+      const info = document.createElement('div');
+      info.className = 'shortcut-info';
+      const name = document.createElement('div');
+      name.className = 'shortcut-name';
+      name.textContent = getShortcutActionName(id);
+      if (shortcut.mode === 'nav') {
+        const badge = document.createElement('span');
+        badge.className = 'shortcut-mode-badge';
+        badge.textContent = 'Nav';
+        name.appendChild(badge);
+      }
+      const description = document.createElement('div');
+      description.className = 'shortcut-description';
+      description.textContent = getShortcutActionDescription(id);
+      info.append(name, description);
+      const binding = document.createElement('div');
+      binding.className = 'shortcut-binding';
+      const keys = document.createElement('div');
+      keys.className = 'shortcut-keys';
+      keys.textContent = ShortcutsRegistry.formatShortcut(shortcut);
+      keys.addEventListener('click', () => startRecording(id));
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'shortcut-edit-btn';
+      editBtn.textContent = '✎';
+      editBtn.title = 'Change shortcut';
+      editBtn.addEventListener('click', () => startRecording(id));
+      binding.append(keys, editBtn);
+      item.append(info, binding);
+      listEl.appendChild(item);
+    }
+  }
+
+  function startRecording(shortcutId) {
+    // Reuse the same recording overlay as the full modal
+    _startShortcutRecording(shortcutId, scheduleSettingsSave, () => renderList());
+  }
+
+  resetBtn.addEventListener('click', async () => {
+    const confirmed = await showConfirmDialog('Reset all keyboard shortcuts to their default values?');
+    if (confirmed) {
+      ShortcutsRegistry.resetShortcutsToDefaults();
+      scheduleSettingsSave();
+      renderList();
+    }
+  });
+
+  renderList();
+}
+
+function _startShortcutRecording(shortcutId, scheduleSettingsSave, onRecordComplete) {
+  const shortcuts = ShortcutsRegistry.getKeyboardShortcuts();
+  const shortcut = shortcuts[shortcutId];
+  if (!shortcut) return;
+  const recorderOverlay = document.createElement('div');
+  recorderOverlay.className = 'shortcut-recorder-overlay';
+  recorderOverlay.tabIndex = -1;
+  recorderOverlay.innerHTML = `
+    <div class="shortcut-recorder-dialog">
+      <div class="shortcut-recorder-title">Record Shortcut</div>
+      <div class="shortcut-recorder-hint">Press your new key combination for "${getShortcutActionName(shortcutId)}"</div>
+      <div class="shortcut-recorder-keys" id="shortcut-recorder-keys">
+        <div class="shortcut-recorder-key">Press keys...</div>
+      </div>
+      <div class="shortcut-recorder-actions">
+        <button type="button" class="shortcut-recorder-btn" id="shortcut-recorder-cancel">Cancel</button>
+        <button type="button" class="shortcut-recorder-btn is-primary" id="shortcut-recorder-save" disabled>Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(recorderOverlay);
+  let recordedShortcut = null;
+  const keysDisplay = recorderOverlay.querySelector('#shortcut-recorder-keys');
+  const saveBtn = recorderOverlay.querySelector('#shortcut-recorder-save');
+  const cancelBtn = recorderOverlay.querySelector('#shortcut-recorder-cancel');
+  const close = () => {
+    window.removeEventListener('keydown', keydownHandler, true);
+    recorderOverlay.remove();
+  };
+  const keydownHandler = (event) => {
+    event.preventDefault(); event.stopPropagation();
+    if (event.key === 'Escape') { close(); return; }
+    if (['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) return;
+    const parsed = ShortcutsRegistry.parseShortcutEvent(event);
+    keysDisplay.innerHTML = '';
+    for (const mod of [...parsed.modifiers, parsed.key]) {
+      const el = document.createElement('div');
+      el.className = 'shortcut-recorder-key';
+      el.textContent = mod === 'ctrl' ? (navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl') :
+                       mod === 'shift' ? (navigator.platform.toLowerCase().includes('mac') ? '⇧' : 'Shift') :
+                       mod === 'alt' ? (navigator.platform.toLowerCase().includes('mac') ? '⌥' : 'Alt') :
+                       mod === ' ' ? 'Space' : mod;
+      keysDisplay.appendChild(el);
+    }
+    const newShortcut = { key: parsed.key, modifiers: parsed.modifiers };
+    const conflictId = ShortcutsRegistry.findConflict(newShortcut, shortcutId);
+    if (conflictId) {
+      const w = document.createElement('div');
+      w.className = 'shortcut-conflict-warning';
+      w.textContent = `Conflicts with "${getShortcutActionName(conflictId)}"`;
+      keysDisplay.appendChild(w);
+      saveBtn.disabled = true;
+    } else {
+      saveBtn.disabled = false;
+      recordedShortcut = newShortcut;
+    }
+  };
+  window.addEventListener('keydown', keydownHandler, true);
+  cancelBtn.addEventListener('click', close);
+  saveBtn.addEventListener('click', () => {
+    if (!recordedShortcut) return;
+    ShortcutsRegistry.updateKeyboardShortcut(shortcutId, recordedShortcut);
+    scheduleSettingsSave?.();
+    onRecordComplete?.();
+    close();
+  });
+  recorderOverlay.addEventListener('click', (e) => { if (e.target === recorderOverlay) close(); });
+  recorderOverlay.style.outline = 'none';
+  recorderOverlay.focus();
+}
+
+/**
  * Open the keyboard shortcuts modal dialog
  */
 export function openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose) {
@@ -204,127 +344,7 @@ export function openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose
     }
   }
 
-  /**
-   * Start recording a new keyboard shortcut
-   */
   function startShortcutRecording(shortcutId, onRecordComplete) {
-    const shortcuts = ShortcutsRegistry.getKeyboardShortcuts();
-    const shortcut = shortcuts[shortcutId];
-    if (!shortcut) return;
-
-    // Create recording overlay
-    const recorderOverlay = document.createElement('div');
-    recorderOverlay.className = 'shortcut-recorder-overlay';
-    recorderOverlay.id = 'shortcut-recorder-overlay';
-    recorderOverlay.tabIndex = -1; // Make it focusable
-
-    recorderOverlay.innerHTML = `
-      <div class="shortcut-recorder-dialog">
-        <div class="shortcut-recorder-title">Record Shortcut</div>
-        <div class="shortcut-recorder-hint">Press your new key combination for "${getShortcutActionName(shortcutId)}"</div>
-        <div class="shortcut-recorder-keys" id="shortcut-recorder-keys">
-          <div class="shortcut-recorder-key">Press keys...</div>
-        </div>
-        <div class="shortcut-recorder-actions">
-          <button type="button" class="shortcut-recorder-btn" id="shortcut-recorder-cancel">Cancel</button>
-          <button type="button" class="shortcut-recorder-btn is-primary" id="shortcut-recorder-save" disabled>Save</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(recorderOverlay);
-
-    let recordedShortcut = null;
-    const keysDisplay = recorderOverlay.querySelector('#shortcut-recorder-keys');
-    const saveBtn = recorderOverlay.querySelector('#shortcut-recorder-save');
-    const cancelBtn = recorderOverlay.querySelector('#shortcut-recorder-cancel');
-
-    const keydownHandler = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      // Handle escape key
-      if (event.key === 'Escape') {
-        closeShortcutRecorder();
-        return;
-      }
-
-      // Ignore modifier-only keypresses
-      if (['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) {
-        return;
-      }
-
-      // Parse the shortcut
-      const parsed = ShortcutsRegistry.parseShortcutEvent(event);
-
-      // Update display
-      keysDisplay.innerHTML = '';
-      const modifiers = [...parsed.modifiers, parsed.key];
-      for (const mod of modifiers) {
-        const keyEl = document.createElement('div');
-        keyEl.className = 'shortcut-recorder-key';
-        keyEl.textContent = mod === 'ctrl' ? (navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl') :
-                           mod === 'shift' ? (navigator.platform.toLowerCase().includes('mac') ? '⇧' : 'Shift') :
-                           mod === 'alt' ? (navigator.platform.toLowerCase().includes('mac') ? '⌥' : 'Alt') :
-                           mod === ' ' ? 'Space' : mod;
-        keysDisplay.appendChild(keyEl);
-      }
-
-      // Check for conflicts
-      const newShortcut = { key: parsed.key, modifiers: parsed.modifiers };
-      const conflictId = ShortcutsRegistry.findConflict(newShortcut, shortcutId);
-
-      if (conflictId) {
-        const conflictWarning = document.createElement('div');
-        conflictWarning.className = 'shortcut-conflict-warning';
-        conflictWarning.textContent = `Conflicts with "${getShortcutActionName(conflictId)}"`;
-        keysDisplay.appendChild(conflictWarning);
-        saveBtn.disabled = true;
-      } else {
-        saveBtn.disabled = false;
-        recordedShortcut = newShortcut;
-      }
-    };
-
-    // Use window for event capture to ensure we get all keyboard events
-    window.addEventListener('keydown', keydownHandler, true);
-
-    const closeShortcutRecorder = () => {
-      window.removeEventListener('keydown', keydownHandler, true);
-      recorderOverlay.remove();
-    };
-
-    cancelBtn.addEventListener('click', closeShortcutRecorder);
-
-    saveBtn.addEventListener('click', () => {
-      if (recordedShortcut) {
-        // Update the shortcut
-        ShortcutsRegistry.updateKeyboardShortcut(shortcutId, {
-          key: recordedShortcut.key,
-          modifiers: recordedShortcut.modifiers,
-        });
-
-        // Persist to settings
-        if (scheduleSettingsSave) {
-          scheduleSettingsSave();
-        }
-
-        // Update UI
-        if (onRecordComplete) {
-          onRecordComplete();
-        }
-        closeShortcutRecorder();
-      }
-    });
-
-    recorderOverlay.addEventListener('click', (e) => {
-      if (e.target === recorderOverlay) {
-        closeShortcutRecorder();
-      }
-    });
-
-    // Make overlay focusable and focus it
-    recorderOverlay.style.outline = 'none';
-    recorderOverlay.focus();
+    _startShortcutRecording(shortcutId, scheduleSettingsSave, onRecordComplete);
   }
 }
