@@ -380,17 +380,42 @@ function createPane(pane, { tabId = null } = {}) {
   // WKWebView bug: for single-character IME substitutions (Chinese smart quotes,
   // fullwidth punctuation), the hidden textarea value is not updated before
   // compositionend fires, so xterm's _finalizeComposition reads an empty string.
-  // Fix: capture the compositionend data in the capture phase and set it on the
-  // textarea so xterm can read it in its subsequent setTimeout.
-  let _lastCompositionData = '';
-  terminalHost.addEventListener('compositionupdate', (e) => {
-    if (e.data) _lastCompositionData = e.data;
+  //
+  // Two code paths exist on WKWebView:
+  //   A) Composition path: compositionstart → compositionupdate → compositionend → input
+  //   B) Direct-substitution path: no composition events, just beforeinput → input
+  //
+  // We patch textarea.value in capture phase so xterm reads the correct value.
+  let _compositionData = '';
+  const _ta = () => terminalHost.querySelector('textarea.xterm-helper-textarea');
+
+  // beforeinput fires before DOM modification — most reliable data source
+  terminalHost.addEventListener('beforeinput', (e) => {
+    if (e.data && (e.inputType === 'insertCompositionText' || e.inputType === 'insertReplacementText')) {
+      _compositionData = e.data;
+    }
   }, { capture: true, signal });
+
+  // compositionupdate — additional fallback
+  terminalHost.addEventListener('compositionupdate', (e) => {
+    if (e.data) _compositionData = e.data;
+  }, { capture: true, signal });
+
+  // compositionend — patch textarea.value for path A
   terminalHost.addEventListener('compositionend', (e) => {
-    const data = e.data || _lastCompositionData;
-    _lastCompositionData = '';
+    const data = e.data || _compositionData;
+    _compositionData = '';
+    const ta = _ta();
+    if (data && ta && !ta.value) ta.value = data;
+  }, { capture: true, signal });
+
+  // input — patch textarea.value for path B (direct substitution, no composition events)
+  // _compositionData is cleared by compositionend on path A, so this only triggers on path B.
+  terminalHost.addEventListener('input', () => {
+    const data = _compositionData;
     if (!data) return;
-    const ta = terminalHost.querySelector('textarea.xterm-helper-textarea');
+    _compositionData = '';
+    const ta = _ta();
     if (ta && !ta.value) ta.value = data;
   }, { capture: true, signal });
 
