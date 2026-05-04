@@ -387,11 +387,13 @@ function createPane(pane, { tabId = null } = {}) {
   //
   // We patch textarea.value in capture phase so xterm reads the correct value.
   let _compositionData = '';
+  let _compositionFailed = false;  // true when compositionend fired with no data
   const _ta = () => terminalHost.querySelector('textarea.xterm-helper-textarea');
 
   // compositionstart — clear stale data from any previous aborted composition
   terminalHost.addEventListener('compositionstart', () => {
     _compositionData = '';
+    _compositionFailed = false;
   }, { capture: true, signal });
 
   // beforeinput fires before DOM modification — most reliable data source.
@@ -426,25 +428,41 @@ function createPane(pane, { tabId = null } = {}) {
     const data = e.data || _compositionData;
     _compositionData = '';
     const ta = _ta();
-    if (!data || !ta) return;
-    if (ta.value !== data) ta.value = data;
-    setTimeout(() => {
-      if (!ta.isConnected) return;
-      if (!ta.value) ta.value = data;          // re-patch if WKWebView cleared it
+    if (!ta) return;
+    if (data) {
+      _compositionFailed = false;
+      if (ta.value !== data) ta.value = data;
       setTimeout(() => {
-        if (ta.isConnected && ta.value === data) ta.value = '';  // clear after xterm reads
+        if (!ta.isConnected) return;
+        if (!ta.value) ta.value = data;
+        setTimeout(() => {
+          if (ta.isConnected && ta.value === data) ta.value = '';
+        }, 0);
       }, 0);
-    }, 0);
+    } else {
+      // WKWebView skipped compositionupdate for this character — no data from any source.
+      // Mark as failed; the input event fallback will send via terminal.input(e.data).
+      _compositionFailed = true;
+    }
   }, { capture: true, signal });
 
-  // input — patch textarea.value for path B (direct substitution, no composition events).
-  // _compositionData is cleared by compositionend on path A, so this only triggers on path B.
+  // input — path B (direct substitution) or fallback when compositionend had no data.
   terminalHost.addEventListener('input', (e) => {
-    const data = _compositionData;
-    if (!data) return;
-    _compositionData = '';
-    const ta = _ta();
-    if (ta && ta.value !== data) ta.value = data;
+    // Path B: beforeinput/compositionupdate captured the data
+    if (_compositionData) {
+      _compositionFailed = false;
+      const data = _compositionData;
+      _compositionData = '';
+      const ta = _ta();
+      if (ta && ta.value !== data) ta.value = data;
+      return;
+    }
+    // Fallback: compositionend fired with no data (WKWebView skipped compositionupdate).
+    // xterm's _finalizeComposition will read empty ta.value → bypass via terminal.input().
+    if (_compositionFailed && e.data) {
+      _compositionFailed = false;
+      terminal.input(e.data, true);
+    }
   }, { capture: true, signal });
 
   // xterm.js 6.x multiplies trackpad scroll delta by 0.3 (heuristic for small

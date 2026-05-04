@@ -304,8 +304,8 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   top: calc(var(--tabs-height) + 6px);
   left: 50%;
   transform: translateX(-50%);
-  display: grid;
-  gap: 0;
+  display: flex;
+  flex-direction: column;
   width: 340px;
   max-height: calc(100vh - var(--tabs-height) - 24px);
   padding: 0 0 4px;
@@ -330,6 +330,12 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   display: none;
 }
 
+/* Subpage fills the panel when open */
+.settings-panel.has-subpage > .settings-subpage {
+  flex: 1;
+  min-height: 0;
+}
+
 .settings-panel.is-hidden {
   display: none;
 }
@@ -337,10 +343,11 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
 /* ── Tab navigation ───────────────────────────────────────────── */
 .settings-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   padding: 6px 8px 0;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .settings-tab-btn {
@@ -368,6 +375,12 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
 .settings-tab-btn.is-active {
   color: rgba(255, 255, 255, 0.95);
   border-bottom-color: rgba(255, 255, 255, 0.65);
+}
+
+.settings-tab-panel {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .settings-tab-panel.is-hidden {
@@ -2485,6 +2498,22 @@ body.is-dragging-tabs {
 
 .theme-light .settings-caption code {
   color: rgba(0, 0, 0, 0.55);
+}
+
+.theme-light .settings-value {
+  color: rgba(0, 0, 0, 0.50);
+}
+
+.theme-light .settings-number {
+  border-color: rgba(0, 0, 0, 0.22);
+  background: rgba(255, 255, 255, 0.75);
+  color: #1a1a1a;
+}
+
+.theme-light .settings-select {
+  border-color: rgba(0, 0, 0, 0.22);
+  background: rgba(255, 255, 255, 0.75);
+  color: #1a1a1a;
 }
 
 .theme-light input[type="range"] {
