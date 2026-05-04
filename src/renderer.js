@@ -2,6 +2,14 @@
 // and layout-renderer. Owns terminal creation, bridge I/O, search, context menus,
 // and keyboard dispatch. Everything else lives in the imported modules.
 
+// Cmd+Option+I opens DevTools (devtools feature is already compiled in via Cargo.toml).
+document.addEventListener('keydown', async (e) => {
+  if (e.metaKey && e.altKey && e.key === 'i') {
+    const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+    getCurrentWebviewWindow().openDevtools();
+  }
+}, { capture: true });
+
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
@@ -398,6 +406,12 @@ function createPane(pane, { tabId = null } = {}) {
   let _compositionData = '';
   let _compositionFailed = false;
   let _compositionActive = false;
+  // WKWebView fires compositionend and keydown(Enter) in SEPARATE macrotasks, so
+  // setTimeout(0) runs between them and clears any flag before keydown arrives.
+  // Use the ProseMirror/Square pattern: set a 50ms window in compositionend so the
+  // Enter keydown (which arrives microseconds later on WKWebView) is still caught.
+  let _compositionJustEnded = false;
+  let _compositionJustEndedTimer = null;
   // Tracks the last char xterm sent via _keyDown (when not composing).
   // Used to detect whether the following `input` event was already handled by xterm.
   let _xtermLastKeydownData = null;
@@ -416,6 +430,20 @@ function createPane(pane, { tabId = null } = {}) {
         setTimeout(() => { if (ta.isConnected) ta.value = ''; }, 0);
       }
     }
+    // Suppress Enter that commits IME composition.
+    // _compositionJustEnded catches the case where Enter fires within 50ms of compositionend
+    // (standard IME where compositionend carries data, e.g. selecting a Chinese character).
+    // _compositionFailed catches WKWebView Pinyin where compositionend always fires with
+    // empty data (PATH-C already sent each letter), so _compositionJustEnded times out
+    // before the user presses Enter — but _compositionFailed persists until compositionstart.
+    if (e.key === 'Enter' && (_compositionActive || _compositionJustEnded || _compositionFailed)) {
+      _compositionFailed = false;
+      _compositionJustEnded = false;
+      clearTimeout(_compositionJustEndedTimer);
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
   }, { capture: true, signal });
 
   // xterm's _keyPress (capture on textarea) fires after keydown 229 with _keyDownHandled=false
@@ -429,6 +457,8 @@ function createPane(pane, { tabId = null } = {}) {
     _compositionData = '';
     _compositionFailed = false;
     _compositionActive = true;
+    _compositionJustEnded = false;
+    clearTimeout(_compositionJustEndedTimer);
     // If xterm's _keyDown sent a raw ASCII char (e.g. '?' for Shift+/) before
     // compositionstart fired, cancel it with a backspace so the shell only sees
     // the final composed character.
@@ -458,6 +488,12 @@ function createPane(pane, { tabId = null } = {}) {
     const data = e.data || _compositionData;
     _compositionData = '';
     const ta = _ta();
+
+    // Set flag unconditionally — compositionend always signals that Enter (or another
+    // commit key) was pressed; the 50ms window covers WKWebView's cross-task delay.
+    _compositionJustEnded = true;
+    clearTimeout(_compositionJustEndedTimer);
+    _compositionJustEndedTimer = setTimeout(() => { _compositionJustEnded = false; }, 50);
 
     if (data) {
       _compositionFailed = false;
