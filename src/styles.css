@@ -687,6 +687,34 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   color: var(--text);
 }
 
+/* Shell profiles layout — standalone for subpage (not scoped to modal) */
+.shell-profiles-modal-body {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.shell-profiles-sidebar {
+  flex: 0 0 160px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.10);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px;
+  min-height: 0;
+}
+
+.shell-profiles-editor-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 12px 14px;
+}
+
 .shell-profile-list {
   display: flex;
   flex-direction: column;
@@ -2226,6 +2254,155 @@ body.is-dragging-tabs {
 .theme-light .settings-subpage-action {
   background: rgba(0,0,0,0.06);
   border-color: rgba(0,0,0,0.12);
+  color: rgba(0,0,0,0.60);
+}
+
+/* Settings buttons */
+.theme-light .settings-btn {
+  border-color: rgba(0, 0, 0, 0.13);
+  background: rgba(0, 0, 0, 0.03);
+  color: rgba(0, 0, 0, 0.55);
+}
+.theme-light .settings-btn:hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: rgba(0, 0, 0, 0.80);
+}
+.theme-light .settings-clickable-row:hover,
+.theme-light .settings-clickable-row:focus {
+  background: rgba(0, 0, 0, 0.05);
+}
+.theme-light .settings-row-hint {
+  color: rgba(0, 0, 0, 0.35);
+}
+.theme-light .settings-clickable-row:hover .settings-row-hint {
+  color: rgba(0, 0, 0, 0.65);
+}
+
+/* Modal footer buttons (used in shortcuts subpage) */
+.theme-light .settings-modal-footer {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+.theme-light .settings-modal-btn {
+  border-color: rgba(0, 0, 0, 0.13);
+  color: rgba(0, 0, 0, 0.62);
+}
+.theme-light .settings-modal-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.82);
+}
+.theme-light .settings-modal-btn.primary {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.16);
+  color: rgba(0, 0, 0, 0.78);
+}
+.theme-light .settings-modal-btn.primary:hover {
+  background: rgba(0, 0, 0, 0.13);
+}
+
+/* Shell profiles sidebar */
+.theme-light .shell-profiles-sidebar {
+  border-right-color: rgba(0, 0, 0, 0.08);
+}
+.theme-light .shell-profiles-editor-placeholder {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+/* Shell profile list items */
+.theme-light .shell-profile-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+.theme-light .shell-profile-item.is-selected {
+  background: rgba(0, 0, 0, 0.07);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.theme-light .shell-profile-item.is-default {
+  background: rgba(0, 0, 0, 0.04);
+}
+.theme-light .shell-profile-item.drag-over {
+  border-color: rgba(0, 0, 0, 0.22);
+  background: rgba(0, 0, 0, 0.06);
+}
+.theme-light .shell-profile-actions .settings-btn {
+  border-color: rgba(0, 0, 0, 0.12);
+  color: rgba(0, 0, 0, 0.45);
+}
+.theme-light .shell-profile-actions .settings-btn:hover {
+  background: rgba(0, 0, 0, 0.07);
+  border-color: rgba(0, 0, 0, 0.18);
+  color: rgba(0, 0, 0, 0.70);
+}
+
+/* Shell profile editor */
+.theme-light .shell-profile-editor {
+  border-color: rgba(0, 0, 0, 0.10);
+  background: rgba(0, 0, 0, 0.02);
+}
+.theme-light .shell-profile-editor-header {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+.theme-light .shell-profile-editor-close {
+  color: rgba(0, 0, 0, 0.38);
+}
+.theme-light .shell-profile-editor-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.68);
+}
+.theme-light .shell-profile-editor label {
+  color: rgba(0, 0, 0, 0.55);
+}
+.theme-light .shell-profile-editor input {
+  border-color: rgba(0, 0, 0, 0.14);
+  background: rgba(0, 0, 0, 0.03);
+  color: rgba(0, 0, 0, 0.85);
+}
+.theme-light .shell-profile-editor input:focus {
+  border-color: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.05);
+}
+.theme-light .shell-profile-editor-actions {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+.theme-light .shell-profile-editor-actions .settings-btn.is-primary {
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(0, 0, 0, 0.16);
+  color: rgba(0, 0, 0, 0.78);
+}
+.theme-light .shell-profile-editor-actions .settings-btn.is-primary:hover {
+  background: rgba(0, 0, 0, 0.13) !important;
+}
+
+/* Keyboard shortcut list items */
+.theme-light .shortcut-item {
+  border-color: rgba(0, 0, 0, 0.07);
+  background: rgba(0, 0, 0, 0.015);
+}
+.theme-light .shortcut-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.11);
+}
+.theme-light .shortcut-description {
+  color: rgba(0, 0, 0, 0.40);
+}
+.theme-light .shortcut-mode-badge {
+  background: rgba(160, 105, 0, 0.10);
+  color: #7a5800;
+}
+.theme-light .shortcut-keys {
+  border-color: rgba(0, 0, 0, 0.13);
+  background: rgba(0, 0, 0, 0.04);
+  color: rgba(0, 0, 0, 0.68);
+}
+.theme-light .shortcut-keys:hover {
+  background: rgba(0, 0, 0, 0.07);
+  border-color: rgba(0, 0, 0, 0.20);
+}
+.theme-light .shortcut-edit-btn {
+  color: rgba(0, 0, 0, 0.32);
+}
+.theme-light .shortcut-edit-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.62);
 }
 
 .theme-light .settings-section-header {
