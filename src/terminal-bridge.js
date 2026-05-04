@@ -152,6 +152,7 @@ export function createTauriBridge(tauri) {
     installShellIntegration: () => invoke('install_shell_integration'),
     setWindowTheme: (mode) => invoke('set_window_theme', { mode }),
     setWindowTitle: (title) => getCurrentWindow().setTitle(title).catch(() => {}),
+    sendNotification: (title, body) => invoke('send_notification', { title, body }).catch(() => {}),
     getSystemInfo: () => invoke('get_system_info'),
     onTerminalData: (handler) => onTauriEvent('vibe99:terminal-data', handler),
     onTerminalExit: (handler) => onTauriEvent('vibe99:terminal-exit', handler),

@@ -21,6 +21,7 @@ export const settings = {
   paneWidth: 720,
   scrollback: 5000,
   breathingAlertEnabled: true,
+  notificationsEnabled: false,
   showStatusBar: false,
   colorMode: 'dark',
   language: 'en',
@@ -174,7 +175,8 @@ export function createSettingsUI({
   const paneOpacityValueEl    = document.getElementById('pane-opacity-value');
   const paneMaskOpacityRangeEl = document.getElementById('pane-mask-alpha-range');
   const paneMaskOpacityValueEl = document.getElementById('pane-mask-alpha-value');
-  const breathingAlertToggleEl = document.getElementById('breathing-alert-toggle');
+  const breathingAlertToggleEl  = document.getElementById('breathing-alert-toggle');
+  const notificationsToggleEl   = document.getElementById('notifications-toggle');
   const showStatusBarToggleEl  = document.getElementById('show-status-bar-toggle');
   const windowTitleFormatInputEl = document.getElementById('window-title-format');
   const statusBarFormatInputEl   = document.getElementById('status-bar-format');
@@ -263,6 +265,7 @@ export function createSettingsUI({
     paneMaskOpacityValueEl.textContent = settings.paneMaskOpacity.toFixed(2);
     breathingAlertToggleEl.checked = settings.breathingAlertEnabled;
     paneActivityWatcher.setGlobalEnabled(settings.breathingAlertEnabled);
+    if (notificationsToggleEl) notificationsToggleEl.checked = settings.notificationsEnabled;
     showStatusBarToggleEl.checked = settings.showStatusBar;
     document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
     applyColorModeUI(settings.colorMode);
@@ -312,7 +315,8 @@ export function createSettingsUI({
       settings.paneMaskOpacity = 1 - settings.paneMaskOpacity;
     }
     if (Number.isFinite(uiSettings.paneWidth)) settings.paneWidth = uiSettings.paneWidth;
-    if (typeof uiSettings.breathingAlertEnabled === 'boolean') settings.breathingAlertEnabled = uiSettings.breathingAlertEnabled;
+    if (typeof uiSettings.breathingAlertEnabled  === 'boolean') settings.breathingAlertEnabled  = uiSettings.breathingAlertEnabled;
+    if (typeof uiSettings.notificationsEnabled   === 'boolean') settings.notificationsEnabled   = uiSettings.notificationsEnabled;
     if (typeof uiSettings.showStatusBar === 'boolean')         settings.showStatusBar         = uiSettings.showStatusBar;
     if (typeof uiSettings.colorMode === 'string') settings.colorMode = uiSettings.colorMode;
     if (typeof uiSettings.language === 'string') {
@@ -848,6 +852,11 @@ export function createSettingsUI({
   breathingAlertToggleEl.addEventListener('change', () => {
     settings.breathingAlertEnabled = breathingAlertToggleEl.checked;
     paneActivityWatcher.setGlobalEnabled(settings.breathingAlertEnabled);
+    scheduleSettingsSave();
+  });
+
+  notificationsToggleEl?.addEventListener('change', () => {
+    settings.notificationsEnabled = notificationsToggleEl.checked;
     scheduleSettingsSave();
   });
 

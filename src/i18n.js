@@ -53,6 +53,9 @@ const TRANSLATIONS = {
     'hint.action.navigateRight': '→ pane',
     'hint.action.copyTerminalSelection': 'copy',
     'hint.action.pasteIntoTerminal': 'paste',
+    'settings.notifications': 'Notifications',
+    'notification.cmdDone': 'Command finished',
+    'notification.cmdFailed': 'Command failed',
   },
   'zh-CN': {
     'settings.tab.appearance': '外观',
@@ -108,6 +111,9 @@ const TRANSLATIONS = {
     'hint.action.navigateRight': '→ 面板',
     'hint.action.copyTerminalSelection': '复制',
     'hint.action.pasteIntoTerminal': '粘贴',
+    'settings.notifications': '通知',
+    'notification.cmdDone': '命令执行完毕',
+    'notification.cmdFailed': '命令执行失败',
   },
   'zh-TW': {
     'settings.tab.appearance': '外觀',
@@ -163,6 +169,9 @@ const TRANSLATIONS = {
     'hint.action.navigateRight': '→ 面板',
     'hint.action.copyTerminalSelection': '複製',
     'hint.action.pasteIntoTerminal': '貼上',
+    'settings.notifications': '通知',
+    'notification.cmdDone': '命令執行完畢',
+    'notification.cmdFailed': '命令執行失敗',
   },
   ja: {
     'settings.tab.appearance': '外観',
@@ -218,6 +227,9 @@ const TRANSLATIONS = {
     'hint.action.navigateRight': '→ ペイン',
     'hint.action.copyTerminalSelection': 'コピー',
     'hint.action.pasteIntoTerminal': '貼り付け',
+    'settings.notifications': '通知',
+    'notification.cmdDone': 'コマンド完了',
+    'notification.cmdFailed': 'コマンド失敗',
   },
 };
 

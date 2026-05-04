@@ -624,19 +624,103 @@ function createPane(pane, { tabId = null } = {}) {
     return true;
   });
 
-  // OSC 133 — shell integration: command start/end markers
+  // OSC 133 — shell integration: A=prompt-start B=command-start C=output-start D=command-done
+  let _shellPromptMarker = null;  // A: prompt line (badge anchor)
+  let _shellOutputMarker = null;  // C: first output row (fold anchor)
   terminal.parser.registerOscHandler(133, (data) => {
-    if (data === 'C') {
-      node.shellCmdMarker = terminal.registerMarker(0);
+    if (data === 'A') {
+      _shellPromptMarker = terminal.registerMarker(0);
+    } else if (data === 'C') {
+      _shellOutputMarker = terminal.registerMarker(0);
     } else if (data === 'D' || data.startsWith('D;')) {
-      const exitCode = data.length > 2 ? parseInt(data.slice(2), 10) : 0;
-      const marker = node.shellCmdMarker;
-      if (marker) {
+      const exitCode   = data.length > 2 ? parseInt(data.slice(2), 10) : 0;
+      const promptMk   = _shellPromptMarker;
+      const outputMk   = _shellOutputMarker;
+      if (promptMk && outputMk) {
+        const endMk     = terminal.registerMarker(0);
+        const outputRows = Math.max(0, endMk.line - outputMk.line);
+
+        // Overview ruler indicator
         terminal.registerDecoration({
-          marker,
+          marker: promptMk,
           overviewRulerOptions: { color: exitCode === 0 ? '#30D158' : '#FF453A', position: 'right' },
         });
-        node.shellCmdMarker = null;
+
+        // Right-aligned inline badge: exit status + copy + fold
+        let foldDec = null;
+        const badge = terminal.registerDecoration({ marker: promptMk, anchor: 'right', x: 0, width: exitCode === 0 ? 2 : 3 });
+        badge.onRender((el) => {
+          if (el.dataset.init) return;
+          el.dataset.init = '1';
+          el.className = 'cmd-block-badge' + (exitCode === 0 ? ' cmd-ok' : ' cmd-fail');
+
+          const statusEl = document.createElement('span');
+          statusEl.className = 'cmd-block-status';
+          statusEl.textContent = exitCode === 0 ? '✓' : `✗${exitCode || ''}`;
+
+          const copyBtn = document.createElement('button');
+          copyBtn.className = 'cmd-block-btn';
+          copyBtn.title = 'Copy output';
+          copyBtn.textContent = '⎘';
+          copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const buf = terminal.buffer.active;
+            const lines = [];
+            for (let i = outputMk.line; i < endMk.line; i++) {
+              const ln = buf.getLine(i);
+              if (ln) lines.push(ln.translateToString(true));
+            }
+            while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+            bridge.writeClipboardText(lines.join('\n'));
+          });
+
+          el.append(statusEl, copyBtn);
+
+          if (outputRows > 0) {
+            const foldBtn = document.createElement('button');
+            foldBtn.className = 'cmd-block-btn';
+            foldBtn.title = 'Collapse';
+            foldBtn.textContent = '−';
+
+            const toggleFold = () => {
+              if (foldDec) {
+                foldDec.dispose(); foldDec = null;
+                foldBtn.textContent = '−'; foldBtn.title = 'Collapse';
+              } else {
+                foldDec = terminal.registerDecoration({ marker: outputMk, height: outputRows });
+                foldDec.onRender((foldEl) => {
+                  if (foldEl.dataset.init) return;
+                  foldEl.dataset.init = '1';
+                  foldEl.className = 'cmd-block-fold-cover';
+                  foldEl.style.background = (terminal.options.theme?.background ?? '#111111').slice(0, 7);
+                  const summary = document.createElement('span');
+                  summary.textContent = `▶ ${outputRows} line${outputRows !== 1 ? 's' : ''}`;
+                  const expandBtn = document.createElement('button');
+                  expandBtn.className = 'cmd-block-btn';
+                  expandBtn.textContent = 'Expand';
+                  expandBtn.addEventListener('click', toggleFold);
+                  foldEl.append(summary, expandBtn);
+                });
+                foldBtn.textContent = '+'; foldBtn.title = 'Expand';
+              }
+            };
+            foldBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFold(); });
+            el.append(foldBtn);
+          }
+        });
+
+        // System notification when window is not focused
+        if (settings.notificationsEnabled && !document.hasFocus()) {
+          const pane  = st.panes.find(p => p.id === node.paneId);
+          const label = pane?.title || pane?.terminalTitle || node.paneId;
+          const title = exitCode === 0
+            ? t('notification.cmdDone')
+            : `${t('notification.cmdFailed')} (${exitCode})`;
+          bridge.sendNotification(title, label);
+        }
+
+        _shellPromptMarker = null;
+        _shellOutputMarker = null;
       }
     }
     return true;

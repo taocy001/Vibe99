@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use vibe99_lib::commands::context_menu;
+use vibe99_lib::commands::notification;
 use vibe99_lib::commands::context_menu::MenuActionPayload;
 use vibe99_lib::commands::settings;
 use vibe99_lib::commands::settings::{get_saved_language, get_saved_is_light, get_saved_show_status_bar};
@@ -20,6 +21,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState {
             pty: Arc::new(PtyManager::new()),
         })
@@ -279,6 +281,7 @@ fn main() {
             wsl_cmd::wsl_convert_path,
             wsl_cmd::wsl_cwd,
             shell_integration::install_shell_integration,
+            notification::send_notification,
         ])
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
