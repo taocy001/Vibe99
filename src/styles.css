@@ -1965,7 +1965,20 @@ body.is-dragging-tabs {
 .shortcuts-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  padding: 6px 10px 4px;
+}
+
+/* In the settings subpage, hide descriptions and tighten padding so more
+   items fit without scrolling */
+.settings-subpage-content .shortcuts-list {
+  padding: 4px 10px 4px;
+}
+.settings-subpage-content .shortcut-description {
+  display: none;
+}
+.settings-subpage-content .shortcut-item {
+  padding: 5px 10px;
 }
 
 .shortcut-item {
@@ -2301,7 +2314,7 @@ body.is-dragging-tabs {
 
 /* Shell profiles sidebar */
 .theme-light .shell-profiles-sidebar {
-  border-right-color: rgba(0, 0, 0, 0.08);
+  border-right-color: rgba(0, 0, 0, 0.14);
 }
 .theme-light .shell-profiles-editor-placeholder {
   color: rgba(0, 0, 0, 0.40);
@@ -2375,12 +2388,12 @@ body.is-dragging-tabs {
 
 /* Keyboard shortcut list items */
 .theme-light .shortcut-item {
-  border-color: rgba(0, 0, 0, 0.07);
-  background: rgba(0, 0, 0, 0.015);
+  border-color: rgba(0, 0, 0, 0.10);
+  background: rgba(0, 0, 0, 0.02);
 }
 .theme-light .shortcut-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.11);
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.15);
 }
 .theme-light .shortcut-description {
   color: rgba(0, 0, 0, 0.40);
