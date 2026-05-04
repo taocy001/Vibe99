@@ -109,24 +109,26 @@ export function createSettingsUI({
   const fontFamilySelectEl    = document.getElementById('font-family-select');
   const fontFamilyInputEl     = document.getElementById('font-family-input');
 
-  // Master font list: system = always available on macOS; others detected at runtime
+  // Master font list: system = always available on macOS; others detected at runtime.
+  // Non-system entries include Nerd Font fallback names so Powerline/icon glyphs render
+  // when the Nerd Font variant of a font is installed alongside the base font.
   const FONT_PRESETS_DEF = [
-    { value: 'Menlo, monospace',             label: 'Menlo',           system: true  },
-    { value: 'Monaco, monospace',            label: 'Monaco',          system: true  },
-    { value: "'SF Mono', monospace",         label: 'SF Mono',         system: true  },
-    { value: "'JetBrains Mono', monospace",  label: 'JetBrains Mono',  system: false },
-    { value: "'Fira Code', monospace",       label: 'Fira Code',       system: false },
-    { value: "'Cascadia Code', monospace",   label: 'Cascadia Code',   system: false },
-    { value: 'Consolas, monospace',          label: 'Consolas',        system: false },
-    { value: "'Hack', monospace",            label: 'Hack',            system: false },
-    { value: "'Source Code Pro', monospace", label: 'Source Code Pro', system: false },
-    { value: "'Inconsolata', monospace",     label: 'Inconsolata',     system: false },
-    { value: "'MesloLGS NF', monospace",     label: 'MesloLGS NF',    system: false },
-    { value: "'DejaVu Sans Mono', monospace",label: 'DejaVu Sans Mono',system: false },
+    { value: 'Menlo, monospace',                                              label: 'Menlo',           system: true  },
+    { value: 'Monaco, monospace',                                             label: 'Monaco',          system: true  },
+    { value: "'SF Mono', monospace",                                          label: 'SF Mono',         system: true  },
+    { value: "'JetBrains Mono', 'JetBrainsMono Nerd Font', monospace",        label: 'JetBrains Mono',  system: false },
+    { value: "'Fira Code', 'FiraCode Nerd Font', monospace",                  label: 'Fira Code',       system: false },
+    { value: "'Cascadia Code', 'CaskaydiaCove Nerd Font', monospace",         label: 'Cascadia Code',   system: false },
+    { value: 'Consolas, monospace',                                           label: 'Consolas',        system: false },
+    { value: "'Hack', 'Hack Nerd Font', monospace",                           label: 'Hack',            system: false },
+    { value: "'Source Code Pro', 'SauceCodePro Nerd Font', monospace",        label: 'Source Code Pro', system: false },
+    { value: "'Inconsolata', 'InconsolataLGC Nerd Font', monospace",          label: 'Inconsolata',     system: false },
+    { value: "'MesloLGS NF', 'Meslo LG S for Powerline', monospace",         label: 'MesloLGS NF',     system: false },
+    { value: "'DejaVu Sans Mono', 'DejaVuSansMono Nerd Font', monospace",     label: 'DejaVu Sans Mono',system: false },
     // Courier New: system: true because the monospace CSS generic often resolves to Courier/
     // Courier New, making canvas measureText return an identical width and falsely flag it
     // as "not installed". It is available on all macOS and Windows systems.
-    { value: "'Courier New', monospace",     label: 'Courier New',     system: true  },
+    { value: "'Courier New', monospace",                                      label: 'Courier New',     system: true  },
   ];
   const FONT_PRESET_VALUES = new Set(FONT_PRESETS_DEF.map((f) => f.value));
 

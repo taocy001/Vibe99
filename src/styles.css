@@ -699,6 +699,13 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   color: rgba(255, 255, 255, 0.9);
 }
 
+.settings-help-text {
+  font-size: 11px;
+  color: var(--panel-muted);
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+
 .settings-btn:hover {
   background: rgba(255, 255, 255, 0.12);
   color: var(--text);
@@ -2303,6 +2310,9 @@ body.is-dragging-tabs {
 }
 .theme-light .settings-clickable-row:hover .settings-row-hint {
   color: rgba(0, 0, 0, 0.65);
+}
+.theme-light .settings-help-text {
+  color: rgba(0, 0, 0, 0.45);
 }
 
 /* Modal footer buttons (used in shortcuts subpage) */
