@@ -377,6 +377,23 @@ function createPane(pane, { tabId = null } = {}) {
   terminal.loadAddon(new ImageAddon());
   try { terminal.loadAddon(new WebglAddon()); } catch {}
 
+  // WKWebView bug: for single-character IME substitutions (Chinese smart quotes,
+  // fullwidth punctuation), the hidden textarea value is not updated before
+  // compositionend fires, so xterm's _finalizeComposition reads an empty string.
+  // Fix: capture the compositionend data in the capture phase and set it on the
+  // textarea so xterm can read it in its subsequent setTimeout.
+  let _lastCompositionData = '';
+  terminalHost.addEventListener('compositionupdate', (e) => {
+    if (e.data) _lastCompositionData = e.data;
+  }, { capture: true, signal });
+  terminalHost.addEventListener('compositionend', (e) => {
+    const data = e.data || _lastCompositionData;
+    _lastCompositionData = '';
+    if (!data) return;
+    const ta = terminalHost.querySelector('textarea.xterm-helper-textarea');
+    if (ta && !ta.value) ta.value = data;
+  }, { capture: true, signal });
+
   // xterm.js 6.x multiplies trackpad scroll delta by 0.3 (heuristic for small
   // per-event deltas), which makes scrolling unusably slow on ProMotion displays
   // that fire events at 120 Hz with proportionally smaller deltas.  We intercept
