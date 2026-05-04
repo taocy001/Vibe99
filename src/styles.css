@@ -2266,7 +2266,7 @@ body.is-dragging-tabs {
   background: rgba(245, 245, 247, 0.98);
 }
 .theme-light .settings-subpage-header {
-  border-bottom-color: rgba(0, 0, 0, 0.08);
+  border-bottom-color: rgba(0, 0, 0, 0.12);
 }
 .theme-light .settings-subpage-action {
   background: rgba(0,0,0,0.06);
@@ -2318,7 +2318,7 @@ body.is-dragging-tabs {
 
 /* Shell profiles sidebar */
 .theme-light .shell-profiles-sidebar {
-  border-right-color: rgba(0, 0, 0, 0.14);
+  border-right-color: rgba(0, 0, 0, 0.12);
 }
 .theme-light .shell-profiles-editor-placeholder {
   color: rgba(0, 0, 0, 0.40);
@@ -2327,100 +2327,104 @@ body.is-dragging-tabs {
 
 /* Shell profile list items */
 .theme-light .shell-profile-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
 }
 .theme-light .shell-profile-item.is-selected {
-  background: rgba(0, 0, 0, 0.07);
-  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.10);
+  border-color: rgba(0, 0, 0, 0.18);
 }
 .theme-light .shell-profile-item.is-default {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0, 0, 0, 0.05);
 }
 .theme-light .shell-profile-item.drag-over {
-  border-color: rgba(0, 0, 0, 0.22);
-  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.08);
 }
 .theme-light .shell-profile-actions .settings-btn {
-  border-color: rgba(0, 0, 0, 0.12);
-  color: rgba(0, 0, 0, 0.45);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: rgba(0, 0, 0, 0.55);
 }
 .theme-light .shell-profile-actions .settings-btn:hover {
-  background: rgba(0, 0, 0, 0.07);
-  border-color: rgba(0, 0, 0, 0.18);
-  color: rgba(0, 0, 0, 0.70);
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.22);
+  color: rgba(0, 0, 0, 0.80);
 }
 
 /* Shell profile editor */
 .theme-light .shell-profile-editor {
-  border-color: rgba(0, 0, 0, 0.10);
-  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.45);
 }
 .theme-light .shell-profile-editor-header {
-  border-bottom-color: rgba(0, 0, 0, 0.08);
+  border-bottom-color: rgba(0, 0, 0, 0.10);
 }
 .theme-light .shell-profile-editor-close {
-  color: rgba(0, 0, 0, 0.38);
+  color: rgba(0, 0, 0, 0.45);
 }
 .theme-light .shell-profile-editor-close:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: rgba(0, 0, 0, 0.68);
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.75);
 }
 .theme-light .shell-profile-editor label {
-  color: rgba(0, 0, 0, 0.55);
+  color: rgba(0, 0, 0, 0.65);
 }
 .theme-light .shell-profile-editor input {
-  border-color: rgba(0, 0, 0, 0.14);
-  background: rgba(0, 0, 0, 0.03);
-  color: rgba(0, 0, 0, 0.85);
+  border-color: rgba(0, 0, 0, 0.28);
+  background: rgba(255, 255, 255, 0.90);
+  color: #1a1a1a;
 }
 .theme-light .shell-profile-editor input:focus {
-  border-color: rgba(0, 0, 0, 0.28);
-  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 100, 210, 0.70);
+  background: #ffffff;
+  outline: none;
+}
+.theme-light .shell-profile-editor input::placeholder {
+  color: rgba(0, 0, 0, 0.35);
 }
 .theme-light .shell-profile-editor-actions {
-  border-top-color: rgba(0, 0, 0, 0.08);
+  border-top-color: rgba(0, 0, 0, 0.10);
 }
 .theme-light .shell-profile-editor-actions .settings-btn.is-primary {
-  background: rgba(0, 0, 0, 0.08) !important;
-  border-color: rgba(0, 0, 0, 0.16);
-  color: rgba(0, 0, 0, 0.78);
+  background: rgba(0, 0, 0, 0.10) !important;
+  border-color: rgba(0, 0, 0, 0.20);
+  color: rgba(0, 0, 0, 0.82);
 }
 .theme-light .shell-profile-editor-actions .settings-btn.is-primary:hover {
-  background: rgba(0, 0, 0, 0.13) !important;
+  background: rgba(0, 0, 0, 0.16) !important;
 }
 
 /* Keyboard shortcut list items */
 .theme-light .shortcut-item {
-  border-color: rgba(0, 0, 0, 0.10);
-  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.09);
+  background: rgba(255, 255, 255, 0.55);
 }
 .theme-light .shortcut-item:hover {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.80);
+  border-color: rgba(0, 0, 0, 0.14);
 }
 .theme-light .shortcut-description {
-  color: rgba(0, 0, 0, 0.40);
+  color: rgba(0, 0, 0, 0.45);
 }
 .theme-light .shortcut-mode-badge {
-  background: rgba(160, 105, 0, 0.10);
-  color: #7a5800;
+  background: rgba(160, 105, 0, 0.12);
+  color: #6a4a00;
 }
 .theme-light .shortcut-keys {
-  border-color: rgba(0, 0, 0, 0.13);
-  background: rgba(0, 0, 0, 0.04);
-  color: rgba(0, 0, 0, 0.68);
+  border-color: rgba(0, 0, 0, 0.22);
+  background: rgba(255, 255, 255, 0.80);
+  color: rgba(0, 0, 0, 0.78);
 }
 .theme-light .shortcut-keys:hover {
-  background: rgba(0, 0, 0, 0.07);
-  border-color: rgba(0, 0, 0, 0.20);
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.32);
 }
 .theme-light .shortcut-edit-btn {
-  color: rgba(0, 0, 0, 0.32);
+  color: rgba(0, 0, 0, 0.40);
 }
 .theme-light .shortcut-edit-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: rgba(0, 0, 0, 0.62);
+  background: rgba(0, 0, 0, 0.07);
+  color: rgba(0, 0, 0, 0.72);
 }
 
 .theme-light .settings-section-header {
