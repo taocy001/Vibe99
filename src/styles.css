@@ -2679,6 +2679,9 @@ body.is-dragging-tabs {
   background: rgba(99, 136, 255, 0.08);
   border-left: 2px solid rgba(99, 136, 255, 0.50);
   box-sizing: border-box;
+  /* Override xterm's per-frame inline width/left so onRender needs no JS mutation */
+  width: 100% !important;
+  left: 0 !important;
 }
 
 .theme-light .cmd-block-active-bg {

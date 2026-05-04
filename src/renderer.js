@@ -608,7 +608,7 @@ function createPane(pane, { tabId = null } = {}) {
       const cursorLine = buf.baseY + buf.cursorY;
       if (bufRow >= _shellPromptMarker.line && bufRow <= cursorLine) {
         _activeBlock = null;
-        _applyHighlight(_shellPromptMarker, Math.max(1, cursorLine - _shellPromptMarker.line + 1));
+        _applyHighlight(_shellPromptMarker, Math.min(Math.max(1, cursorLine - _shellPromptMarker.line + 1), terminal.rows + 4));
         return;
       }
     }
@@ -698,8 +698,7 @@ function createPane(pane, { tabId = null } = {}) {
       if (el.style.display === 'none') return;
       el.classList.add('cmd-block-active-bg');
       el.style.display = 'block';
-      el.style.width = '100%';
-      el.style.left = '0';
+      // width and left handled by CSS !important — no JS mutation needed
     });
     _activeHighlightDecoration = dec;
   }
@@ -711,7 +710,8 @@ function createPane(pane, { tabId = null } = {}) {
       return;
     }
     const endLine = block.endMk && !block.endMk.isDisposed ? block.endMk.line : block.promptMk.line + 1;
-    _applyHighlight(block.promptMk, Math.max(1, endLine - block.promptMk.line));
+    const blockHeight = Math.max(1, endLine - block.promptMk.line);
+    _applyHighlight(block.promptMk, Math.min(blockHeight, terminal.rows + 4));
   }
   terminal.parser.registerOscHandler(133, (data) => {
     if (data === 'A') {
