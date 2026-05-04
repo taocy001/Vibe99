@@ -2689,3 +2689,39 @@ body.is-dragging-tabs {
   border-left: 2px solid rgba(60, 100, 220, 0.40);
 }
 
+/* ── Block fold cover ───────────────────────────────────────────────────── */
+.cmd-block-fold-cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  z-index: 5;
+  user-select: none;
+}
+.theme-light .cmd-block-fold-cover {
+  color: rgba(0,0,0,0.4);
+}
+.cmd-block-fold-expand {
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: transparent;
+  color: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.cmd-block-fold-expand:hover {
+  background: rgba(255,255,255,0.1);
+}
+.theme-light .cmd-block-fold-expand {
+  border-color: rgba(0,0,0,0.2);
+}
+.theme-light .cmd-block-fold-expand:hover {
+  background: rgba(0,0,0,0.07);
+}
+
