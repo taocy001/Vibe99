@@ -125,14 +125,46 @@ const searchCloseEl = document.getElementById('search-close');
 
 // ── Activity monitoring ───────────────────────────────────────────────────────
 const paneAlert = createBreathingMaskAlert();
+
+// Per-pane timers for silence notifications (separate from breathing alert).
+// Keyed by paneId; cleared when the pane gets focus (onClear).
+const _silenceNotifTimers = new Map();
+
 const paneActivityWatcher = createPaneActivityWatcher({
   onAlert: (paneId) => {
     const node = paneNodeMap.get(paneId);
     if (node) paneAlert.setAlerted(node.root, true);
+
+    // Schedule a silence notification after the user-configured timeout.
+    // The watcher's own settleMs (1500ms) has already elapsed, so we wait
+    // only the remaining time: notificationSilenceMs - DEFAULT_SETTLE_MS,
+    // floored at 0 so fast settings values still work.
+    if (settings.notificationsEnabled && !document.hasFocus()) {
+      const delay = Math.max(0, settings.notificationSilenceMs - 1500);
+      const timer = setTimeout(() => {
+        _silenceNotifTimers.delete(paneId);
+        if (settings.notificationsEnabled && !document.hasFocus()) {
+          const pane  = st.panes.find(p => p.id === paneId);
+          const label = pane?.title || pane?.terminalTitle || paneId;
+          bridge.sendNotification(t('notification.paneSilent'), label);
+        }
+      }, delay);
+      // Cancel any previous timer for this pane (shouldn't happen, but guard).
+      const prev = _silenceNotifTimers.get(paneId);
+      if (prev != null) clearTimeout(prev);
+      _silenceNotifTimers.set(paneId, timer);
+    }
   },
   onClear: (paneId) => {
     const node = paneNodeMap.get(paneId);
     if (node) paneAlert.setAlerted(node.root, false);
+
+    // Cancel any pending silence notification when the pane is focused/cleared.
+    const timer = _silenceNotifTimers.get(paneId);
+    if (timer != null) {
+      clearTimeout(timer);
+      _silenceNotifTimers.delete(paneId);
+    }
   },
 });
 

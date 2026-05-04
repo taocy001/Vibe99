@@ -22,6 +22,7 @@ export const settings = {
   scrollback: 5000,
   breathingAlertEnabled: true,
   notificationsEnabled: false,
+  notificationSilenceMs: 30000,
   showStatusBar: false,
   colorMode: 'dark',
   language: 'en',
@@ -177,6 +178,7 @@ export function createSettingsUI({
   const paneMaskOpacityValueEl = document.getElementById('pane-mask-alpha-value');
   const breathingAlertToggleEl  = document.getElementById('breathing-alert-toggle');
   const notificationsToggleEl   = document.getElementById('notifications-toggle');
+  const notificationSilenceEl   = document.getElementById('notifications-silence');
   const showStatusBarToggleEl  = document.getElementById('show-status-bar-toggle');
   const windowTitleFormatInputEl = document.getElementById('window-title-format');
   const statusBarFormatInputEl   = document.getElementById('status-bar-format');
@@ -266,6 +268,7 @@ export function createSettingsUI({
     breathingAlertToggleEl.checked = settings.breathingAlertEnabled;
     paneActivityWatcher.setGlobalEnabled(settings.breathingAlertEnabled);
     if (notificationsToggleEl) notificationsToggleEl.checked = settings.notificationsEnabled;
+    if (notificationSilenceEl) notificationSilenceEl.value = String(Math.round(settings.notificationSilenceMs / 1000));
     showStatusBarToggleEl.checked = settings.showStatusBar;
     document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
     applyColorModeUI(settings.colorMode);
@@ -317,6 +320,7 @@ export function createSettingsUI({
     if (Number.isFinite(uiSettings.paneWidth)) settings.paneWidth = uiSettings.paneWidth;
     if (typeof uiSettings.breathingAlertEnabled  === 'boolean') settings.breathingAlertEnabled  = uiSettings.breathingAlertEnabled;
     if (typeof uiSettings.notificationsEnabled   === 'boolean') settings.notificationsEnabled   = uiSettings.notificationsEnabled;
+    if (Number.isFinite(uiSettings.notificationSilenceMs) && uiSettings.notificationSilenceMs >= 5000) settings.notificationSilenceMs = uiSettings.notificationSilenceMs;
     if (typeof uiSettings.showStatusBar === 'boolean')         settings.showStatusBar         = uiSettings.showStatusBar;
     if (typeof uiSettings.colorMode === 'string') settings.colorMode = uiSettings.colorMode;
     if (typeof uiSettings.language === 'string') {
@@ -857,6 +861,13 @@ export function createSettingsUI({
 
   notificationsToggleEl?.addEventListener('change', () => {
     settings.notificationsEnabled = notificationsToggleEl.checked;
+    scheduleSettingsSave();
+  });
+
+  notificationSilenceEl?.addEventListener('change', () => {
+    const secs = Math.max(5, Math.min(300, Number(notificationSilenceEl.value) || 30));
+    notificationSilenceEl.value = String(secs);
+    settings.notificationSilenceMs = secs * 1000;
     scheduleSettingsSave();
   });
 
