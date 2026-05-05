@@ -244,7 +244,8 @@ export function createLayoutRenderer(st, {
 
   // ── Panel style ─────────────────────────────────────────────────────────────
 
-  function applyPanelStyle(node, accentColor, x, y, w, h, zIndex, isFocused, hasSplits) {
+  function applyPanelStyle(node, accentColor, x, y, w, h, zIndex, isFocused, hasSplits, isActiveTab = false) {
+    node.root.classList.toggle('is-active-tab', isActiveTab);
     node.root.classList.toggle('is-focused', isFocused);
     node.root.classList.toggle('is-navigation-target', isFocused && st.currentMode === 'nav');
     node.root.classList.toggle('has-splits', hasSplits);
@@ -326,7 +327,7 @@ export function createLayoutRenderer(st, {
           if (!node) return;
           const isPanelFocused = leafNode.panelId === pane.focusedPanelId;
           node.root.style.clipPath = '';
-          applyPanelStyle(node, accentColor, x, y, w, h, st.panes.length + 10, isPanelFocused, true);
+          applyPanelStyle(node, accentColor, x, y, w, h, st.panes.length + 10, isPanelFocused, true, true);
           if (refit || node.needsFit) fitTerminal(node, true);
           visiblePanelIds.add(leafNode.panelId);
         });
@@ -339,7 +340,7 @@ export function createLayoutRenderer(st, {
           const clipInset = (!isFocusedTab && st.panes.length > 1 && previewWidth < settings.paneWidth)
             ? `inset(0 ${settings.paneWidth - previewWidth}px 0 0)` : '';
           node.root.style.clipPath = clipInset;
-          applyPanelStyle(node, accentColor, left, 0, w, stageHeight, index + 1, isFocusedTab, false);
+          applyPanelStyle(node, accentColor, left, 0, w, stageHeight, index + 1, isFocusedTab, false, isFocusedTab);
           if (refit || node.needsFit) fitTerminal(node, true);
           visiblePanelIds.add(displayPanelId);
         }

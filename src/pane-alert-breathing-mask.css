@@ -20,6 +20,10 @@
 .pane.has-pending-activity::after {
   opacity: 0;
   transition: opacity 200ms ease;
+  /* No animation by default — background tabs stay idle to save GPU */
+}
+
+.pane.is-active-tab.has-pending-activity::after {
   animation: pane-breathing-pulse 2.4s ease-in-out 200ms infinite;
 }
 

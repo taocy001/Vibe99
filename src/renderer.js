@@ -228,6 +228,11 @@ function handleTerminalLinkActivation(event, uri) {
   if (!isLinkOpenModifierPressed(event)) return;
   event.preventDefault();
   event.stopPropagation();
+  let protocol;
+  try { protocol = new URL(uri).protocol; } catch { return; }
+  if (protocol !== 'https:' && protocol !== 'http:') {
+    if (!window.confirm(`Open this link?\n\n${uri}`)) return;
+  }
   void bridge.openExternalUrl(uri).catch(reportError);
 }
 

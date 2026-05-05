@@ -211,43 +211,50 @@ impl PtyManager {
         let pane_id_owned = pane_id.to_string();
 
         // Read PTY output on a blocking thread and emit Tauri events.
+        // Coalescing: when a read fills the full buffer there is likely more
+        // data immediately available, so we accumulate before emitting. We
+        // flush when a short read arrives (caught up) or the batch grows past
+        // 64 KB, keeping event rate low during high-throughput output.
         let app_reader = app.clone();
         let pane_id_reader = pane_id_owned.clone();
         let _reader_thread = std::thread::spawn(move || {
-            let mut buf = [0u8; 8192];
+            const BUF_SIZE: usize = 8192;
+            const BATCH_LIMIT: usize = 65536;
+            let mut buf = [0u8; BUF_SIZE];
             // Holds incomplete UTF-8 tail bytes from a previous read so
             // that multi-byte characters are not split across payloads.
             let mut pending: Vec<u8> = Vec::with_capacity(4);
+
+            let emit = |pending: &mut Vec<u8>| {
+                let cut = utf8_safe_cut(pending);
+                if cut == 0 { return; }
+                let text = String::from_utf8_lossy(&pending[..cut]);
+                let _ = app_reader.emit(
+                    "vibe99:terminal-data",
+                    TerminalDataPayload {
+                        pane_id: pane_id_reader.clone(),
+                        data: text.into_owned(),
+                    },
+                );
+                pending.drain(..cut);
+            };
 
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => {
                         // Flush any remaining bytes before closing.
                         if !pending.is_empty() {
-                            let text = String::from_utf8_lossy(&pending);
-                            let _ = app_reader.emit(
-                                "vibe99:terminal-data",
-                                TerminalDataPayload {
-                                    pane_id: pane_id_reader.clone(),
-                                    data: text.into_owned(),
-                                },
-                            );
+                            emit(&mut pending);
                         }
                         break;
                     }
                     Ok(n) => {
                         pending.extend_from_slice(&buf[..n]);
-                        let cut = utf8_safe_cut(&pending);
-                        if cut > 0 {
-                            let text = String::from_utf8_lossy(&pending[..cut]);
-                            let _ = app_reader.emit(
-                                "vibe99:terminal-data",
-                                TerminalDataPayload {
-                                    pane_id: pane_id_reader.clone(),
-                                    data: text.into_owned(),
-                                },
-                            );
-                            pending.drain(..cut);
+                        // Only emit when we caught up (short read) or hit the
+                        // batch size limit. A full-buffer read means more data
+                        // is likely waiting, so continue accumulating.
+                        if n < BUF_SIZE || pending.len() >= BATCH_LIMIT {
+                            emit(&mut pending);
                         }
                     }
                 }
