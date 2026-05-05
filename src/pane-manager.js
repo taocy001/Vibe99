@@ -55,6 +55,7 @@ export function createPaneManager(st, {
   onRender,
   onDestroyPanel,
   onInitializePaneTerminal,
+  onPaneFocused,
   reportError,
 }) {
 
@@ -127,6 +128,7 @@ export function createPaneManager(st, {
     setMode('terminal');
     recordPaneVisit(paneId);
     onRender();
+    onPaneFocused?.(paneId);
     if (focusTerminal) {
       requestAnimationFrame(() => { paneNodeMap.get(paneId)?.terminal.focus(); });
     }
@@ -139,6 +141,7 @@ export function createPaneManager(st, {
       st.paneCycleState = null;
       st.focusedPaneId = pane.id;
       recordPaneVisit(pane.id);
+      onPaneFocused?.(pane.id);
     }
     st.panes = st.panes.map((p) => p.id === pane.id ? { ...p, focusedPanelId: panelId } : p);
     setMode('terminal');
@@ -545,6 +548,7 @@ export function createPaneManager(st, {
     st.focusedPaneId = targetId;
     setMode('terminal');
     onRender();
+    onPaneFocused?.(targetId);
     requestAnimationFrame(() => { paneNodeMap.get(targetId)?.terminal.focus(); });
   }
 
@@ -562,6 +566,7 @@ export function createPaneManager(st, {
     const nextIdx = (idx + delta + st.panes.length) % st.panes.length;
     st.focusedPaneId = st.panes[nextIdx].id;
     onRender();
+    onPaneFocused?.(st.focusedPaneId);
   }
 
   function navigateLeft() {
@@ -605,6 +610,7 @@ export function createPaneManager(st, {
     st.paneCycleState = null;
     st.focusedPaneId = st.panes[index].id;
     onRender();
+    onPaneFocused?.(st.focusedPaneId);
   }
 
   function getPaneCount() { return st.panes.length; }
