@@ -45,6 +45,7 @@ import {
   createUnavailableBridge,
   getDefaultFontFamily,
 } from './terminal-bridge.js';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import {
   settings,
   createTerminalTheme,
@@ -64,21 +65,28 @@ const bridge = window.__TAURI__
   ? createTauriBridge(window.__TAURI__)
   : window.vibe99 ?? createUnavailableBridge();
 
+// ── Window identity ───────────────────────────────────────────────────────────
+// Each window gets a unique pane ID prefix so PTY sessions never collide in
+// the Rust HashMap when multiple windows are open simultaneously.
+const _appWindow = getCurrentWebviewWindow();
+const _winLabel = _appWindow.label; // e.g. "main" or "window-2"
+const _panePrefix = _winLabel === 'main' ? '' : `${_winLabel}-`;
 
 // ── Initial panes ─────────────────────────────────────────────────────────────
 const _initialPanes = [
-  { id: 'p1', title: null, terminalTitle: bridge.defaultTabTitle, cwd: bridge.defaultCwd, accent: ColorsRegistry.ACCENT_PALETTE[0], shellProfileId: null, layout: null, focusedPanelId: 'p1' },
-  { id: 'p2', title: null, terminalTitle: bridge.defaultTabTitle, cwd: bridge.defaultCwd, accent: ColorsRegistry.ACCENT_PALETTE[1], shellProfileId: null, layout: null, focusedPanelId: 'p2' },
-  { id: 'p3', title: null, terminalTitle: bridge.defaultTabTitle, cwd: bridge.defaultCwd, accent: ColorsRegistry.ACCENT_PALETTE[2], shellProfileId: null, layout: null, focusedPanelId: 'p3' },
+  { id: `${_panePrefix}p1`, title: null, terminalTitle: bridge.defaultTabTitle, cwd: bridge.defaultCwd, accent: ColorsRegistry.ACCENT_PALETTE[0], shellProfileId: null, layout: null, focusedPanelId: `${_panePrefix}p1` },
+  { id: `${_panePrefix}p2`, title: null, terminalTitle: bridge.defaultTabTitle, cwd: bridge.defaultCwd, accent: ColorsRegistry.ACCENT_PALETTE[1], shellProfileId: null, layout: null, focusedPanelId: `${_panePrefix}p2` },
+  { id: `${_panePrefix}p3`, title: null, terminalTitle: bridge.defaultTabTitle, cwd: bridge.defaultCwd, accent: ColorsRegistry.ACCENT_PALETTE[2], shellProfileId: null, layout: null, focusedPanelId: `${_panePrefix}p3` },
 ];
 
 // ── Shared mutable state ──────────────────────────────────────────────────────
 // All modules receive a reference so mutations propagate across boundaries.
 const st = {
   panes: _initialPanes.map((p) => ({ ...p })),
-  focusedPaneId: 'p1',
+  focusedPaneId: `${_panePrefix}p1`,
   nextPaneNumber: 4,
   nextPanelSeq: 1,
+  panePrefix: _panePrefix,
   renamingPaneId: null,
   isRenderingTabs: false,
   dragState: null,
@@ -86,7 +94,7 @@ const st = {
   enterNavSourcePaneId: null,
   pendingTabFocus: null,
   sessionRestoreComplete: false,
-  paneMruOrder: ['p1', 'p2', 'p3'],
+  paneMruOrder: [`${_panePrefix}p1`, `${_panePrefix}p2`, `${_panePrefix}p3`],
   paneCycleState: null,
   pendingClosePaneId: null,
 };
@@ -1439,6 +1447,7 @@ const keyboardActions = createActions({
   scrollToBottom:  () => { const node = paneNodeMap.get(st.focusedPaneId); if (node) node.terminal.scrollToBottom(); },
   scrollPageUp:    () => { const node = paneNodeMap.get(st.focusedPaneId); if (node) node.terminal.scrollPages(-1); },
   scrollPageDown:  () => { const node = paneNodeMap.get(st.focusedPaneId); if (node) node.terminal.scrollPages(1); },
+  newWindow: () => { void bridge.newWindow?.().catch(reportError); },
 });
 
 const dispatchKeydown = createDispatcher({
@@ -1471,7 +1480,7 @@ function restoreSession(session) {
   const validPanes = (session.panes ?? [])
     .filter((p) => p && typeof p.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.accent))
     .map((p, index) => {
-      const id = `p${index + 1}`;
+      const id = `${_panePrefix}p${index + 1}`;
       let layout = null;
       let focusedPanelId = id;
       if (p.layout && typeof p.layout === 'object') {
@@ -1572,6 +1581,21 @@ window.addEventListener('beforeunload', () => {
   removeTerminalExitListener();
   removeMenuActionListener();
 });
+
+// Tauri emits this before allowing the window to close, giving JS a chance to
+// destroy all PTY sessions owned by this window. We call destroy() (not close())
+// so it does NOT re-trigger CloseRequested — avoiding an infinite loop.
+// Rust exits the process automatically when the last window closes
+// (Tauri 2 default: exitOnLastWindowClose is true).
+if (window.__TAURI__) {
+  _appWindow.listen('vibe99:window-will-close', async () => {
+    // Destroy every panel node (covers split panels too, not just top-level pane IDs).
+    for (const panelId of paneNodeMap.keys()) {
+      bridge.destroyTerminal({ paneId: panelId }).catch(() => {});
+    }
+    await _appWindow.destroy();
+  });
+}
 
 window.addEventListener('error', (event) => { reportError(event.error || event.message); });
 window.addEventListener('unhandledrejection', (event) => { reportError(event.reason); });

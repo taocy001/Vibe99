@@ -154,7 +154,7 @@ export function createPaneManager(st, {
     const usedAccents = new Set(st.panes.map((p) => p.accent.toLowerCase()));
     const accent = ColorsRegistry.ACCENT_PALETTE.find((c) => !usedAccents.has(c.toLowerCase()))
       || ColorsRegistry.ACCENT_PALETTE[(st.nextPaneNumber - 1) % ColorsRegistry.ACCENT_PALETTE.length];
-    const id = `p${st.nextPaneNumber}`;
+    const id = `${st.panePrefix ?? ''}p${st.nextPaneNumber}`;
     const pane = {
       id,
       title: null,

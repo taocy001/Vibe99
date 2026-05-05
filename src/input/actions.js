@@ -78,5 +78,8 @@ export function createActions(deps) {
     scrollToBottom:  () => deps.scrollToBottom(),
     scrollPageUp:    () => deps.scrollPageUp(),
     scrollPageDown:  () => deps.scrollPageDown(),
+
+    // Window management
+    newWindow: () => deps.newWindow?.(),
   };
 }

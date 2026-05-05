@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use tauri::{Emitter, Manager};
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use vibe99_lib::commands::context_menu;
@@ -13,6 +14,30 @@ use vibe99_lib::commands::shell_profile;
 use vibe99_lib::commands::terminal::{self, AppState};
 use vibe99_lib::commands::wsl as wsl_cmd;
 use vibe99_lib::pty::PtyManager;
+
+static WINDOW_COUNTER: AtomicU32 = AtomicU32::new(2);
+
+#[tauri::command]
+fn new_window(app: tauri::AppHandle) {
+    let count = WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let label = format!("window-{}", count);
+    let _ = tauri::WebviewWindowBuilder::new(
+        &app,
+        &label,
+        tauri::WebviewUrl::App("index.html".into()),
+    )
+    .title("Vibe99")
+    .inner_size(1280.0, 800.0)
+    .min_inner_size(600.0, 400.0)
+    .build();
+}
+
+fn focused_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWindow> {
+    app.webview_windows()
+        .into_values()
+        .find(|w| w.is_focused().unwrap_or(false))
+        .or_else(|| app.get_webview_window("main"))
+}
 
 fn main() {
     tauri::Builder::default()
@@ -59,6 +84,10 @@ fn main() {
                 .build()?;
 
             // ── Shell menu ────────────────────────────────────────────────
+            let new_window_item = MenuItemBuilder::new(ml("新建窗口", "新しいウィンドウ", "New Window"))
+                .id("new-window")
+                .accelerator("CmdOrCtrl+N")
+                .build(app)?;
             let new_tab_item = MenuItemBuilder::new(ml("新建标签页", "新しいタブ", "New Tab"))
                 .id("new-pane")
                 .accelerator("CmdOrCtrl+T")
@@ -89,6 +118,8 @@ fn main() {
                 .build(app)?;
 
             let shell_menu = SubmenuBuilder::new(app, "Shell")
+                .item(&new_window_item)
+                .separator()
                 .item(&new_tab_item)
                 .item(&close_tab_item)
                 .item(&close_window_item)
@@ -244,15 +275,30 @@ fn main() {
             Ok(())
         })
         .on_menu_event(|app, event| {
+            if event.id().0 == "new-window" {
+                let count = WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed);
+                let label = format!("window-{}", count);
+                let _win = tauri::WebviewWindowBuilder::new(
+                    app,
+                    &label,
+                    tauri::WebviewUrl::App("index.html".into()),
+                )
+                .title("Vibe99")
+                .inner_size(1280.0, 800.0)
+                .min_inner_size(600.0, 400.0)
+                .build();
+                return;
+            }
+
             if event.id().0 == "settings" {
-                if let Some(window) = app.get_webview_window("main") {
+                if let Some(window) = focused_window(app) {
                     let _ = window.emit("open-settings", ());
                 }
                 return;
             }
 
             let action = event.id().0.clone();
-            if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = focused_window(app) {
                 let _ = window.emit("vibe99:menu-action", MenuActionPayload {
                     action,
                     pane_id: None,
@@ -282,12 +328,17 @@ fn main() {
             wsl_cmd::wsl_cwd,
             shell_integration::install_shell_integration,
             notification::send_notification,
+            new_window,
         ])
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
-                let state = window.state::<AppState>();
-                terminal::destroy_all_terminals(&state);
-                std::process::exit(0);
+                // Emit event so JS can clean up this window's PTY sessions before closing.
+                // JS will call exit_app if it's the last window, or just close() this window.
+                let _ = window.emit("vibe99:window-will-close", ());
+                // Prevent the default close so JS controls the sequence.
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                }
             }
             // After every resize (including fullscreen entry/exit), re-apply
             // NSWindow.backgroundColor so the native area outside the WKWebView
@@ -295,7 +346,6 @@ fn main() {
             // completes — the correct moment to set the colour.
             #[cfg(target_os = "macos")]
             if matches!(event, tauri::WindowEvent::Resized(_)) {
-                use std::sync::atomic::Ordering;
                 let is_light = vibe99_lib::IS_LIGHT_MODE.load(Ordering::Relaxed);
                 let win = window.clone();
                 // run_on_main_thread ensures the AppKit call is on the right thread.

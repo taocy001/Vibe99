@@ -31,6 +31,7 @@ export const KEYMAP = [
   { mode: '*',   chord: 'Ctrl+Shift+Tab', action: 'cycleRecentReverse',   hint: 'recent ↑',  skipInInput: true, stopPropagation: true },
   { id: 'navigation-mode', mode: '*', chord: 'Cmd+B',  action: 'enterNav',              hint: 'navigate',  skipInInput: true, stopPropagation: true },
   { id: 'new-tab',         mode: '*', chord: 'Cmd+T',  action: 'newPane',               hint: 'new tab' },
+  { id: 'new-window',      mode: '*', chord: 'Cmd+N',  action: 'newWindow',             hint: 'new window' },
   { id: 'close-tab',       mode: '*', chord: 'Cmd+W',  action: 'closePane',             hint: 'close tab', skipInInput: true },
   { id: 'navigate-left',        mode: '*', chord: 'Cmd+Shift+[|Cmd+ArrowLeft',  action: 'navigateLeft',  hint: '← tab', skipInInput: true, stopPropagation: true },
   { id: 'navigate-right',       mode: '*', chord: 'Cmd+Shift+]|Cmd+ArrowRight', action: 'navigateRight', hint: '→ tab', skipInInput: true, stopPropagation: true },

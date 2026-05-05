@@ -61,6 +61,7 @@ export function createUnavailableBridge() {
     resizeTerminal: fail,
     destroyTerminal: fail,
     closeWindow: fail,
+    newWindow: fail,
     readClipboardText: () => Promise.reject(new Error('Clipboard bridge is unavailable')),
     writeClipboardText: fail,
     getClipboardSnapshot: () => ({ text: '', hasImage: false }),
@@ -129,6 +130,7 @@ export function createTauriBridge(tauri) {
     destroyTerminal: (payload) =>
       invoke('terminal_destroy', { paneId: payload.paneId }),
     closeWindow: () => getCurrentWindow().close(),
+    newWindow: () => invoke('new_window'),
     exitApp: () => invoke('exit_app'),
     readClipboardText: () => clipboardReadText(),
     writeClipboardText: (text) => clipboardWriteText(text),
