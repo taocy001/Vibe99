@@ -92,7 +92,6 @@ const st = {
   dragState: null,
   currentMode: 'terminal',
   enterNavSourcePaneId: null,
-  pendingTabFocus: null,
   sessionRestoreComplete: false,
   paneMruOrder: [`${_panePrefix}p1`, `${_panePrefix}p2`, `${_panePrefix}p3`],
   paneCycleState: null,
@@ -1861,6 +1860,9 @@ window.addEventListener('DOMContentLoaded', async () => {
       );
     }
 
+    // Wait for web fonts before the first fit so xterm measures correct
+    // character dimensions rather than falling back to the system font.
+    await document.fonts.ready;
     layoutRenderer.render(true);
     st.sessionRestoreComplete = true;
   } catch (error) {

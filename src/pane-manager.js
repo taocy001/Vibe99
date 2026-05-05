@@ -192,7 +192,6 @@ export function createPaneManager(st, {
     if (st.panes.length === 1) { void bridge.closeWindow().catch(reportError); return; }
     if (closingPane.id === st.renamingPaneId) st.renamingPaneId = null;
     if (closingPane.id === st.dragState?.paneId) endTabDrag();
-    if (closingPane.id === st.pendingTabFocus?.paneId) clearPendingTabFocus();
     for (const panelId of collectPanelIds(getTabLayout(closingPane))) {
       const node = paneNodeMap.get(panelId);
       if (node) onDestroyPanel(panelId, node, { destroyTerminal });
@@ -416,24 +415,9 @@ export function createPaneManager(st, {
 
   // ── Tab rename ─────────────────────────���──────────────────────────────��────
 
-  function clearPendingTabFocus() {
-    if (!st.pendingTabFocus) return;
-    window.clearTimeout(st.pendingTabFocus.timerId);
-    st.pendingTabFocus = null;
-  }
-
-  function scheduleTabFocus(paneId) {
-    clearPendingTabFocus();
-    st.pendingTabFocus = {
-      paneId,
-      timerId: window.setTimeout(() => { st.pendingTabFocus = null; focusPane(paneId); }, 180),
-    };
-  }
-
   function beginRenamePane(index) {
     const pane = st.panes[index];
     if (!pane) return;
-    clearPendingTabFocus();
     st.renamingPaneId = pane.id;
     try { onRender(); } catch (error) { st.renamingPaneId = null; reportError(error); }
   }
@@ -453,13 +437,7 @@ export function createPaneManager(st, {
   }
 
   function activateTabPointerUp(paneId) {
-    if (st.pendingTabFocus?.paneId === paneId) {
-      clearPendingTabFocus();
-      const paneIndex = st.panes.findIndex((p) => p.id === paneId);
-      if (paneIndex !== -1) beginRenamePane(paneIndex);
-      return;
-    }
-    scheduleTabFocus(paneId);
+    focusPane(paneId);
   }
 
   // ── Tab drag ────────────────────────────���──────────────────────────────────
