@@ -9,7 +9,7 @@ pub(crate) fn acquire_settings_lock() -> std::sync::MutexGuard<'static, ()> {
         .lock().unwrap_or_else(|e| e.into_inner())
 }
 
-const CURRENT_CONFIG_VERSION: u8 = 3;
+const CURRENT_CONFIG_VERSION: u8 = 5;
 
 const DEFAULT_FONT_SIZE: u32 = 13;
 const DEFAULT_PANE_OPACITY: f64 = 0.8;
