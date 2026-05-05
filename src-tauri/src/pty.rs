@@ -342,8 +342,9 @@ impl PtyManager {
         Ok(())
     }
 
-    /// Kill the child process, remove the session for `pane_id`, and join the
-    /// exit-watcher thread so no stale events are emitted after this returns.
+    /// Kill the child process and remove the session for `pane_id`.
+    /// The exit-watcher thread is joined in the background so the IPC caller
+    /// never blocks — even if the child takes time to notice the signal.
     pub fn destroy(&self, pane_id: &str) {
         let exit_handle = {
             let mut sessions = match self.sessions.lock() {
@@ -357,7 +358,7 @@ impl PtyManager {
             let _ = killer.kill();
             exit_thread
         };
-        let _ = exit_handle.join();
+        std::thread::spawn(move || { let _ = exit_handle.join(); });
     }
 
     /// Destroy all active sessions.

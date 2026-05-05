@@ -13,17 +13,18 @@ pub struct SshHostEntry {
 
 /// Read and parse ~/.ssh/config, returning one entry per non-wildcard Host alias.
 #[tauri::command]
-pub fn read_ssh_config() -> Vec<SshHostEntry> {
+pub fn read_ssh_config() -> Result<Vec<SshHostEntry>, String> {
     let home = match std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
         Some(h) => PathBuf::from(h),
-        None => return vec![],
+        None => return Ok(vec![]),
     };
     let config_path = home.join(".ssh").join("config");
     let content = match std::fs::read_to_string(&config_path) {
         Ok(c) => c,
-        Err(_) => return vec![],
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(e) => return Err(format!("Failed to read ~/.ssh/config: {e}")),
     };
-    parse_ssh_config(&content, &home)
+    Ok(parse_ssh_config(&content, &home))
 }
 
 fn expand_tilde(path: &str, home: &Path) -> String {
