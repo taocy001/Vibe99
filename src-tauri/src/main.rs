@@ -154,6 +154,12 @@ fn focused_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWindow> {
         .or_else(|| app.get_webview_window("main"))
 }
 
+/// Strip control characters from user-supplied strings before embedding them
+/// in menu item IDs, preventing log injection or menu event dispatch anomalies.
+fn sanitize_menu_id(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -223,7 +229,7 @@ fn main() {
             for p in &ssh_profiles {
                 ssh_profile_items.push(
                     MenuItemBuilder::new(p.display_name())
-                        .id(format!("ssh-open-{}", p.id))
+                        .id(format!("ssh-open-{}", sanitize_menu_id(&p.id)))
                         .build(app)?,
                 );
             }
@@ -231,7 +237,7 @@ fn main() {
             for e in &unsaved_config {
                 ssh_config_items.push(
                     MenuItemBuilder::new(&e.alias)
-                        .id(format!("ssh-host-{}", e.alias))
+                        .id(format!("ssh-host-{}", sanitize_menu_id(&e.alias)))
                         .build(app)?,
                 );
             }

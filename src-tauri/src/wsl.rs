@@ -191,14 +191,11 @@ const WSLENV_FORWARD: &[&str] = &["TERM", "COLORTERM"];
 /// Return the `WSLENV` value that instructs WSL to forward the selected
 /// environment variables from the Windows side.
 ///
-/// Each variable is suffixed with `/p` to enable path conversion for
-/// variables that contain paths (e.g. `PATH`). Non-path variables use `/l`
-/// to preserve as literal strings.
+/// `TERM` and `COLORTERM` are plain string values (not paths), so no WSLENV
+/// flag suffix is needed — variables without a suffix are forwarded as-is.
 ///
 /// See: https://docs.microsoft.com/en-us/windows/wsl/environment-variables#wslenv
 pub fn wslenv_value() -> String {
-    // WSLENV format: VAR1 flags:VAR2 flags:...
-    // /p = path conversion, /l = literal
     WSLENV_FORWARD.join(":")
 }
 

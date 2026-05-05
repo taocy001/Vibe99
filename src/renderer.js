@@ -738,7 +738,11 @@ function createPane(pane, { tabId = null } = {}) {
     let path = data;
     try {
       const url = new URL(data);
-      if (url.protocol === 'file:') path = decodeURIComponent(url.pathname);
+      // Reject file://hostname/... to prevent CWD poisoning via rogue processes.
+      // URL() normalises .. segments, so decodeURIComponent is safe afterwards.
+      if (url.protocol === 'file:' && url.hostname === '') {
+        path = decodeURIComponent(url.pathname);
+      }
     } catch {}
     path = path.trim();
     if (!path || path === '/') return true;
