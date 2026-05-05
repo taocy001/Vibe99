@@ -6,6 +6,9 @@
 
 本仓库是 [NekoApocalypse/Vibe99](https://github.com/NekoApocalypse/Vibe99) 的个人 fork，在上游 v0.7.2 基础上进行了大量扩展与加固。以下按功能领域分类汇总所有改动。
 
+> **平台说明：本 fork 仅面向 macOS。**  
+> 所有开发与测试均在 macOS 上进行，不涉及 Windows 或 Linux。其中多项改动本身就是 macOS 专属（Dock 菜单、WKWebView IME、ProMotion 高刷优化、原生全屏处理等）。上游项目支持的其他平台在本 fork 中未经验证，不保证兼容性。
+
 ---
 
 ## 新功能
