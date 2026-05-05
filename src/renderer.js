@@ -130,6 +130,13 @@ const searchCountEl = document.getElementById('search-count');
 const searchPrevEl = document.getElementById('search-prev');
 const searchNextEl = document.getElementById('search-next');
 const searchCloseEl = document.getElementById('search-close');
+const searchRegexEl = document.getElementById('search-regex');
+const searchAllPanesEl = document.getElementById('search-all-panes');
+const searchResultsPanelEl = document.getElementById('search-results-panel');
+
+let _searchRegex = false;
+let _searchAllPanes = false;
+let _crossPaneDebounceTimer = null;
 
 // ── Activity monitoring ───────────────────────────────────────────────────────
 const paneAlert = createBreathingMaskAlert();
@@ -1010,10 +1017,20 @@ function runSearch(direction = 'next', { incremental = false } = {}) {
   if (!term) {
     addon.clearDecorations();
     searchCountEl.textContent = '';
-    searchInputEl.classList.remove('no-match');
+    searchInputEl.classList.remove('no-match', 'regex-error');
     return;
   }
+  if (_searchRegex) {
+    try { new RegExp(term); }
+    catch {
+      searchInputEl.classList.add('regex-error');
+      searchCountEl.textContent = 'Invalid regex';
+      return;
+    }
+  }
+  searchInputEl.classList.remove('regex-error');
   const opts = { decorations: SEARCH_DECORATION_OPTS, incremental };
+  if (_searchRegex) opts.regex = true;
   if (direction === 'next') { addon.findNext(term, opts); } else { addon.findPrevious(term, opts); }
 }
 
@@ -1029,7 +1046,12 @@ function closeSearch() {
   getActiveSearchAddon()?.clearDecorations();
   searchInputEl.value = '';
   searchCountEl.textContent = '';
-  searchInputEl.classList.remove('no-match');
+  searchInputEl.classList.remove('no-match', 'regex-error');
+  searchResultsPanelEl?.classList.add('is-hidden');
+  if (searchResultsPanelEl) searchResultsPanelEl.innerHTML = '';
+  _searchAllPanes = false;
+  searchAllPanesEl?.classList.remove('is-active');
+  searchAllPanesEl?.setAttribute('aria-pressed', 'false');
   paneNodeMap.get(st.focusedPaneId)?.terminal.focus();
 }
 
@@ -1037,7 +1059,103 @@ function toggleSearch() {
   if (searchBarEl.classList.contains('is-hidden')) { openSearch(); } else { closeSearch(); }
 }
 
-searchInputEl.addEventListener('input', () => runSearch('next', { incremental: true }));
+function runCrossPane() {
+  if (!searchResultsPanelEl) return;
+  const term = searchInputEl?.value ?? '';
+  if (!term || !_searchAllPanes) {
+    searchResultsPanelEl.classList.add('is-hidden');
+    searchResultsPanelEl.innerHTML = '';
+    return;
+  }
+
+  let matchFn;
+  try {
+    const useRegex = typeof _searchRegex !== 'undefined' && _searchRegex;
+    if (useRegex) {
+      const re = new RegExp(term, 'gi');
+      matchFn = (line) => { re.lastIndex = 0; return re.test(line); };
+    } else {
+      const lower = term.toLowerCase();
+      matchFn = (line) => line.toLowerCase().includes(lower);
+    }
+  } catch { return; }
+
+  const results = [];
+  for (const pane of st.panes) {
+    const panelId = pane.focusedPanelId ?? pane.id;
+    const node = paneNodeMap.get(panelId);
+    if (!node?.terminal) continue;
+    const buf = node.terminal.buffer.active;
+    const len = buf.length;
+    const matches = [];
+    for (let i = Math.max(0, len - 5000); i < len; i++) {
+      const lineText = buf.getLine(i)?.translateToString(true) ?? '';
+      if (matchFn(lineText)) {
+        matches.push({ lineIndex: i, preview: lineText.trim().slice(0, 80) });
+        if (matches.length >= 20) break;
+      }
+    }
+    if (matches.length > 0) {
+      results.push({ pane, panelId, matches });
+    }
+  }
+
+  searchResultsPanelEl.innerHTML = '';
+  if (results.length === 0) {
+    searchResultsPanelEl.classList.remove('is-hidden');
+    const empty = document.createElement('div');
+    empty.className = 'search-results-empty';
+    empty.textContent = 'No matches in other tabs';
+    searchResultsPanelEl.appendChild(empty);
+    return;
+  }
+
+  searchResultsPanelEl.classList.remove('is-hidden');
+  for (const { pane, panelId, matches } of results) {
+    const paneLabel = pane.title || pane.terminalTitle || pane.id;
+    const section = document.createElement('div');
+    section.className = 'search-results-section';
+
+    const header = document.createElement('div');
+    header.className = 'search-results-header';
+    header.textContent = `${paneLabel}  (${matches.length}${matches.length >= 20 ? '+' : ''})`;
+    section.appendChild(header);
+
+    for (const { preview } of matches.slice(0, 5)) {
+      const item = document.createElement('div');
+      item.className = 'search-results-item';
+      item.textContent = preview;
+      item.title = preview;
+      item.addEventListener('click', () => {
+        paneManager.focusSplitPanel(panelId);
+        setTimeout(() => {
+          const node2 = paneNodeMap.get(panelId);
+          if (!node2?.searchAddon) return;
+          const opts2 = { decorations: SEARCH_DECORATION_OPTS };
+          if (typeof _searchRegex !== 'undefined' && _searchRegex) opts2.regex = true;
+          node2.searchAddon.findNext(term, opts2);
+          searchResultsPanelEl.classList.add('is-hidden');
+        }, 50);
+      });
+      section.appendChild(item);
+    }
+    searchResultsPanelEl.appendChild(section);
+  }
+}
+
+searchAllPanesEl?.addEventListener('click', () => {
+  _searchAllPanes = !_searchAllPanes;
+  searchAllPanesEl.classList.toggle('is-active', _searchAllPanes);
+  searchAllPanesEl.setAttribute('aria-pressed', String(_searchAllPanes));
+  if (_searchAllPanes) runCrossPane();
+  else { searchResultsPanelEl.classList.add('is-hidden'); searchResultsPanelEl.innerHTML = ''; }
+});
+
+searchInputEl.addEventListener('input', () => {
+  runSearch('next', { incremental: true });
+  clearTimeout(_crossPaneDebounceTimer);
+  _crossPaneDebounceTimer = setTimeout(runCrossPane, 200);
+});
 searchInputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); runSearch(e.shiftKey ? 'prev' : 'next'); }
   else if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
@@ -1045,6 +1163,12 @@ searchInputEl.addEventListener('keydown', (e) => {
 searchPrevEl.addEventListener('click', () => runSearch('prev'));
 searchNextEl.addEventListener('click', () => runSearch('next'));
 searchCloseEl.addEventListener('click', closeSearch);
+searchRegexEl?.addEventListener('click', () => {
+  _searchRegex = !_searchRegex;
+  searchRegexEl.classList.toggle('is-active', _searchRegex);
+  searchRegexEl.setAttribute('aria-pressed', String(_searchRegex));
+  runSearch('next', { incremental: true });
+});
 
 // ── Clipboard / terminal I/O ──────────────────────────────────────────────────
 
