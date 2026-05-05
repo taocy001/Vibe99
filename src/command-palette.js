@@ -31,6 +31,9 @@ export function openCommandPalette(items, onSelect, options = {}) {
   if (paletteState) return;
   if (!items || items.length === 0) return;
 
+  const abortCtrl = new AbortController();
+  const signal = abortCtrl.signal;
+
   const placeholder = options.placeholder ?? 'Type to search…';
   const emptyText = options.emptyText ?? 'No matches';
 
@@ -61,7 +64,7 @@ export function openCommandPalette(items, onSelect, options = {}) {
     if (event.target !== input) {
       event.preventDefault();
     }
-  });
+  }, { signal });
 
   // `ignoreLocation` so a substring anywhere in the label matches;
   // `includeMatches` so we can highlight the matching characters.
@@ -116,13 +119,13 @@ export function openCommandPalette(items, onSelect, options = {}) {
     row.addEventListener('mousedown', (event) => {
       event.preventDefault();
       commit(item.id);
-    });
+    }, { signal });
     row.addEventListener('mousemove', () => {
       if (highlightedIndex !== idx) {
         highlightedIndex = idx;
         updateHighlight();
       }
-    });
+    }, { signal });
 
     return row;
   }
@@ -159,7 +162,7 @@ export function openCommandPalette(items, onSelect, options = {}) {
     onSelect(id);
   }
 
-  input.addEventListener('input', () => applyQuery(input.value));
+  input.addEventListener('input', () => applyQuery(input.value), { signal });
 
   input.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowDown') {
@@ -185,7 +188,7 @@ export function openCommandPalette(items, onSelect, options = {}) {
       event.preventDefault();
       closeCommandPalette();
     }
-  });
+  }, { signal });
 
   // Click on the dimmed backdrop closes the palette; clicks inside the
   // dialog are handled by their own listeners.
@@ -194,17 +197,18 @@ export function openCommandPalette(items, onSelect, options = {}) {
       event.preventDefault();
       closeCommandPalette();
     }
-  });
+  }, { signal });
 
   document.body.append(overlay);
   applyQuery('');
   input.focus();
 
-  paletteState = { overlay };
+  paletteState = { overlay, abortCtrl };
 }
 
 export function closeCommandPalette() {
   if (!paletteState) return;
+  paletteState.abortCtrl.abort();
   paletteState.overlay.remove();
   paletteState = null;
 }
