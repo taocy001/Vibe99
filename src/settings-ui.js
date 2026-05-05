@@ -658,7 +658,7 @@ export function createSettingsUI({
     if (sshConfig.port) args.push('-p', String(sshConfig.port));
     if (sshConfig.identityFile) args.push('-i', sshConfig.identityFile);
     const target = sshConfig.user ? `${sshConfig.user}@${sshConfig.host}` : sshConfig.host;
-    args.push(target);
+    args.push('--', target);
     return args;
   }
 
@@ -912,7 +912,7 @@ export function createSettingsUI({
       saveFormBtn.textContent = 'Save & Connect';
       saveFormBtn.addEventListener('click', () => {
         const host = formInputs.host.value.trim();
-        if (!host) { reportError(new Error('Host is required')); return; }
+        if (!host || host.startsWith('-')) { reportError(new Error('Invalid host')); return; }
         const rawPort = formInputs.port.value.trim();
         const portNum = rawPort ? Number(rawPort) : null;
         if (portNum !== null && (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535)) {

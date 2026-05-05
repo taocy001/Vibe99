@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Manager};
+
+static SETTINGS_WRITE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+pub(crate) fn acquire_settings_lock() -> std::sync::MutexGuard<'static, ()> {
+    SETTINGS_WRITE_LOCK.get_or_init(|| Mutex::new(()))
+        .lock().unwrap_or_else(|e| e.into_inner())
+}
 
 const CURRENT_CONFIG_VERSION: u8 = 3;
 
@@ -110,10 +117,10 @@ impl ShellProfile {
             let sc = (|| -> Option<SshConfig> {
                 let sc_obj = obj.get("sshConfig")?.as_object()?;
                 let host = sc_obj.get("host")?.as_str()?.trim();
-                if host.is_empty() { return None; }
+                if host.is_empty() || host.starts_with('-') { return None; }
                 let port = sc_obj.get("port").and_then(|v| v.as_u64()).map(|p| p as u16);
                 let user = sc_obj.get("user").and_then(|v| v.as_str())
-                    .map(str::trim).filter(|s| !s.is_empty()).map(String::from);
+                    .map(str::trim).filter(|s| !s.is_empty() && !s.starts_with('-')).map(String::from);
                 let identity_file = sc_obj.get("identityFile").and_then(|v| v.as_str())
                     .map(str::trim).filter(|s| !s.is_empty()).map(String::from);
                 Some(SshConfig { host: host.to_string(), port, user, identity_file })
@@ -662,6 +669,7 @@ pub fn settings_load(app: AppHandle) -> Result<Value, String> {
 /// canonical representation that was persisted.
 #[tauri::command]
 pub fn settings_save(app: AppHandle, mut settings: Value) -> Result<Value, String> {
+    let _guard = acquire_settings_lock();
     let path = settings_path(&app)?;
 
     // Create parent directory if it doesn't exist

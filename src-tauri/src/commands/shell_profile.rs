@@ -1,4 +1,4 @@
-use super::settings::{sanitize_config, settings_path, ShellProfile};
+use super::settings::{acquire_settings_lock, sanitize_config, settings_path, ShellProfile};
 use serde_json::Value;
 use tauri::AppHandle;
 
@@ -60,6 +60,7 @@ fn read_shell_config(app: &AppHandle) -> Result<(Value, ShellConfig), String> {
 /// Persist the full sanitized config (with the shell block replaced)
 /// back to disk.
 fn write_config(app: &AppHandle, config: &Value) -> Result<(), String> {
+    let _guard = acquire_settings_lock();
     let path = settings_path(app)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)

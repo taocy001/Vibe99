@@ -90,12 +90,12 @@ fn decode_utf16le(bytes: &[u8]) -> String {
     } else {
         bytes
     };
-    bytes
+    let code_units: Vec<u16> = bytes
         .chunks_exact(2)
-        .filter_map(|chunk| {
-            let code_unit = u16::from_le_bytes([chunk[0], chunk[1]]);
-            char::from_u32(code_unit as u32)
-        })
+        .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+        .collect();
+    char::decode_utf16(code_units.iter().copied())
+        .filter_map(|r| r.ok())
         .collect()
 }
 

@@ -757,17 +757,17 @@ function createPane(pane, { tabId = null } = {}) {
     return true;
   });
 
-  // OSC 52 — set clipboard from terminal
+  // OSC 52 — set clipboard from terminal (write disabled for security)
   terminal.parser.registerOscHandler(52, (data) => {
+    // OSC 52 clipboard write is disabled for security (clipboard hijacking).
+    // Terminal programs cannot silently overwrite the system clipboard.
     const semicolon = data.indexOf(';');
-    if (semicolon === -1) return true;
-    const base64Text = data.slice(semicolon + 1);
-    if (!base64Text || base64Text === '?') return true;
-    try {
-      const bytes = atob(base64Text);
-      const text = new TextDecoder().decode(Uint8Array.from(bytes, (c) => c.charCodeAt(0)));
-      bridge.writeClipboardText(text);
-    } catch {}
+    if (semicolon !== -1) {
+      const base64Text = data.slice(semicolon + 1);
+      if (base64Text && base64Text !== '?') {
+        console.warn('[vibe99] OSC 52 clipboard write blocked (disabled for security)');
+      }
+    }
     return true;
   });
 
@@ -1685,7 +1685,12 @@ const dispatchKeydown = createDispatcher({
   getKeymap: ShortcutsRegistry.getActiveKeymap,
   actions: keyboardActions,
   getMode: () => st.currentMode,
-  isInputFocused: () => document.activeElement?.tagName === 'INPUT',
+  isInputFocused: () => {
+    const el = document.activeElement;
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  },
   isCommandPaletteOpen,
 });
 

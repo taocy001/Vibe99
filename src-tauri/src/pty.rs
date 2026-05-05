@@ -362,11 +362,18 @@ impl PtyManager {
 
     /// Destroy all active sessions.
     pub fn destroy_all(&self) {
-        if let Ok(mut sessions) = self.sessions.lock() {
-            for session in sessions.values_mut() {
-                let _ = session.killer.kill();
-            }
-            sessions.clear();
+        let exit_handles: Vec<_> = self.sessions.lock()
+            .map(|mut sessions| {
+                sessions.drain()
+                    .map(|(_, mut session)| {
+                        let _ = session.killer.kill();
+                        session.exit_thread
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        for handle in exit_handles {
+            let _ = handle.join();
         }
     }
 }
