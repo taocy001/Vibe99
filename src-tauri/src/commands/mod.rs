@@ -3,5 +3,6 @@ pub mod notification;
 pub mod settings;
 pub mod shell_integration;
 pub mod shell_profile;
+pub mod ssh_config;
 pub mod terminal;
 pub mod wsl;

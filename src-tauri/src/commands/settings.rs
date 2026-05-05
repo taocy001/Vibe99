@@ -12,6 +12,22 @@ const DEFAULT_PANE_WIDTH: u32 = 720;
 // Shell profile types
 // ----------------------------------------------------------------
 
+/// SSH connection parameters stored alongside an SSH shell profile.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshConfig {
+    pub host: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identity_file: Option<String>,
+}
+
+fn is_kind_local(k: &String) -> bool { k == "local" }
+fn default_kind() -> String { "local".to_string() }
+
 /// A named shell configuration that users can select as their default
 /// terminal shell. The profile is a pure data record — all behavior
 /// (spawning, argument handling) is derived from these fields by the
@@ -24,11 +40,17 @@ pub struct ShellProfile {
     /// Human-readable label shown in the UI. Falls back to `id` if empty.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub name: String,
-    /// Absolute path to the shell executable.
+    /// Absolute path to the shell executable (or bare name resolvable via PATH).
     pub command: String,
     /// Arguments passed to the shell (e.g. ["-il"]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
+    /// Profile kind: "local" (default) or "ssh".
+    #[serde(default = "default_kind", skip_serializing_if = "is_kind_local")]
+    pub kind: String,
+    /// SSH connection parameters — present only when `kind == "ssh"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ssh_config: Option<SshConfig>,
 }
 
 impl ShellProfile {
@@ -40,16 +62,15 @@ impl ShellProfile {
     /// Validate and sanitize a raw profile into a canonical form.
     ///
     /// - `id` must be non-empty; whitespace is trimmed.
-    /// - `command` must be non-empty; whitespace is trimmed.
-    /// - `name` is optional; whitespace is trimmed.
-    /// - `args` are kept as-is (they are user-specified).
+    /// - For local profiles, `command` must be non-empty.
+    /// - For SSH profiles, `command` defaults to "ssh"; `sshConfig.host` must be present.
+    /// - `name` and `args` are optional.
     ///
-    /// Returns `None` if the profile lacks a usable id or command.
+    /// Returns `None` if required fields are missing.
     pub fn sanitize(candidate: &Value) -> Option<Self> {
         let obj = candidate.as_object()?;
 
         let id = obj.get("id").and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty())?;
-        let command = obj.get("command").and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty())?;
         let name = obj.get("name").and_then(|v| v.as_str()).map(str::trim).unwrap_or("").to_string();
         let args = obj
             .get("args")
@@ -61,7 +82,49 @@ impl ShellProfile {
             })
             .unwrap_or_default();
 
-        Some(Self { id: id.to_string(), name, command: command.to_string(), args })
+        let kind = obj.get("kind")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("local")
+            .to_string();
+
+        let is_ssh = kind == "ssh";
+
+        let command = if is_ssh {
+            obj.get("command")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .unwrap_or("ssh")
+                .to_string()
+        } else {
+            obj.get("command")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())?
+                .to_string()
+        };
+
+        let ssh_config = if is_ssh {
+            let sc = (|| -> Option<SshConfig> {
+                let sc_obj = obj.get("sshConfig")?.as_object()?;
+                let host = sc_obj.get("host")?.as_str()?.trim();
+                if host.is_empty() { return None; }
+                let port = sc_obj.get("port").and_then(|v| v.as_u64()).map(|p| p as u16);
+                let user = sc_obj.get("user").and_then(|v| v.as_str())
+                    .map(str::trim).filter(|s| !s.is_empty()).map(String::from);
+                let identity_file = sc_obj.get("identityFile").and_then(|v| v.as_str())
+                    .map(str::trim).filter(|s| !s.is_empty()).map(String::from);
+                Some(SshConfig { host: host.to_string(), port, user, identity_file })
+            })();
+            if sc.is_none() { return None; }
+            sc
+        } else {
+            None
+        };
+
+        Some(Self { id: id.to_string(), name, command, args, kind, ssh_config })
     }
 }
 

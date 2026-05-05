@@ -761,11 +761,13 @@ fn which(name: &str) -> Option<PathBuf> {
 
 #[cfg(not(target_os = "windows"))]
 fn which(name: &str) -> Option<PathBuf> {
-    if Path::new(name).is_file() {
-        Some(PathBuf::from(name))
-    } else {
-        None
+    let p = Path::new(name);
+    if p.is_absolute() {
+        return if p.is_file() { Some(p.to_path_buf()) } else { None };
     }
+    std::env::var_os("PATH").and_then(|path_os| {
+        std::env::split_paths(&path_os).map(|dir| dir.join(name)).find(|p| p.is_file())
+    })
 }
 
 /// Check whether a path refers to an executable file.

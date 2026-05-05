@@ -171,8 +171,9 @@ export function createPaneManager(st, {
 
   // ── Pane lifecycle ─────────────────────────────────────────────────────────
 
-  function addPane() {
+  function addPane(options = {}) {
     const newPane = createPaneData();
+    if (options.shellProfileId) newPane.shellProfileId = options.shellProfileId;
     st.paneCycleState = null;
     st.panes = [...st.panes, newPane];
     st.focusedPaneId = newPane.id;

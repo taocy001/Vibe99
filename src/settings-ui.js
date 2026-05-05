@@ -97,6 +97,7 @@ export function createSettingsUI({
   initializePaneTerminal,
   reportError,
   saveSession = true,
+  onOpenSshConnection = null,
 }) {
   // Fix fontFamily now that we have the bridge
   settings.fontFamily = getDefaultFontFamily(bridge.platform);
@@ -493,6 +494,12 @@ export function createSettingsUI({
         const name = document.createElement('div');
         name.className = 'shell-profile-name';
         name.textContent = profile.name || profile.id;
+        if (profile.kind === 'ssh') {
+          const badge = document.createElement('span');
+          badge.className = 'shell-profile-ssh-badge';
+          badge.textContent = 'SSH';
+          name.appendChild(badge);
+        }
 
         const actions = document.createElement('div');
         actions.className = 'shell-profile-actions';
@@ -541,7 +548,18 @@ export function createSettingsUI({
           if (e.target.closest('.shell-profile-actions')) return;
           if (isDragging) return;
           selectedShellProfileId = profile.id;
-          editingShellProfile = { id: profile.id, name: profile.name || '', command: profile.command, args: formatArgs(profile.args ?? []), isNew: false };
+          editingShellProfile = {
+            id: profile.id,
+            name: profile.name || '',
+            command: profile.command,
+            args: formatArgs(profile.args ?? []),
+            kind: profile.kind || 'local',
+            sshHost: profile.sshConfig?.host ?? '',
+            sshPort: profile.sshConfig?.port != null ? String(profile.sshConfig.port) : '',
+            sshUser: profile.sshConfig?.user ?? '',
+            sshIdentityFile: profile.sshConfig?.identityFile ?? '',
+            isNew: false,
+          };
           renderModalShellProfiles();
         });
 
@@ -600,13 +618,25 @@ export function createSettingsUI({
       name: `${profile.name || profile.id} (副本)`,
       command: profile.command,
       args: profile.args ? [...profile.args] : [],
+      ...(profile.kind === 'ssh' && { kind: 'ssh', sshConfig: { ...profile.sshConfig } }),
     };
     bridge.addShellProfile(clonedProfile).then((config) => {
       const userIds = new Set((config.profiles ?? []).map((p) => p.id));
       shellProfiles = [...(config.profiles ?? []), ...detectedShellProfiles.filter((p) => !userIds.has(p.id))];
       defaultShellProfileId = config.defaultProfile ?? '';
       selectedShellProfileId = clonedProfile.id;
-      editingShellProfile = { id: clonedProfile.id, name: clonedProfile.name, command: clonedProfile.command, args: formatArgs(clonedProfile.args ?? []), isNew: true };
+      editingShellProfile = {
+        id: clonedProfile.id,
+        name: clonedProfile.name,
+        command: clonedProfile.command,
+        args: formatArgs(clonedProfile.args ?? []),
+        kind: clonedProfile.kind || 'local',
+        sshHost: clonedProfile.sshConfig?.host ?? '',
+        sshPort: clonedProfile.sshConfig?.port != null ? String(clonedProfile.sshConfig.port) : '',
+        sshUser: clonedProfile.sshConfig?.user ?? '',
+        sshIdentityFile: clonedProfile.sshConfig?.identityFile ?? '',
+        isNew: true,
+      };
       renderModalShellProfiles();
     }).catch(reportError);
   }
@@ -623,17 +653,43 @@ export function createSettingsUI({
       .catch(reportError);
   }
 
+  function buildSshArgs(sshConfig) {
+    const args = ['-t'];
+    if (sshConfig.port) args.push('-p', String(sshConfig.port));
+    if (sshConfig.identityFile) args.push('-i', sshConfig.identityFile);
+    const target = sshConfig.user ? `${sshConfig.user}@${sshConfig.host}` : sshConfig.host;
+    args.push(target);
+    return args;
+  }
+
   function createModalShellProfileEditor() {
     const editor = document.createElement('div');
     editor.className = 'shell-profile-editor';
-    const fields = [
-      { key: 'name',    label: 'Name (optional)', placeholder: 'e.g. Zsh' },
-      { key: 'id',      label: 'ID',              placeholder: 'e.g. zsh' },
-      { key: 'command', label: 'Command',          placeholder: '/bin/zsh' },
-      { key: 'args',    label: 'Arguments',        placeholder: '-il' },
+
+    const isSsh = (editingShellProfile.kind || 'local') === 'ssh';
+
+    // Type selector
+    const typeLabel = document.createElement('label');
+    typeLabel.textContent = 'Type';
+    typeLabel.setAttribute('for', 'modal-shell-edit-kind');
+    const typeSelect = document.createElement('select');
+    typeSelect.id = 'modal-shell-edit-kind';
+    typeSelect.className = 'shell-profile-type-select';
+    [['local', 'Local Shell'], ['ssh', 'SSH']].forEach(([val, lbl]) => {
+      const opt = document.createElement('option');
+      opt.value = val; opt.textContent = lbl;
+      typeSelect.appendChild(opt);
+    });
+    typeSelect.value = editingShellProfile.kind || 'local';
+    editor.append(typeLabel, typeSelect);
+
+    // Common fields: Name and ID
+    const commonFields = [
+      { key: 'name', label: 'Name (optional)', placeholder: 'e.g. My Server' },
+      { key: 'id',   label: 'ID',              placeholder: 'e.g. my-server' },
     ];
     const inputs = {};
-    for (const field of fields) {
+    for (const field of commonFields) {
       const label = document.createElement('label');
       label.textContent = field.label;
       label.setAttribute('for', `modal-shell-edit-${field.key}`);
@@ -642,20 +698,91 @@ export function createSettingsUI({
       input.type = 'text';
       input.value = editingShellProfile[field.key] ?? '';
       input.placeholder = field.placeholder;
-      input.dataset.field = field.key;
       inputs[field.key] = input;
       if (field.key === 'name' && editingShellProfile.isNew) {
         input.addEventListener('input', () => {
-          const idInput = inputs.id;
-          if (!idInput.value && input.value.trim()) {
-            idInput.value = input.value.trim().toLowerCase().replace(/\s+/g, '-');
+          if (!inputs.id.value && input.value.trim()) {
+            inputs.id.value = input.value.trim().toLowerCase().replace(/\s+/g, '-');
           }
         });
       }
       editor.append(label, input);
     }
+
+    // Local-only fields
+    const localSection = document.createElement('div');
+    localSection.className = 'shell-profile-local-fields';
+    [
+      { key: 'command', label: 'Command',   placeholder: '/bin/zsh' },
+      { key: 'args',    label: 'Arguments', placeholder: '-il' },
+    ].forEach(({ key, label: lbl, placeholder }) => {
+      const labelEl = document.createElement('label');
+      labelEl.textContent = lbl;
+      labelEl.setAttribute('for', `modal-shell-edit-${key}`);
+      const input = document.createElement('input');
+      input.id = `modal-shell-edit-${key}`;
+      input.type = 'text';
+      input.value = editingShellProfile[key] ?? '';
+      input.placeholder = placeholder;
+      inputs[key] = input;
+      localSection.append(labelEl, input);
+    });
+    editor.appendChild(localSection);
+
+    // SSH-only fields
+    const sshSection = document.createElement('div');
+    sshSection.className = 'shell-profile-ssh-fields';
+    const sshFieldDefs = [
+      { key: 'sshHost',         label: 'Host',          placeholder: 'example.com' },
+      { key: 'sshPort',         label: 'Port',          placeholder: '22' },
+      { key: 'sshUser',         label: 'User',          placeholder: 'ubuntu' },
+      { key: 'sshIdentityFile', label: 'Identity File', placeholder: '~/.ssh/id_rsa' },
+    ];
+    for (const { key, label: lbl, placeholder } of sshFieldDefs) {
+      const labelEl = document.createElement('label');
+      labelEl.textContent = lbl;
+      labelEl.setAttribute('for', `modal-shell-edit-${key}`);
+      const input = document.createElement('input');
+      input.id = `modal-shell-edit-${key}`;
+      input.type = 'text';
+      input.value = editingShellProfile[key] ?? '';
+      input.placeholder = placeholder;
+      inputs[key] = input;
+      sshSection.append(labelEl, input);
+    }
+    editor.appendChild(sshSection);
+
+    // Show/hide sections based on current type selection
+    function updateTypeUI() {
+      const ssh = typeSelect.value === 'ssh';
+      localSection.style.display = ssh ? 'none' : 'contents';
+      sshSection.style.display = ssh ? 'contents' : 'none';
+    }
+    typeSelect.addEventListener('change', updateTypeUI);
+    updateTypeUI();
+
+    // Actions
     const actionsEl = document.createElement('div');
     actionsEl.className = 'shell-profile-editor-actions';
+
+    // "Open Connection" button for SSH profiles
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.className = 'settings-btn shell-profile-editor-btn ssh-open-btn';
+    openBtn.textContent = 'Open Connection';
+    openBtn.title = 'Open a new pane with this SSH profile';
+    openBtn.style.display = isSsh && !editingShellProfile.isNew ? '' : 'none';
+    openBtn.addEventListener('click', () => {
+      if (onOpenSshConnection && selectedShellProfileId) {
+        settingsPanelEl.classList.add('is-hidden');
+        onOpenSshConnection(selectedShellProfileId);
+      }
+    });
+
+    typeSelect.addEventListener('change', () => {
+      openBtn.style.display = typeSelect.value === 'ssh' && !editingShellProfile.isNew ? '' : 'none';
+    });
+
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.className = 'settings-btn shell-profile-editor-btn';
@@ -665,37 +792,280 @@ export function createSettingsUI({
       selectedShellProfileId = null;
       renderModalShellProfiles();
     });
+
     const save = document.createElement('button');
     save.type = 'button';
     save.className = 'settings-btn shell-profile-editor-btn is-primary';
     save.textContent = 'Save';
     save.addEventListener('click', () => {
-      const profile = {
-        id: inputs.id.value.trim(),
-        name: inputs.name.value.trim(),
-        command: inputs.command.value.trim(),
-        args: splitArgs(inputs.args.value.trim()),
-      };
-      if (!profile.id || !profile.command) {
-        reportError(new Error('ID and Command are required'));
-        return;
+      const kind = typeSelect.value;
+      const id = inputs.id.value.trim();
+      const name = inputs.name.value.trim();
+      if (!id) { reportError(new Error('ID is required')); return; }
+
+      let profile;
+      if (kind === 'ssh') {
+        const host = inputs.sshHost.value.trim();
+        if (!host) { reportError(new Error('Host is required for SSH profiles')); return; }
+        const rawPort = inputs.sshPort.value.trim();
+        const portNum = rawPort ? Number(rawPort) : null;
+        if (portNum !== null && (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535)) {
+          reportError(new Error('Port must be a number between 1 and 65535'));
+          return;
+        }
+        const sshConfig = {
+          host,
+          ...(portNum !== null && portNum !== 22 && { port: portNum }),
+          ...(inputs.sshUser.value.trim() && { user: inputs.sshUser.value.trim() }),
+          ...(inputs.sshIdentityFile.value.trim() && { identityFile: inputs.sshIdentityFile.value.trim() }),
+        };
+        profile = { id, name, kind: 'ssh', command: 'ssh', args: buildSshArgs(sshConfig), sshConfig };
+      } else {
+        const command = inputs.command.value.trim();
+        if (!command) { reportError(new Error('Command is required')); return; }
+        profile = { id, name, command, args: splitArgs(inputs.args.value.trim()) };
       }
+
       bridge.addShellProfile(profile).then((config) => {
         const userIds = new Set((config.profiles ?? []).map((p) => p.id));
         shellProfiles = [...(config.profiles ?? []), ...detectedShellProfiles.filter((p) => !userIds.has(p.id))];
         defaultShellProfileId = config.defaultProfile ?? '';
         selectedShellProfileId = profile.id;
-        editingShellProfile = { id: profile.id, name: profile.name, command: profile.command, args: formatArgs(profile.args), isNew: false };
+        const saved = shellProfiles.find((p) => p.id === profile.id) ?? profile;
+        editingShellProfile = {
+          id: saved.id,
+          name: saved.name || '',
+          command: saved.command,
+          args: formatArgs(saved.args ?? []),
+          kind: saved.kind || 'local',
+          sshHost: saved.sshConfig?.host ?? '',
+          sshPort: saved.sshConfig?.port != null ? String(saved.sshConfig.port) : '',
+          sshUser: saved.sshConfig?.user ?? '',
+          sshIdentityFile: saved.sshConfig?.identityFile ?? '',
+          isNew: false,
+        };
         renderModalShellProfiles();
       }).catch(reportError);
     });
-    actionsEl.append(cancel, save);
+
+    actionsEl.append(openBtn, cancel, save);
     editor.appendChild(actionsEl);
+
     queueMicrotask(() => {
       const firstInput = editor.querySelector('input');
       if (firstInput) { firstInput.focus(); firstInput.select(); }
     });
     return editor;
+  }
+
+  // ── SSH Connections subpage ────────────────────────────────────────────────
+
+  function sshProfileDisplayHost(profile) {
+    const sc = profile.sshConfig;
+    if (!sc) return profile.command;
+    const addr = sc.port && sc.port !== 22 ? `${sc.host}:${sc.port}` : sc.host;
+    return sc.user ? `${sc.user}@${addr}` : addr;
+  }
+
+  function openSshConnectionsSubPage() {
+    loadShellProfiles();
+    // Hoist form state so onAction callback (4th arg) can close over them
+    let formVisible = false;
+    let formEl = null;
+    openSubPage('SSH 连接', (contentEl) => {
+      const container = document.createElement('div');
+      container.className = 'ssh-connections-container';
+
+      // ── Inline "new connection" form (hidden by default) ──
+      formEl = document.createElement('div');
+      formEl.className = 'ssh-quick-form';
+      formEl.style.display = 'none';
+
+      const formFields = [
+        { key: 'name',         label: 'Name (optional)', placeholder: 'My Server' },
+        { key: 'host',         label: 'Host',            placeholder: 'example.com' },
+        { key: 'port',         label: 'Port',            placeholder: '22' },
+        { key: 'user',         label: 'User',            placeholder: 'ubuntu' },
+        { key: 'identityFile', label: 'Identity File',   placeholder: '~/.ssh/id_rsa' },
+      ];
+      const formInputs = {};
+      for (const { key, label: lbl, placeholder } of formFields) {
+        const labelEl = document.createElement('label');
+        labelEl.textContent = lbl;
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.placeholder = placeholder;
+        formInputs[key] = inp;
+        formEl.append(labelEl, inp);
+      }
+      const formActions = document.createElement('div');
+      formActions.className = 'ssh-quick-form-actions';
+      const cancelFormBtn = document.createElement('button');
+      cancelFormBtn.className = 'settings-btn shell-profile-editor-btn';
+      cancelFormBtn.textContent = 'Cancel';
+      cancelFormBtn.addEventListener('click', () => {
+        formEl.style.display = 'none';
+        formVisible = false;
+      });
+      const saveFormBtn = document.createElement('button');
+      saveFormBtn.className = 'settings-btn shell-profile-editor-btn is-primary';
+      saveFormBtn.textContent = 'Save & Connect';
+      saveFormBtn.addEventListener('click', () => {
+        const host = formInputs.host.value.trim();
+        if (!host) { reportError(new Error('Host is required')); return; }
+        const rawPort = formInputs.port.value.trim();
+        const portNum = rawPort ? Number(rawPort) : null;
+        if (portNum !== null && (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535)) {
+          reportError(new Error('Port must be 1–65535'));
+          return;
+        }
+        const name = formInputs.name.value.trim() || host;
+        const id = `ssh-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
+        const sshConfig = {
+          host,
+          ...(portNum && portNum !== 22 && { port: portNum }),
+          ...(formInputs.user.value.trim() && { user: formInputs.user.value.trim() }),
+          ...(formInputs.identityFile.value.trim() && { identityFile: formInputs.identityFile.value.trim() }),
+        };
+        const profile = { id, name, kind: 'ssh', command: 'ssh', args: buildSshArgs(sshConfig), sshConfig };
+        bridge.addShellProfile(profile).then((config) => {
+          const userIds = new Set((config.profiles ?? []).map((p) => p.id));
+          shellProfiles = [...(config.profiles ?? []), ...detectedShellProfiles.filter((p) => !userIds.has(p.id))];
+          defaultShellProfileId = config.defaultProfile ?? '';
+          formEl.style.display = 'none';
+          formVisible = false;
+          settingsPanelEl.classList.add('is-hidden');
+          if (onOpenSshConnection) onOpenSshConnection(id);
+        }).catch(reportError);
+      });
+      formActions.append(cancelFormBtn, saveFormBtn);
+      formEl.appendChild(formActions);
+      container.appendChild(formEl);
+
+      // ── Saved SSH profiles ──
+      const savedSection = document.createElement('div');
+      savedSection.className = 'ssh-connections-section';
+      const savedTitle = document.createElement('div');
+      savedTitle.className = 'ssh-connections-section-title';
+      savedTitle.textContent = '已保存的连接';
+      savedSection.appendChild(savedTitle);
+
+      const sshProfiles = shellProfiles.filter((p) => p.kind === 'ssh');
+      if (sshProfiles.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'ssh-connections-empty';
+        empty.textContent = '暂无保存的 SSH 连接，点击 + 新建';
+        savedSection.appendChild(empty);
+      } else {
+        for (const profile of sshProfiles) {
+          const row = document.createElement('div');
+          row.className = 'ssh-connections-row';
+          const info = document.createElement('div');
+          info.className = 'ssh-connections-info';
+          const nameEl = document.createElement('div');
+          nameEl.className = 'ssh-connections-name';
+          nameEl.textContent = profile.name || profile.id;
+          const hostEl = document.createElement('div');
+          hostEl.className = 'ssh-connections-host';
+          hostEl.textContent = sshProfileDisplayHost(profile);
+          info.append(nameEl, hostEl);
+          const openBtn = document.createElement('button');
+          openBtn.className = 'settings-btn ssh-connections-open-btn';
+          openBtn.textContent = 'Open';
+          openBtn.addEventListener('click', () => {
+            settingsPanelEl.classList.add('is-hidden');
+            if (onOpenSshConnection) onOpenSshConnection(profile.id);
+          });
+          row.append(info, openBtn);
+          savedSection.appendChild(row);
+        }
+      }
+      container.appendChild(savedSection);
+
+      // ── ~/.ssh/config entries ──
+      const configSection = document.createElement('div');
+      configSection.className = 'ssh-connections-section';
+      const configTitle = document.createElement('div');
+      configTitle.className = 'ssh-connections-section-title';
+      configTitle.textContent = '来自 ~/.ssh/config';
+      configSection.appendChild(configTitle);
+
+      const loadingEl = document.createElement('div');
+      loadingEl.className = 'ssh-connections-empty';
+      loadingEl.textContent = '正在读取…';
+      configSection.appendChild(loadingEl);
+      container.appendChild(configSection);
+
+      const savedAliases = new Set(sshProfiles.map((p) => p.sshConfig?.host ?? p.id));
+
+      bridge.readSshConfig().then((entries) => {
+        loadingEl.remove();
+        const unsaved = entries.filter((e) => !savedAliases.has(e.alias) && !savedAliases.has(e.host));
+        if (unsaved.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'ssh-connections-empty';
+          empty.textContent = entries.length === 0 ? '未找到 ~/.ssh/config' : '所有主机已保存为连接';
+          configSection.appendChild(empty);
+          return;
+        }
+        for (const entry of unsaved) {
+          const row = document.createElement('div');
+          row.className = 'ssh-connections-row';
+          const info = document.createElement('div');
+          info.className = 'ssh-connections-info';
+          const nameEl = document.createElement('div');
+          nameEl.className = 'ssh-connections-name';
+          nameEl.textContent = entry.alias;
+          const hostEl = document.createElement('div');
+          hostEl.className = 'ssh-connections-host';
+          const addr = entry.port && entry.port !== 22 ? `${entry.host}:${entry.port}` : entry.host;
+          hostEl.textContent = entry.user ? `${entry.user}@${addr}` : addr;
+          info.append(nameEl, hostEl);
+          const connectBtn = document.createElement('button');
+          connectBtn.className = 'settings-btn ssh-connections-open-btn';
+          connectBtn.textContent = 'Connect';
+          connectBtn.addEventListener('click', () => {
+            // Create a profile for this alias then open it
+            const id = `ssh-config-${entry.alias}`;
+            const sshConfig = {
+              host: entry.alias,  // use alias; ssh resolves via ~/.ssh/config
+              ...(entry.port && entry.port !== 22 && { port: entry.port }),
+              ...(entry.user && { user: entry.user }),
+              ...(entry.identityFile && { identityFile: entry.identityFile }),
+            };
+            const profile = {
+              id,
+              name: entry.alias,
+              kind: 'ssh',
+              command: 'ssh',
+              args: ['-t', entry.alias],
+              sshConfig,
+            };
+            bridge.addShellProfile(profile).then((config) => {
+              const userIds = new Set((config.profiles ?? []).map((p) => p.id));
+              shellProfiles = [...(config.profiles ?? []), ...detectedShellProfiles.filter((p) => !userIds.has(p.id))];
+              defaultShellProfileId = config.defaultProfile ?? '';
+              settingsPanelEl.classList.add('is-hidden');
+              if (onOpenSshConnection) onOpenSshConnection(id);
+            }).catch(reportError);
+          });
+          row.append(info, connectBtn);
+          configSection.appendChild(row);
+        }
+      }).catch(() => {
+        loadingEl.textContent = '读取 ~/.ssh/config 失败';
+      });
+
+      contentEl.appendChild(container);
+    }, '+', () => {
+      if (!formEl) return;
+      formVisible = !formVisible;
+      formEl.style.display = formVisible ? 'grid' : 'none';
+      if (formVisible) {
+        const firstInput = formEl.querySelector('input');
+        if (firstInput) firstInput.focus();
+      }
+    });
   }
 
   // ── Settings panel navigation ──────────────────────────────────────────────
@@ -758,14 +1128,25 @@ export function createSettingsUI({
       if (shellProfiles.length > 0) {
         const first = shellProfiles[0];
         selectedShellProfileId = first.id;
-        editingShellProfile = { id: first.id, name: first.name || '', command: first.command, args: formatArgs(first.args ?? []), isNew: false };
+        editingShellProfile = {
+          id: first.id,
+          name: first.name || '',
+          command: first.command,
+          args: formatArgs(first.args ?? []),
+          kind: first.kind || 'local',
+          sshHost: first.sshConfig?.host ?? '',
+          sshPort: first.sshConfig?.port != null ? String(first.sshConfig.port) : '',
+          sshUser: first.sshConfig?.user ?? '',
+          sshIdentityFile: first.sshConfig?.identityFile ?? '',
+          isNew: false,
+        };
       } else {
         selectedShellProfileId = null;
         editingShellProfile = null;
       }
       renderModalShellProfiles();
     }, '+', () => {
-      editingShellProfile = { id: '', name: '', command: '', args: '', isNew: true };
+      editingShellProfile = { id: '', name: '', command: '', args: '', kind: 'local', sshHost: '', sshPort: '', sshUser: '', sshIdentityFile: '', isNew: true };
       selectedShellProfileId = null;
       renderModalShellProfiles();
     });
@@ -1016,6 +1397,7 @@ export function createSettingsUI({
     flushSettingsSave,
     buildSessionData,
     openSettingsToTab,
+    openSshConnectionsSubPage,
     openSubPage,
     closeSubPage,
     loadShellProfiles,

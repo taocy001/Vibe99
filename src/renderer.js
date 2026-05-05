@@ -911,6 +911,7 @@ settingsUI = createSettingsUI({
   initializePaneTerminal,
   reportError,
   saveSession: _winLabel === 'main',
+  onOpenSshConnection: (profileId) => { paneManager.addPane({ shellProfileId: profileId }); },
 });
 
 const {
@@ -923,7 +924,7 @@ const {
   flushSettingsSave,
   buildSessionData,
   openSettingsToTab,
-  openSubPageModal,
+  openSshConnectionsSubPage,
   loadShellProfiles,
   restartPane,
   changePaneShell,
@@ -980,6 +981,60 @@ const removeTerminalDataListener = bridge.onTerminalData(({ paneId, data }) => {
   paneActivityWatcher.noteData(paneId);
 });
 
+function showSshReconnectOverlay(node, profile) {
+  node.terminalHost.querySelector('.ssh-reconnect-overlay')?.remove();
+  const sc = profile.sshConfig;
+  const serverLabel = sc?.user ? `${sc.user}@${sc.host}` : (sc?.host ?? profile.id);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'ssh-reconnect-overlay';
+  const content = document.createElement('div');
+  content.className = 'ssh-reconnect-content';
+
+  const icon = document.createElement('div');
+  icon.className = 'ssh-reconnect-icon';
+  icon.textContent = '⚡';
+
+  const labelEl = document.createElement('div');
+  labelEl.className = 'ssh-reconnect-label';
+  labelEl.textContent = 'Disconnected from ';
+  const strong = document.createElement('strong');
+  strong.textContent = serverLabel;
+  labelEl.appendChild(strong);
+
+  const actions = document.createElement('div');
+  actions.className = 'ssh-reconnect-actions';
+  const reconnectBtn = document.createElement('button');
+  reconnectBtn.className = 'ssh-reconnect-btn is-primary';
+  reconnectBtn.dataset.action = 'reconnect';
+  reconnectBtn.textContent = 'Reconnect';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'ssh-reconnect-btn';
+  closeBtn.dataset.action = 'close';
+  closeBtn.textContent = 'Close Pane';
+  actions.append(reconnectBtn, closeBtn);
+
+  content.append(icon, labelEl, actions);
+  overlay.appendChild(content);
+
+  overlay.addEventListener('click', (e) => {
+    const action = e.target.closest('[data-action]')?.dataset.action;
+    if (action === 'reconnect') {
+      overlay.remove();
+      node.sessionReady = false;
+      node.terminal.clear();
+      reconnectBtn.disabled = true;
+      initializePaneTerminal(node).finally(() => { reconnectBtn.disabled = false; });
+    } else if (action === 'close') {
+      const idx = paneManager.getPaneIndex(node.paneId);
+      if (idx === -1) return;
+      if (st.panes.length === 1) { void bridge.closeWindow().catch(reportError); return; }
+      paneManager.closePane(idx, { destroyTerminal: false });
+    }
+  });
+  node.terminalHost.appendChild(overlay);
+}
+
 const removeTerminalExitListener = bridge.onTerminalExit(({ paneId, exitCode }) => {
   const node = paneNodeMap.get(paneId);
   if (!node) return;
@@ -994,6 +1049,19 @@ const removeTerminalExitListener = bridge.onTerminalExit(({ paneId, exitCode }) 
   node.sessionReady = false;
   node.terminal.writeln('');
   node.terminal.writeln(`\x1b[38;5;244m[process exited with code ${exitCode}]\x1b[0m`);
+
+  // For SSH panes/panels, show a reconnect overlay instead of auto-closing.
+  // paneId may be a panel ID (split layout) — check panelDataMap first, then panes.
+  const pane = st.panes.find((p) => p.id === paneId);
+  const profileId = pane?.shellProfileId ?? panelDataMap.get(paneId)?.shellProfileId;
+  const profile = profileId
+    ? settingsUI.getShellProfiles().find((p) => p.id === profileId)
+    : null;
+  if (profile?.kind === 'ssh') {
+    showSshReconnectOverlay(node, profile);
+    return;
+  }
+
   const paneIndex = paneManager.getPaneIndex(paneId);
   if (paneIndex === -1) return;
   if (st.panes.length === 1) { void bridge.closeWindow().catch(reportError); return; }
@@ -1443,6 +1511,31 @@ function handleMenuAction(action, paneId) {
 
   if (action.startsWith('terminal-change-shell:')) {
     changePaneShell(paneId, action.slice('terminal-change-shell:'.length));
+    return;
+  }
+
+  if (action === 'ssh-connections') {
+    openSettingsToTab('general');
+    openSshConnectionsSubPage();
+    return;
+  }
+  if (action.startsWith('ssh-open-')) {
+    const profileId = action.slice('ssh-open-'.length);
+    paneManager.addPane({ shellProfileId: profileId });
+    return;
+  }
+  if (action.startsWith('ssh-host-')) {
+    const alias = action.slice('ssh-host-'.length);
+    const existingId = `ssh-config-${alias}`;
+    if (settingsUI.getShellProfiles().find((p) => p.id === existingId)) {
+      paneManager.addPane({ shellProfileId: existingId });
+    } else {
+      const profile = { id: existingId, name: alias, kind: 'ssh', command: 'ssh', args: ['-t', alias], sshConfig: { host: alias } };
+      bridge.addShellProfile(profile).then(() => {
+        loadShellProfiles();
+        paneManager.addPane({ shellProfileId: existingId });
+      }).catch(reportError);
+    }
     return;
   }
 

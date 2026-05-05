@@ -939,6 +939,241 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   background: rgba(255, 255, 255, 0.25) !important;
 }
 
+/* SSH badge in profile list */
+.shell-profile-ssh-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(97, 175, 239, 0.18);
+  color: #61afef;
+  border: 1px solid rgba(97, 175, 239, 0.3);
+  margin-left: 5px;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+/* SSH type selector in editor */
+.shell-profile-type-select {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  appearance: none;
+  transition: border-color 0.15s ease;
+}
+
+.shell-profile-type-select:focus {
+  border-color: rgba(255, 255, 255, 0.35);
+  outline: none;
+}
+
+/* "Open Connection" button sits to the left of Cancel/Save */
+.ssh-open-btn {
+  margin-right: auto;
+}
+
+/* SSH Connections subpage */
+.ssh-connections-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding: 0 2px;
+}
+
+.ssh-quick-form {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+
+.ssh-quick-form label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: -4px;
+}
+
+.ssh-quick-form input {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  transition: border-color 0.15s ease;
+}
+
+.ssh-quick-form input:focus {
+  border-color: rgba(255, 255, 255, 0.35);
+  outline: none;
+}
+
+.ssh-quick-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.ssh-connections-section {
+  padding: 12px 14px 8px;
+}
+
+.ssh-connections-section + .ssh-connections-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.ssh-connections-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.ssh-connections-empty {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  padding: 4px 0;
+}
+
+.ssh-connections-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ssh-connections-row:last-child {
+  border-bottom: none;
+}
+
+.ssh-connections-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ssh-connections-name {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ssh-connections-host {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.ssh-connections-open-btn {
+  flex-shrink: 0;
+  width: auto !important;
+  height: 24px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+}
+
+/* SSH reconnect overlay */
+.ssh-reconnect-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+
+.ssh-reconnect-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 32px;
+  border-radius: 8px;
+  background: rgba(28, 28, 28, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.ssh-reconnect-icon {
+  font-size: 28px;
+  opacity: 0.55;
+}
+
+.ssh-reconnect-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+
+.ssh-reconnect-label strong {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.ssh-reconnect-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.ssh-reconnect-btn {
+  appearance: none;
+  height: 28px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.65);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.ssh-reconnect-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.ssh-reconnect-btn.is-primary {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.ssh-reconnect-btn.is-primary:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 .stage-wrap {
   min-height: 0;
   padding: var(--stage-padding);

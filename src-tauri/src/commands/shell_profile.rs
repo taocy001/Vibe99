@@ -91,6 +91,14 @@ fn extract_default_profile(config: &Value) -> String {
 // Tauri commands
 // ----------------------------------------------------------------
 
+/// Return only SSH profiles, used to populate the SSH menu bar submenu at startup.
+pub fn load_ssh_profiles(app: &AppHandle) -> Vec<ShellProfile> {
+    match read_shell_config(app) {
+        Ok((_, config)) => config.profiles.into_iter().filter(|p| p.kind == "ssh").collect(),
+        Err(_) => vec![],
+    }
+}
+
 /// List all shell profiles and the current default profile id.
 #[tauri::command]
 pub fn shell_profiles_list(app: AppHandle) -> Result<ShellConfig, String> {
@@ -250,6 +258,8 @@ pub fn shell_profiles_detect() -> Vec<ShellProfile> {
             name,
             command: shell_str,
             args: candidate.args,
+            kind: "local".to_string(),
+            ssh_config: None,
         });
     }
 
