@@ -1,6 +1,6 @@
 use super::settings::{acquire_settings_lock, sanitize_config, settings_path, ShellProfile};
 use serde_json::Value;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 /// Friendly names for common shell executables.
 fn friendly_label(shell: &str) -> (String, String) {
@@ -179,6 +179,7 @@ pub fn shell_profile_add(
 
     let sanitized = sanitize_config(&config);
     write_config(&app, &sanitized)?;
+    let _ = app.emit("vibe99:profiles-changed", ());
 
     Ok(ShellConfig {
         profiles: extract_profiles(&sanitized),
@@ -222,6 +223,7 @@ pub fn shell_profile_remove(app: AppHandle, profile_id: String) -> Result<ShellC
 
     let sanitized = sanitize_config(&config);
     write_config(&app, &sanitized)?;
+    let _ = app.emit("vibe99:profiles-changed", ());
 
     Ok(ShellConfig {
         profiles: extract_profiles(&sanitized),
