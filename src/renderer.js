@@ -1735,13 +1735,14 @@ const dispatchKeydown = createDispatcher({
 
 window.addEventListener('keydown', dispatchKeydown, true);
 
-window.addEventListener('keyup', (event) => {
+const onWindowKeyup = (event) => {
   if (paneManager && st.paneCycleState && (event.key === 'Control' || event.key === 'Meta')) {
     paneManager.commitPaneCycle();
   }
-});
+};
+window.addEventListener('keyup', onWindowKeyup);
 
-window.addEventListener('focus', () => {
+const onWindowFocus = () => {
   // Re-focus the active terminal whenever the window regains OS focus.
   // This is especially important for new windows where terminal.focus() may
   // have been called before the OS granted focus to the window, causing the
@@ -1749,11 +1750,13 @@ window.addEventListener('focus', () => {
   const focusedPanelId = st.panes.find((p) => p.id === st.focusedPaneId)?.focusedPanelId ?? st.focusedPaneId;
   const node = paneNodeMap.get(focusedPanelId);
   if (node?.sessionReady) node.terminal.focus();
-});
+};
+window.addEventListener('focus', onWindowFocus);
 
-window.addEventListener('blur', () => {
+const onWindowBlur = () => {
   if (paneManager && st.paneCycleState) paneManager.commitPaneCycle();
-});
+};
+window.addEventListener('blur', onWindowBlur);
 
 addPaneButtonEl.addEventListener('click', () => {
   try { paneManager.addPane(); } catch (error) { reportError(error); }
@@ -1824,13 +1827,14 @@ function restoreSession(session) {
 // ── Window events ─────────────────────────────────────────────────────────────
 
 let _resizeTimer = null;
-window.addEventListener('resize', () => {
+const onWindowResize = () => {
   try { layoutRenderer.renderPanes(false); } catch (error) { reportError(error); }
   clearTimeout(_resizeTimer);
   _resizeTimer = setTimeout(() => {
     try { layoutRenderer.render(true); } catch (error) { reportError(error); }
   }, 120);
-});
+};
+window.addEventListener('resize', onWindowResize);
 
 window.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -1875,11 +1879,20 @@ window.addEventListener('beforeunload', () => {
   removeTerminalDataListener();
   removeTerminalExitListener();
   removeMenuActionListener();
+  window.removeEventListener('keydown', dispatchKeydown, true);
+  window.removeEventListener('keyup', onWindowKeyup);
+  window.removeEventListener('focus', onWindowFocus);
+  window.removeEventListener('blur', onWindowBlur);
+  window.removeEventListener('resize', onWindowResize);
+  window.removeEventListener('error', onWindowError);
+  window.removeEventListener('unhandledrejection', onUnhandledRejection);
 });
 
 
-window.addEventListener('error', (event) => { reportError(event.error || event.message); });
-window.addEventListener('unhandledrejection', (event) => { reportError(event.reason); });
+const onWindowError = (event) => { reportError(event.error || event.message); };
+const onUnhandledRejection = (event) => { reportError(event.reason); };
+window.addEventListener('error', onWindowError);
+window.addEventListener('unhandledrejection', onUnhandledRejection);
 
 // macOS fullscreen: shift content down when auto-hide menu bar appears.
 {

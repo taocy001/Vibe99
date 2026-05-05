@@ -106,11 +106,11 @@ impl ShellProfile {
                 .unwrap_or("ssh")
                 .to_string()
         } else {
-            obj.get("command")
-                .and_then(|v| v.as_str())
-                .map(str::trim)
-                .filter(|s| !s.is_empty())?
-                .to_string()
+            let raw = obj.get("command").and_then(|v| v.as_str()).unwrap_or("");
+            let cleaned: String = raw.chars().filter(|c| !c.is_control()).collect();
+            let cmd = cleaned.trim();
+            if cmd.is_empty() || cmd.starts_with('-') { return None; }
+            cmd.to_string()
         };
 
         let ssh_config = if is_ssh {
