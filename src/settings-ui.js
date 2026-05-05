@@ -96,6 +96,7 @@ export function createSettingsUI({
   onUpdateStatus,
   initializePaneTerminal,
   reportError,
+  saveSession = true,
 }) {
   // Fix fontFamily now that we have the bridge
   settings.fontFamily = getDefaultFontFamily(bridge.platform);
@@ -394,7 +395,7 @@ export function createSettingsUI({
       const settingsToSave = {
         version: 5,
         ui: { ...settings, shortcuts: ShortcutsRegistry.getShortcutsForSave() },
-        session: buildSessionData(),
+        ...(saveSession && { session: buildSessionData() }),
       };
       bridge.saveSettings(settingsToSave).catch(reportError);
     }, 150);
@@ -407,7 +408,7 @@ export function createSettingsUI({
       const settingsToSave = {
         version: 5,
         ui: { ...settings, shortcuts: ShortcutsRegistry.getShortcutsForSave() },
-        session: buildSessionData(),
+        ...(saveSession && { session: buildSessionData() }),
       };
       void bridge.saveSettings(settingsToSave).catch(reportError);
     }

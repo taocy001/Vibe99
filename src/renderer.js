@@ -267,6 +267,12 @@ function fitTerminal(node, force = false) {
 
 async function initializePaneTerminal(node) {
   if (!paneNodeMap.has(node.paneId)) return;
+  // Ensure the vibe99:terminal-data listener is registered with the Rust event
+  // plugin before spawning the PTY. Without this, the first burst of shell
+  // output (prompt, PS1 init) can arrive before Rust knows to dispatch the
+  // event to this webview and is silently dropped.
+  await bridge.listenersReady;
+  if (!paneNodeMap.has(node.paneId)) return;
   fitTerminal(node, true);
   const pane = st.panes.find((p) => p.id === node.paneId);
   const panelData = panelDataMap.get(node.paneId);
@@ -281,6 +287,8 @@ async function initializePaneTerminal(node) {
     });
     node.sessionReady = true;
     fitTerminal(node, true);
+    const focusedPanelId = st.panes.find((p) => p.id === st.focusedPaneId)?.focusedPanelId ?? st.focusedPaneId;
+    if (node.paneId === focusedPanelId) node.terminal.focus();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     node.terminal.writeln(`\x1b[38;5;204mFailed to start shell${profileId ? ` "${profileId}"` : ''}: ${message}\x1b[0m`);
@@ -902,6 +910,7 @@ settingsUI = createSettingsUI({
   onUpdateStatus: () => layoutRenderer?.updateStatus(),
   initializePaneTerminal,
   reportError,
+  saveSession: _winLabel === 'main',
 });
 
 const {
@@ -987,7 +996,7 @@ const removeTerminalExitListener = bridge.onTerminalExit(({ paneId, exitCode }) 
   node.terminal.writeln(`\x1b[38;5;244m[process exited with code ${exitCode}]\x1b[0m`);
   const paneIndex = paneManager.getPaneIndex(paneId);
   if (paneIndex === -1) return;
-  if (st.panes.length === 1) { void bridge.exitApp().catch(reportError); return; }
+  if (st.panes.length === 1) { void bridge.closeWindow().catch(reportError); return; }
   paneManager.closePane(paneIndex, { destroyTerminal: false });
 });
 
@@ -1049,6 +1058,7 @@ function closeSearch() {
   searchInputEl.classList.remove('no-match', 'regex-error');
   searchResultsPanelEl?.classList.add('is-hidden');
   if (searchResultsPanelEl) searchResultsPanelEl.innerHTML = '';
+  clearTimeout(_crossPaneDebounceTimer);
   _searchAllPanes = false;
   searchAllPanesEl?.classList.remove('is-active');
   searchAllPanesEl?.setAttribute('aria-pressed', 'false');
@@ -1070,8 +1080,7 @@ function runCrossPane() {
 
   let matchFn;
   try {
-    const useRegex = typeof _searchRegex !== 'undefined' && _searchRegex;
-    if (useRegex) {
+    if (_searchRegex) {
       const re = new RegExp(term, 'gi');
       matchFn = (line) => { re.lastIndex = 0; return re.test(line); };
     } else {
@@ -1082,21 +1091,25 @@ function runCrossPane() {
 
   const results = [];
   for (const pane of st.panes) {
-    const panelId = pane.focusedPanelId ?? pane.id;
-    const node = paneNodeMap.get(panelId);
-    if (!node?.terminal) continue;
-    const buf = node.terminal.buffer.active;
-    const len = buf.length;
-    const matches = [];
-    for (let i = Math.max(0, len - 5000); i < len; i++) {
-      const lineText = buf.getLine(i)?.translateToString(true) ?? '';
-      if (matchFn(lineText)) {
-        matches.push({ lineIndex: i, preview: lineText.trim().slice(0, 80) });
-        if (matches.length >= 20) break;
+    // Scan all split panels in this tab, not just the focused one.
+    const panelIds = collectPanelIds(getTabLayout(pane));
+    for (const panelId of panelIds) {
+      const node = paneNodeMap.get(panelId);
+      if (!node?.terminal) continue;
+      const buf = node.terminal.buffer.active;
+      const len = buf.length;
+      const matches = [];
+      // Cap at last 5000 lines for performance.
+      for (let i = Math.max(0, len - 5000); i < len; i++) {
+        const lineText = buf.getLine(i)?.translateToString(false) ?? '';
+        if (matchFn(lineText)) {
+          matches.push({ preview: lineText.trimEnd().slice(0, 80) });
+          if (matches.length >= 20) break;
+        }
       }
-    }
-    if (matches.length > 0) {
-      results.push({ pane, panelId, matches });
+      if (matches.length > 0) {
+        results.push({ pane, panelId, matches });
+      }
     }
   }
 
@@ -1105,7 +1118,7 @@ function runCrossPane() {
     searchResultsPanelEl.classList.remove('is-hidden');
     const empty = document.createElement('div');
     empty.className = 'search-results-empty';
-    empty.textContent = 'No matches in other tabs';
+    empty.textContent = 'No matches (last 5000 lines per panel)';
     searchResultsPanelEl.appendChild(empty);
     return;
   }
@@ -1128,14 +1141,15 @@ function runCrossPane() {
       item.title = preview;
       item.addEventListener('click', () => {
         paneManager.focusSplitPanel(panelId);
-        setTimeout(() => {
+        // Double-rAF: first frame finishes layout, second frame focus is settled.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
           const node2 = paneNodeMap.get(panelId);
           if (!node2?.searchAddon) return;
           const opts2 = { decorations: SEARCH_DECORATION_OPTS };
-          if (typeof _searchRegex !== 'undefined' && _searchRegex) opts2.regex = true;
+          if (_searchRegex) opts2.regex = true;
           node2.searchAddon.findNext(term, opts2);
           searchResultsPanelEl.classList.add('is-hidden');
-        }, 50);
+        }));
       });
       section.appendChild(item);
     }
@@ -1590,6 +1604,16 @@ window.addEventListener('keyup', (event) => {
   }
 });
 
+window.addEventListener('focus', () => {
+  // Re-focus the active terminal whenever the window regains OS focus.
+  // This is especially important for new windows where terminal.focus() may
+  // have been called before the OS granted focus to the window, causing the
+  // call to be silently ignored and leaving keyboard input non-functional.
+  const focusedPanelId = st.panes.find((p) => p.id === st.focusedPaneId)?.focusedPanelId ?? st.focusedPaneId;
+  const node = paneNodeMap.get(focusedPanelId);
+  if (node?.sessionReady) node.terminal.focus();
+});
+
 window.addEventListener('blur', () => {
   if (paneManager && st.paneCycleState) paneManager.commitPaneCycle();
 });
@@ -1684,8 +1708,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     applyTranslations();
     loadShellProfiles();
 
-    if (savedSettings?.session?.panes?.length > 0) {
+    if (_winLabel === 'main' && savedSettings?.session?.panes?.length > 0) {
       restoreSession(savedSettings.session);
+    } else if (_winLabel !== 'main') {
+      // New window: start with a single fresh tab.
+      const p = _initialPanes[0];
+      st.panes = [{ ...p, cwd: bridge.defaultCwd, terminalTitle: bridge.defaultTabTitle }];
+      st.focusedPaneId = p.id;
+      st.paneMruOrder = [p.id];
+      st.nextPaneNumber = 2;
     } else {
       st.panes = st.panes.map((p) =>
         p.title === null ? { ...p, cwd: bridge.defaultCwd, terminalTitle: bridge.defaultTabTitle } : p
@@ -1706,20 +1737,6 @@ window.addEventListener('beforeunload', () => {
   removeMenuActionListener();
 });
 
-// Tauri emits this before allowing the window to close, giving JS a chance to
-// destroy all PTY sessions owned by this window. We call destroy() (not close())
-// so it does NOT re-trigger CloseRequested — avoiding an infinite loop.
-// Rust exits the process automatically when the last window closes
-// (Tauri 2 default: exitOnLastWindowClose is true).
-if (window.__TAURI__) {
-  _appWindow.listen('vibe99:window-will-close', async () => {
-    // Destroy every panel node (covers split panels too, not just top-level pane IDs).
-    for (const panelId of paneNodeMap.keys()) {
-      bridge.destroyTerminal({ paneId: panelId }).catch(() => {});
-    }
-    await _appWindow.destroy();
-  });
-}
 
 window.addEventListener('error', (event) => { reportError(event.error || event.message); });
 window.addEventListener('unhandledrejection', (event) => { reportError(event.reason); });

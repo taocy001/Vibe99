@@ -17,6 +17,120 @@ use vibe99_lib::pty::PtyManager;
 
 static WINDOW_COUNTER: AtomicU32 = AtomicU32::new(2);
 
+// ── macOS dock menu ───────────────────────────────────────────────────────────
+// Inject `applicationDockMenu:` into the existing wry NSApplicationDelegate
+// class at runtime so macOS shows "New Window" in the Dock right-click menu.
+#[cfg(target_os = "macos")]
+mod dock_menu {
+    use std::ffi::c_char;
+    use std::sync::OnceLock;
+    use std::sync::atomic::Ordering;
+    use objc2::{class, msg_send, runtime::AnyObject, sel};
+    use objc2::ffi::{class_replaceMethod, object_getClass, sel_registerName};
+    use objc2::runtime::{AnyClass, Imp, Sel};
+
+    static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
+
+    // Action called when the "New Window" dock item is clicked.
+    unsafe extern "C" fn new_vibe_window(
+        _self: *mut AnyObject,
+        _cmd: Sel,
+        _sender: *mut AnyObject,
+    ) {
+        if let Some(handle) = APP_HANDLE.get() {
+            let count = crate::WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed);
+            let label = format!("window-{}", count);
+            let _ = tauri::WebviewWindowBuilder::new(
+                handle,
+                &label,
+                tauri::WebviewUrl::App("index.html".into()),
+            )
+            .title("Vibe99")
+            .inner_size(1280.0, 800.0)
+            .min_inner_size(600.0, 400.0)
+            .build();
+        }
+    }
+
+    // NSApplicationDelegate method: return a custom dock menu.
+    unsafe extern "C" fn application_dock_menu(
+        this: *mut AnyObject,
+        _cmd: Sel,
+        _ns_app: *mut AnyObject,
+    ) -> *mut AnyObject {
+        let menu: *mut AnyObject = msg_send![class!(NSMenu), new];
+
+        // Build NSString objects for title and (empty) key equivalent.
+        let title: *mut AnyObject = msg_send![
+            class!(NSString),
+            stringWithUTF8String: b"New Window\0".as_ptr() as *const c_char
+        ];
+        let empty: *mut AnyObject = msg_send![
+            class!(NSString),
+            stringWithUTF8String: b"\0".as_ptr() as *const c_char
+        ];
+
+        // Selector for the action — registered at runtime.
+        let action_sel = sel!(newVibeWindow:);
+
+        let alloc: *mut AnyObject = msg_send![class!(NSMenuItem), alloc];
+        let item: *mut AnyObject = msg_send![
+            alloc,
+            initWithTitle: title,
+            action: action_sel,
+            keyEquivalent: empty
+        ];
+
+        // Target is the delegate itself (which also has newVibeWindow:).
+        let () = msg_send![item, setTarget: this];
+        let () = msg_send![menu, addItem: item];
+        let _: *mut AnyObject = msg_send![item, autorelease];
+
+        // Hand off memory to AppKit's autorelease pool.
+        let _: *mut AnyObject = msg_send![menu, autorelease];
+        menu
+    }
+
+    /// Inject `applicationDockMenu:` and `newVibeWindow:` into the wry
+    /// NSApplicationDelegate class. Must be called from setup() on the main
+    /// thread while the delegate object is already installed.
+    ///
+    /// Uses `class_replaceMethod` instead of `class_addMethod` so the
+    /// implementation is installed even if a prior version of the class
+    /// already carries a stub for either selector.
+    pub fn install(app: &tauri::AppHandle) {
+        let _ = APP_HANDLE.set(app.clone());
+        unsafe {
+            let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            let delegate: *mut AnyObject = msg_send![ns_app, delegate];
+            if delegate.is_null() { return; }
+
+            let cls = object_getClass(delegate as *const AnyObject) as *mut AnyClass;
+            if cls.is_null() { return; }
+
+            // "@@:@"  → returns id (NSMenu*), self id, SEL, arg id (NSApplication*)
+            let dock_sel = sel_registerName(b"applicationDockMenu:\0".as_ptr() as *const c_char)
+                .expect("sel_registerName returned null");
+            class_replaceMethod(
+                cls,
+                dock_sel,
+                std::mem::transmute::<unsafe extern "C" fn(*mut AnyObject, Sel, *mut AnyObject) -> *mut AnyObject, Imp>(application_dock_menu),
+                b"@@:@\0".as_ptr() as *const c_char,
+            );
+
+            // "v@:@"  → void, self id, SEL, arg id (NSMenuItem sender)
+            let win_sel = sel_registerName(b"newVibeWindow:\0".as_ptr() as *const c_char)
+                .expect("sel_registerName returned null");
+            class_replaceMethod(
+                cls,
+                win_sel,
+                std::mem::transmute::<unsafe extern "C" fn(*mut AnyObject, Sel, *mut AnyObject), Imp>(new_vibe_window),
+                b"v@:@\0".as_ptr() as *const c_char,
+            );
+        }
+    }
+}
+
 #[tauri::command]
 fn new_window(app: tauri::AppHandle) {
     let count = WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -272,6 +386,12 @@ fn main() {
                 });
             }
 
+            // Inject "New Window" into the macOS Dock right-click menu.
+            // setup() is called synchronously on the main thread (from
+            // applicationDidFinishLaunching:), so we can call install() directly.
+            #[cfg(target_os = "macos")]
+            dock_menu::install(app.app_handle());
+
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -332,12 +452,12 @@ fn main() {
         ])
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
-                // Emit event so JS can clean up this window's PTY sessions before closing.
-                // JS will call exit_app if it's the last window, or just close() this window.
-                let _ = window.emit("vibe99:window-will-close", ());
-                // Prevent the default close so JS controls the sequence.
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
+                // If this is the last window, destroy all terminals and exit the process.
+                // Otherwise let it close naturally — remaining windows keep running.
+                if window.webview_windows().len() <= 1 {
+                    let state = window.state::<AppState>();
+                    terminal::destroy_all_terminals(&state);
+                    std::process::exit(0);
                 }
             }
             // After every resize (including fullscreen entry/exit), re-apply

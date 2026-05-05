@@ -607,16 +607,24 @@ pub fn settings_save(app: AppHandle, mut settings: Value) -> Result<Value, Strin
             .map_err(|e| format!("failed to create settings directory: {e}"))?;
     }
 
-    // The frontend may send a partial payload (only version, ui, session)
-    // without the `shell` block. Preserve the existing `shell` block from
-    // disk so that user-edited profiles are not silently wiped.
-    if settings.get("shell").is_none() && path.exists() {
-        let shell = std::fs::read_to_string(&path)
+    // The frontend may send a partial payload without `shell` or `session`.
+    // Preserve both blocks from disk so user-edited profiles and the main
+    // window's session are not silently wiped by a non-main window save.
+    let missing_shell = settings.get("shell").is_none();
+    let missing_session = settings.get("session").is_none();
+    if (missing_shell || missing_session) && path.exists() {
+        if let Some(existing) = std::fs::read_to_string(&path)
             .ok()
             .and_then(|c| serde_json::from_str::<Value>(&c).ok())
-            .and_then(|v| v.get("shell").cloned());
-        if let (Some(shell), Some(obj)) = (shell, settings.as_object_mut()) {
-            obj.insert("shell".into(), shell);
+        {
+            if let Some(obj) = settings.as_object_mut() {
+                if missing_shell {
+                    if let Some(v) = existing.get("shell").cloned() { obj.insert("shell".into(), v); }
+                }
+                if missing_session {
+                    if let Some(v) = existing.get("session").cloned() { obj.insert("session".into(), v); }
+                }
+            }
         }
     }
 

@@ -1,9 +1,10 @@
 {
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": ["main", "window-*"],
   "permissions": [
     "core:default",
+    "core:window:allow-close",
     "core:window:allow-set-title",
     "clipboard-manager:default",
     "clipboard-manager:allow-read-text",

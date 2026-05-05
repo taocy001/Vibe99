@@ -185,7 +185,7 @@ export function createPaneManager(st, {
     const { destroyTerminal = true } = options;
     const closingPane = st.panes[index];
     if (!closingPane) return;
-    if (st.panes.length === 1) { void bridge.exitApp().catch(reportError); return; }
+    if (st.panes.length === 1) { void bridge.closeWindow().catch(reportError); return; }
     if (closingPane.id === st.renamingPaneId) st.renamingPaneId = null;
     if (closingPane.id === st.dragState?.paneId) endTabDrag();
     if (closingPane.id === st.pendingTabFocus?.paneId) clearPendingTabFocus();

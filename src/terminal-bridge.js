@@ -83,6 +83,7 @@ export function createUnavailableBridge() {
     onMenuAction: () => () => {},
     onOpenSettings: () => () => {},
     cwdReady: Promise.resolve(),
+    listenersReady: Promise.resolve(),
   };
 }
 
@@ -110,6 +111,13 @@ export function createTauriBridge(tauri) {
   const _cwdReady = invoke('get_cwd')
     .then((cwd) => { _resolvedCwd = cwd; })
     .catch(() => {});
+
+  // Resolves once the terminal-data listener is fully registered with the Rust
+  // event plugin (plugin:event|listen round-trip completes). We must not spawn
+  // PTY sessions before this resolves, otherwise the first burst of shell output
+  // (prompt, PS1 init, etc.) can arrive before Rust knows to dispatch
+  // vibe99:terminal-data to this webview and the output is silently dropped.
+  let _listenersReady = Promise.resolve();
 
   return {
     platform: getRuntimePlatform(),
@@ -156,10 +164,18 @@ export function createTauriBridge(tauri) {
     setWindowTitle: (title) => getCurrentWindow().setTitle(title).catch(() => {}),
     sendNotification: (title, body) => invoke('send_notification', { title, body }).catch(() => {}),
     getSystemInfo: () => invoke('get_system_info'),
-    onTerminalData: (handler) => onTauriEvent('vibe99:terminal-data', handler),
+    onTerminalData: (handler) => {
+      // Capture the tauri.event.listen Promise (which resolves once the
+      // plugin:event|listen round-trip completes and Rust has registered the
+      // listener). Store it as _listenersReady so createTerminal can await it.
+      const listenPromise = tauri.event.listen('vibe99:terminal-data', (e) => handler(e.payload));
+      _listenersReady = listenPromise.then(() => {});
+      return () => listenPromise.then((fn) => fn());
+    },
     onTerminalExit: (handler) => onTauriEvent('vibe99:terminal-exit', handler),
     onMenuAction: (handler) => onTauriEvent('vibe99:menu-action', handler),
     onOpenSettings: (handler) => onTauriEvent('open-settings', handler),
     cwdReady: _cwdReady,
+    get listenersReady() { return _listenersReady; },
   };
 }
