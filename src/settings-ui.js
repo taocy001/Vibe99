@@ -23,6 +23,7 @@ export const settings = {
   breathingAlertEnabled: true,
   notificationsEnabled: false,
   notificationSilenceMs: 30000,
+  copyOnSelect: false,
   showStatusBar: false,
   colorMode: 'dark',
   language: 'en',
@@ -184,6 +185,7 @@ export function createSettingsUI({
   const notificationsToggleEl   = document.getElementById('notifications-toggle');
   const notificationSilenceEl   = document.getElementById('notifications-silence');
   const notificationSilenceRow  = document.getElementById('notifications-silence-row');
+  const copyOnSelectToggleEl   = document.getElementById('copy-on-select-toggle');
   const showStatusBarToggleEl  = document.getElementById('show-status-bar-toggle');
   const windowTitleFormatInputEl = document.getElementById('window-title-format');
   const statusBarFormatInputEl   = document.getElementById('status-bar-format');
@@ -275,6 +277,7 @@ export function createSettingsUI({
     if (notificationsToggleEl) notificationsToggleEl.checked = settings.notificationsEnabled;
     if (notificationSilenceEl) notificationSilenceEl.value = String(Math.round(settings.notificationSilenceMs / 1000));
     if (notificationSilenceRow) notificationSilenceRow.classList.toggle('is-hidden', !settings.notificationsEnabled);
+    copyOnSelectToggleEl.checked = settings.copyOnSelect;
     showStatusBarToggleEl.checked = settings.showStatusBar;
     document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
     applyColorModeUI(settings.colorMode);
@@ -339,6 +342,7 @@ export function createSettingsUI({
     if (typeof uiSettings.breathingAlertEnabled  === 'boolean') settings.breathingAlertEnabled  = uiSettings.breathingAlertEnabled;
     if (typeof uiSettings.notificationsEnabled   === 'boolean') settings.notificationsEnabled   = uiSettings.notificationsEnabled;
     if (Number.isFinite(uiSettings.notificationSilenceMs) && uiSettings.notificationSilenceMs >= 5000) settings.notificationSilenceMs = uiSettings.notificationSilenceMs;
+    if (typeof uiSettings.copyOnSelect  === 'boolean')         settings.copyOnSelect          = uiSettings.copyOnSelect;
     if (typeof uiSettings.showStatusBar === 'boolean')         settings.showStatusBar         = uiSettings.showStatusBar;
     if (typeof uiSettings.colorMode === 'string') settings.colorMode = uiSettings.colorMode;
     if (typeof uiSettings.language === 'string') {
@@ -1267,6 +1271,11 @@ export function createSettingsUI({
     const secs = Math.max(5, Math.min(300, Number(notificationSilenceEl.value) || 30));
     notificationSilenceEl.value = String(secs);
     settings.notificationSilenceMs = secs * 1000;
+    scheduleSettingsSave();
+  });
+
+  copyOnSelectToggleEl.addEventListener('change', () => {
+    settings.copyOnSelect = copyOnSelectToggleEl.checked;
     scheduleSettingsSave();
   });
 

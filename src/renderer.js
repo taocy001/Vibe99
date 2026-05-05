@@ -729,6 +729,7 @@ function createPane(pane, { tabId = null } = {}) {
   });
 
   terminal.onSelectionChange(() => {
+    if (!settings.copyOnSelect) return;
     const selection = terminal.getSelection();
     if (selection) bridge.writeClipboardText(selection);
   });

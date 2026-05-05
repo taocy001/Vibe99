@@ -295,6 +295,11 @@ fn sanitize_ui_config(ui: Option<&Value>) -> Value {
         }
     }
 
+    // Preserve copyOnSelect boolean
+    if let Some(v) = ui.get("copyOnSelect").and_then(|v| v.as_bool()) {
+        obj.insert("copyOnSelect".into(), Value::Bool(v));
+    }
+
     // Preserve showStatusBar boolean
     if let Some(show) = ui.get("showStatusBar").and_then(|v| v.as_bool()) {
         obj.insert("showStatusBar".into(), Value::Bool(show));
