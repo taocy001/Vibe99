@@ -122,7 +122,7 @@ impl ShellProfile {
                 let user = sc_obj.get("user").and_then(|v| v.as_str())
                     .map(str::trim).filter(|s| !s.is_empty() && !s.starts_with('-')).map(String::from);
                 let identity_file = sc_obj.get("identityFile").and_then(|v| v.as_str())
-                    .map(str::trim).filter(|s| !s.is_empty()).map(String::from);
+                    .map(str::trim).filter(|s| !s.is_empty() && !s.starts_with('-')).map(String::from);
                 Some(SshConfig { host: host.to_string(), port, user, identity_file })
             })();
             if sc.is_none() { return None; }

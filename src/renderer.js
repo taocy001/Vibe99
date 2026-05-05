@@ -1530,7 +1530,7 @@ function handleMenuAction(action, paneId) {
     if (settingsUI.getShellProfiles().find((p) => p.id === existingId)) {
       paneManager.addPane({ shellProfileId: existingId });
     } else {
-      const profile = { id: existingId, name: alias, kind: 'ssh', command: 'ssh', args: ['-t', alias], sshConfig: { host: alias } };
+      const profile = { id: existingId, name: alias, kind: 'ssh', command: 'ssh', args: ['-t', '--', alias], sshConfig: { host: alias } };
       bridge.addShellProfile(profile).then(() => {
         loadShellProfiles();
         paneManager.addPane({ shellProfileId: existingId });
@@ -1688,6 +1688,8 @@ const dispatchKeydown = createDispatcher({
   isInputFocused: () => {
     const el = document.activeElement;
     if (!el) return false;
+    // Exclude xterm's hidden helper textarea so terminal shortcuts still fire.
+    if (el.classList.contains('xterm-helper-textarea')) return false;
     const tag = el.tagName;
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
   },
