@@ -404,6 +404,8 @@ export function createLayoutRenderer(st, {
       dividerDrag = { el, startX: e.clientX, initialPaneWidth: settings.paneWidth, dividerIndex, focusedIndex: focusedIdx, paneCount: st.panes.length, stageWidth, initialDividerX: initialDivX, isLeftOfFocused: dividerIndex <= focusedIdx };
       el.classList.add('is-dragging');
       document.body.style.cursor = 'col-resize';
+      document.addEventListener('mousemove', onDividerMouseMove);
+      document.addEventListener('mouseup', onDividerMouseUp);
     });
   });
 
@@ -425,8 +427,9 @@ export function createLayoutRenderer(st, {
       renderPanes(true);
     }
   });
-  document.addEventListener('mousemove', onDividerMouseMove);
-  document.addEventListener('mouseup', () => {
+  function onDividerMouseUp() {
+    document.removeEventListener('mousemove', onDividerMouseMove);
+    document.removeEventListener('mouseup', onDividerMouseUp);
     if (!dividerDrag) return;
     onDividerMouseMove.cancel();
     dividerDrag.el.classList.remove('is-dragging');
@@ -434,7 +437,7 @@ export function createLayoutRenderer(st, {
     dividerDrag = null;
     renderPanes(true);
     scheduleSettingsSave();
-  });
+  }
 
   // ── Split divider drag ─────────────────────────────────────────────────────
 
@@ -451,6 +454,8 @@ export function createLayoutRenderer(st, {
     splitDividerDrag = { el, splitNode: divData.splitNode, direction: divData.direction, startPos: divData.direction === 'v' ? e.clientX : e.clientY, initialRatio: divData.splitNode.ratio, usableSize: divData.usableSize };
     el.classList.add('is-dragging');
     document.body.style.cursor = divData.direction === 'v' ? 'col-resize' : 'row-resize';
+    document.addEventListener('mousemove', onSplitDividerMouseMove);
+    document.addEventListener('mouseup', onSplitDividerMouseUp);
   });
 
   const onSplitDividerMouseMove = rafThrottle((e) => {
@@ -464,8 +469,9 @@ export function createLayoutRenderer(st, {
       renderPanes(false);
     }
   });
-  document.addEventListener('mousemove', onSplitDividerMouseMove);
-  document.addEventListener('mouseup', () => {
+  function onSplitDividerMouseUp() {
+    document.removeEventListener('mousemove', onSplitDividerMouseMove);
+    document.removeEventListener('mouseup', onSplitDividerMouseUp);
     if (!splitDividerDrag) return;
     onSplitDividerMouseMove.cancel();
     splitDividerDrag.el.classList.remove('is-dragging');
@@ -473,7 +479,7 @@ export function createLayoutRenderer(st, {
     splitDividerDrag = null;
     renderPanes(true);
     scheduleSettingsSave();
-  });
+  }
 
   // Double-click split divider → ratio preset menu
   stageEl.addEventListener('dblclick', (e) => {

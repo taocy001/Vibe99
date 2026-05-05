@@ -380,9 +380,9 @@ export function createPaneManager(st, {
       if (panelDragState.dropOverlay) panelDragState.dropOverlay.style.display = 'none';
     }
   });
-  document.addEventListener('mousemove', onPanelDragMouseMove);
-
-  document.addEventListener('mouseup', () => {
+  function onPanelDragMouseUp() {
+    document.removeEventListener('mousemove', onPanelDragMouseMove);
+    document.removeEventListener('mouseup', onPanelDragMouseUp);
     if (!panelDragState) return;
     onPanelDragMouseMove.cancel();
     const { sourcePanelId, active, currentTargetId, currentZone, ghost, dropOverlay } = panelDragState;
@@ -393,7 +393,7 @@ export function createPaneManager(st, {
     } else if (!active) {
       focusSplitPanel(sourcePanelId);
     }
-  });
+  }
 
   // Wires into stageEl — called from layout-renderer which owns stageEl
   function attachPanelDragToStage(stageEl) {
@@ -406,6 +406,8 @@ export function createPaneManager(st, {
       e.preventDefault();
       e.stopPropagation();
       panelDragState = { sourcePanelId, startX: e.clientX, startY: e.clientY, ghost: null, dropOverlay: null, active: false, currentZone: null, currentTargetId: null };
+      document.addEventListener('mousemove', onPanelDragMouseMove);
+      document.addEventListener('mouseup', onPanelDragMouseUp);
     }, true);
   }
 

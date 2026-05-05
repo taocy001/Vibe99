@@ -375,25 +375,28 @@ pub fn get_saved_language(app: &AppHandle) -> String {
         .unwrap_or_else(get_system_language)
 }
 
-/// Detect the macOS display language from system preferences.
+/// Detect the system display language.
 /// Returns one of "zh-CN", "zh-TW", "ja", or "en".
 fn get_system_language() -> String {
-    // `defaults read -g AppleLanguages` returns an array like ("zh-Hans-US", "en-US")
-    let output = std::process::Command::new("defaults")
-        .args(["read", "-g", "AppleLanguages"])
-        .output()
-        .ok();
+    #[cfg(target_os = "macos")]
+    {
+        // `defaults read -g AppleLanguages` returns an array like ("zh-Hans-US", "en-US")
+        let output = std::process::Command::new("defaults")
+            .args(["read", "-g", "AppleLanguages"])
+            .output()
+            .ok();
 
-    if let Some(out) = output {
-        let text = String::from_utf8_lossy(&out.stdout);
-        if text.contains("zh-Hans") || text.contains("zh-CN") {
-            return "zh-CN".to_string();
-        }
-        if text.contains("zh-Hant") || text.contains("zh-TW") {
-            return "zh-TW".to_string();
-        }
-        if text.contains("\"ja\"") || text.contains("ja-") {
-            return "ja".to_string();
+        if let Some(out) = output {
+            let text = String::from_utf8_lossy(&out.stdout);
+            if text.contains("zh-Hans") || text.contains("zh-CN") {
+                return "zh-CN".to_string();
+            }
+            if text.contains("zh-Hant") || text.contains("zh-TW") {
+                return "zh-TW".to_string();
+            }
+            if text.contains("\"ja\"") || text.contains("ja-") {
+                return "ja".to_string();
+            }
         }
     }
 

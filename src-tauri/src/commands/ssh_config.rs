@@ -48,7 +48,15 @@ fn flush_entry(
             continue;
         }
         let host = hostname.clone().unwrap_or_else(|| alias.clone());
-        let idfile = identity_file.as_deref().map(|f| expand_tilde(f, home));
+        // Return only the filename, not the full path, so the IPC response
+        // does not leak the user's home directory layout to the renderer.
+        let idfile = identity_file.as_deref().map(|f| {
+            let expanded = expand_tilde(f, home);
+            Path::new(&expanded)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| expanded)
+        });
         entries.push(SshHostEntry {
             alias: alias.clone(),
             host,

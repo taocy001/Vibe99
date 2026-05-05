@@ -45,6 +45,11 @@ pub fn terminal_write(
     pane_id: String,
     data: String,
 ) -> Result<(), String> {
+    // Base64 overhead is ~4/3x, so 1 MB decoded ≈ 1.37 MB encoded.
+    const MAX_ENCODED_LEN: usize = 1_400_000;
+    if data.len() > MAX_ENCODED_LEN {
+        return Err(format!("write payload too large: {} bytes (max {})", data.len(), MAX_ENCODED_LEN));
+    }
     let bytes = base64_decode(&data).map_err(|e| format!("invalid base64 data: {e}"))?;
     state.pty.write(&pane_id, &bytes)
 }

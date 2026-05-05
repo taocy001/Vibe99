@@ -811,12 +811,6 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   display: inline-flex;
   gap: 2px;
   flex-shrink: 0;
-}
-
-.shell-profile-actions {
-  display: inline-flex;
-  gap: 2px;
-  flex-shrink: 0;
   pointer-events: none;
 }
 
