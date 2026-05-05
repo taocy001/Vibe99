@@ -78,9 +78,9 @@ pub fn destroy_all_terminals(state: &AppState) {
 /// More reliable than going through the window-close event chain, which can
 /// be silently swallowed by async IPC errors.
 #[tauri::command]
-pub fn exit_app(state: State<'_, AppState>) {
+pub fn exit_app(app: tauri::AppHandle, state: State<'_, AppState>) {
     destroy_all_terminals(&state);
-    std::process::exit(0);
+    app.exit(0);
 }
 
 /// Return username and hostname for window title format variables (\u, \h, \H).

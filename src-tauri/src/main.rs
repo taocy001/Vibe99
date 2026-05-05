@@ -513,7 +513,7 @@ fn main() {
                 if window.webview_windows().len() <= 1 {
                     let state = window.state::<AppState>();
                     terminal::destroy_all_terminals(&state);
-                    std::process::exit(0);
+                    window.app_handle().exit(0);
                 }
             }
             // After every resize (including fullscreen entry/exit), re-apply

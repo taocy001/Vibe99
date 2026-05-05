@@ -131,8 +131,54 @@ impl ShellProfile {
             None
         };
 
+        // For SSH profiles, restrict args to a safe whitelist to prevent
+        // options like -o ProxyCommand from being injected.
+        let args = if is_ssh { sanitize_ssh_args(args) } else { args };
+
         Some(Self { id: id.to_string(), name, command, args, kind, ssh_config })
     }
+}
+
+/// Filter SSH profile args to a safe whitelist.
+///
+/// Allowed: `-t`, `--`, `-p <port>`, `-i <path>`, `-l <user>`, bare positional
+/// strings (hostname / user@host). Everything else is silently dropped so that
+/// dangerous options like `-o ProxyCommand=...` can never be injected.
+fn sanitize_ssh_args(args: Vec<String>) -> Vec<String> {
+    // Flags that stand alone (no following value).
+    const STANDALONE: &[&str] = &["-t", "--"];
+    // Flags that each consume one following value.
+    const WITH_VALUE: &[&str] = &["-p", "-i", "-l"];
+
+    let mut out = Vec::with_capacity(args.len());
+    let mut i = 0;
+    while i < args.len() {
+        let arg = &args[i];
+        if STANDALONE.contains(&arg.as_str()) {
+            out.push(arg.clone());
+            i += 1;
+        } else if WITH_VALUE.contains(&arg.as_str()) {
+            if let Some(val) = args.get(i + 1) {
+                let valid = match arg.as_str() {
+                    "-p" => val.parse::<u16>().map(|p| p > 0).unwrap_or(false),
+                    _ => !val.is_empty() && !val.starts_with('-'),
+                };
+                if valid {
+                    out.push(arg.clone());
+                    out.push(val.clone());
+                }
+                i += 2;
+            } else {
+                i += 1; // dangling flag without value
+            }
+        } else if !arg.starts_with('-') {
+            out.push(arg.clone()); // positional: hostname / user@host
+            i += 1;
+        } else {
+            i += 1; // unknown/dangerous flag — drop
+        }
+    }
+    out
 }
 
 /// Sanitize a list of shell profiles, deduplicating by id.
