@@ -492,13 +492,21 @@ function createPane(pane, { tabId = null } = {}) {
         setTimeout(() => { if (ta.isConnected) ta.value = ''; }, 0);
       }
     }
+    // During active composition, block all keydown events from reaching xterm.
+    // The OS-level IME has already processed the key (candidate selection, backspace,
+    // arrow navigation, etc.) before this event fires; xterm must not also process it
+    // or digit/letter keys get sent raw to the PTY while the IME is open.
+    if (_compositionActive) {
+      e.stopImmediatePropagation();
+      return;
+    }
     // Suppress Enter that commits IME composition.
     // _compositionJustEnded catches the case where Enter fires within 50ms of compositionend
     // (standard IME where compositionend carries data, e.g. selecting a Chinese character).
     // _compositionFailed catches WKWebView Pinyin where compositionend always fires with
     // empty data (PATH-C already sent each letter), so _compositionJustEnded times out
     // before the user presses Enter — but _compositionFailed persists until compositionstart.
-    if (e.key === 'Enter' && (_compositionActive || _compositionJustEnded || _compositionFailed)) {
+    if (e.key === 'Enter' && (_compositionJustEnded || _compositionFailed)) {
       _compositionFailed = false;
       _compositionJustEnded = false;
       clearTimeout(_compositionJustEndedTimer);
@@ -526,7 +534,11 @@ function createPane(pane, { tabId = null } = {}) {
     // the final composed character.
     const prevData = _xtermLastKeydownData;
     _xtermLastKeydownData = null;
-    if (prevData !== null && prevData.length === 1 && node.sessionReady) {
+    // Only cancel a letter (a-z): that's the pinyin initial that xterm sent before
+    // compositionstart fired. Space/numbers/punctuation must not be cancelled — on
+    // WKWebView, Space can fire a spurious compositionstart after a prior commit and
+    // we must not erase the space the user typed.
+    if (prevData !== null && /^[a-z]$/i.test(prevData) && node.sessionReady) {
       bridge.writeTerminal({ paneId: node.paneId, data: '\x7f' });
     }
   }, { capture: true, signal });
@@ -591,10 +603,12 @@ function createPane(pane, { tabId = null } = {}) {
       terminal.input(e.data, true);
       return;
     }
-    // Path C: beforeinput captured data during a direct substitution.
-    if (_compositionData) {
+    // Path C: beforeinput captured data during a direct substitution (composition complete).
+    // Guard with !_compositionActive: beforeinput also fires for insertCompositionText
+    // during in-progress composition updates; we must not send those intermediate strings
+    // to the terminal — only fire once composition has actually ended.
+    if (_compositionData && !_compositionActive) {
       _compositionFailed = false;
-      _compositionActive = false;
       const data = _compositionData;
       _compositionData = '';
       terminal.input(data, true);
