@@ -84,7 +84,9 @@ impl ShellProfile {
             .and_then(|v| v.as_array())
             .map(|a| {
                 a.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.chars().filter(|c| !c.is_control()).collect::<String>())
+                    .filter(|s| !s.is_empty())
                     .collect()
             })
             .unwrap_or_default();
@@ -705,6 +707,15 @@ pub fn settings_load(app: AppHandle) -> Result<Value, String> {
     let path = settings_path(&app)?;
 
     if !path.exists() {
+        return Ok(sanitize_config(&Value::Null));
+    }
+
+    // Refuse to parse files larger than 10 MB to prevent startup DoS.
+    const MAX_SETTINGS_BYTES: u64 = 10 * 1024 * 1024;
+    let file_len = std::fs::metadata(&path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+    if file_len > MAX_SETTINGS_BYTES {
         return Ok(sanitize_config(&Value::Null));
     }
 

@@ -1841,8 +1841,14 @@ function restoreSession(session) {
 // ── Window events ─────────────────────────────────────────────────────────────
 
 let _resizeTimer = null;
+let _resizeRafId = null;
 const onWindowResize = () => {
-  try { layoutRenderer.renderPanes(false); } catch (error) { reportError(error); }
+  if (_resizeRafId === null) {
+    _resizeRafId = requestAnimationFrame(() => {
+      _resizeRafId = null;
+      try { layoutRenderer.renderPanes(false); } catch (error) { reportError(error); }
+    });
+  }
   clearTimeout(_resizeTimer);
   _resizeTimer = setTimeout(() => {
     try { layoutRenderer.render(true); } catch (error) { reportError(error); }
@@ -1900,6 +1906,7 @@ window.addEventListener('beforeunload', () => {
   window.removeEventListener('resize', onWindowResize);
   window.removeEventListener('error', onWindowError);
   window.removeEventListener('unhandledrejection', onUnhandledRejection);
+  if (_resizeRafId !== null) { cancelAnimationFrame(_resizeRafId); _resizeRafId = null; }
 });
 
 
