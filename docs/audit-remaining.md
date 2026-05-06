@@ -1550,3 +1550,285 @@ Vibe99 在配置清洗（sanitize）和 WSL 路径转换方面展现了良好的
 ---
 
 *报告结束。本合并报告已移除经代码审查确认已修复的审计项。*
+
+---
+
+## 五、与主流终端软件的功能差距分析
+
+> 分析日期：2026-05-07
+> 对比对象：iTerm2、Warp、Ghostty、Kitty、WezTerm、Alacritty、Windows Terminal
+> 依据：代码基检视（前端 `src/`、`src-tauri/`）+ 公开产品文档与基准测试
+
+### 1. 严重差距（直接影响核心竞争力和产品定位）
+
+#### 1.1 原生 GPU 渲染管线缺失
+
+**现状**：Vibe99 的渲染层完全依赖 `xterm.js` + `@xterm/addon-webgl`。从 `renderer.js:335-378` 可见，WebGL addon 加载失败时静默回退到 Canvas/DOM 渲染器，且对大输出场景无特殊优化。
+
+**差距**：
+- **Ghostty** 使用 Apple Metal 原生框架（macOS）和 OpenGL（Linux），吞吐量是 iTerm2 的 ~3 倍。
+- **Alacritty/Kitty/WezTerm** 均使用原生 OpenGL 渲染管线，直接操作 GPU texture，输入延迟在 2-8ms 级别。
+- **xterm.js WebGL addon** 在 JS 层管理 cell atlas 和 texture upload，面对 Agentic Coding 场景下常见的 10 万行 diff 输出时，帧率和内存占用远不及原生 GPU 终端。
+
+**影响**：作为定位 "Agentic Coding" 的终端，大输出性能是核心体验。当前架构在长时间运行的 Agent 会话中可能出现掉帧和内存膨胀。
+
+**建议**：中长期应评估替代渲染后端（如集成 `alacritty_terminal` crate 作为 Rust 层渲染器，或通过 Tauri 暴露原生 OpenGL 上下文）。
+
+---
+
+#### 1.2 AI 集成缺失（与 "Agentic Coding" 定位错位）
+
+**现状**：Vibe99 的 PRD 将 "Agent Protocol 解析器" 列为 P2（中期布局），但当前代码基中没有任何 AI 相关功能。仅有的 "智能" 特性是 OSC 133 命令块标记和系统通知。
+
+**差距**：
+- **Warp** 的核心价值主张是 AI 原生终端：自然语言转命令、错误解释、Agent 编排（"Oz"）。
+- **iTerm2** 已集成 OpenAI LLM Chat 窗口，可基于终端上下文提供建议。
+- 即使不追求 Warp 级别的 AI 功能，现代终端用户至少期望**命令建议**和**错误智能提示**。
+
+**影响**：产品名称和 PRD 强调 "Agentic Coding"，但当前功能集与传统终端无异，用户感知不到 "Agentic" 差异化。
+
+**建议**：
+1. 短期：集成轻量级本地模型（如 llama.cpp 或 Ollama）提供命令补全和错误解释。
+2. 中期：实现 PRD 中的 Agent Protocol 解析器，识别 Claude Code / Aider / Codex CLI 的输出模式。
+
+---
+
+#### 1.3 终端协议生态落后
+
+**现状**：从 `renderer.js` 的 addon 加载逻辑看，Vibe99 仅加载了 xterm.js 官方 addon（fit、search、web-links、webgl、image、unicode11）。图像支持依赖 `@xterm/addon-image`，该 addon 实现的是**OSC 1337（iTerm2 图像协议）**的子集。
+
+**差距**：
+| 协议 | Vibe99 | Ghostty | Kitty | WezTerm | 说明 |
+|------|--------|---------|-------|---------|------|
+| OSC 1337 (iTerm2 Image) | ✅ | ✅ | ❌ | ✅ | 基础图像显示 |
+| Kitty Graphics Protocol | ❌ | ✅ | ✅ (原生) | ✅ | 已成为社区事实标准，`ranger`、`yazi`、`neofetch` 主流支持 |
+| Sixel | ❌ | ✅ | ❌ | ✅ | 传统图像协议，部分 legacy 工具依赖 |
+| Kitty Keyboard Protocol | ❌ | ✅ | ✅ (原生) | ✅ | 区分 `Ctrl+I` vs `Tab`、`Ctrl+Shift+Enter` 等模糊键位 |
+| synchronized rendering | ❌ | ✅ | ✅ | ✅ | 避免全屏 TUI 应用（如 neovim）的撕裂 |
+| grapheme clustering | ❌ | ✅ | ✅ | ✅ | ZWJ emoji（👨‍👩‍👧‍👦）正确渲染 |
+
+**影响**：不支持 Kitty Graphics Protocol 意味着大量现代 CLI 工具（如使用 `ranger` 做文件管理、`yazi` 预览图像）无法在 Vibe99 中显示图像。不支持 Kitty Keyboard Protocol 导致在 neovim/emacs 中部分键位映射冲突。
+
+**建议**：
+1. 评估迁移到 `xterm.js` 7.x（如果支持 Kitty Graphics Protocol），或自行实现 Kitty 图像协议解析器。
+2. 引入 `grapheme-splitter` polyfill 解决 grapheme cluster 问题。
+
+---
+
+### 2. 中等差距（影响 power user 采纳和日常效率）
+
+#### 2.1 会话持久化机制不足
+
+**现状**：`PtyManager` 的 session 生命周期与 Tauri 窗口强绑定。`main.rs` 的 `CloseRequested` 事件直接调用 `terminal::destroy_all_terminals` 并 `std::process::exit(0)`。PRD P0.3 "Session Daemon 模式" 仍是规划状态。
+
+**差距**：
+- **iTerm2** 的 Session Restoration：窗口崩溃或应用升级后，shell 仍在后台运行，重启后自动重连。
+- **WezTerm** 内置 multiplexer server，支持通过 `wezterm connect` 重连远程或本地会话。
+- **tmux/screen** 是业界标准的会话持久化方案，但 Vibe99 没有 tmux 集成（见 2.4）。
+
+**影响**：Agent 任务在后台运行期间如果用户误关窗口或应用崩溃，所有进程直接终止，数据丢失风险高。
+
+---
+
+#### 2.2 无输出触发器（Triggers）与自动化
+
+**现状**：代码基中没有任何对终端输出流进行正则匹配并触发动作的机制。
+
+**差距**：
+- **iTerm2 Triggers**：正则匹配输出 → 高亮文本 / 发送通知 / 自动回复 / 运行脚本 / 打开密码管理器。这是 iTerm2 power user 的核心工作流。
+- **WezTerm**：Lua 事件系统允许对输出、标题变化、目录变化注册回调，实现无限定制。
+- **Kitty**：kittens 系统支持用 Python 扩展终端行为。
+
+**影响**：Agentic Coding 场景下，用户需要监控 Agent 输出中的特定模式（如 "error"、"approve?"、"done"）。没有 Triggers，用户只能依赖视觉扫描或外部工具。
+
+**建议**：在前端 `renderer.js` 的 PTY 数据流中增加可配置的 trigger 管道，匹配正则后触发通知、自动输入确认、或高亮渲染。
+
+---
+
+#### 2.3 Scrollback 搜索局限
+
+**现状**：Vibe99 的搜索依赖 `@xterm/addon-search`，从 `renderer.js` 可见搜索栏仅操作当前 xterm viewport。PRD P1.2 "正则搜索 + 跨 pane 搜索" 仍处于规划。
+
+**差距**：
+- **Ghostty 1.3**：scrollback search 使用独立搜索线程，可搜索完整 scrollback 历史（默认 2500 万行），且在 4GB asciinema 文件上秒级响应。
+- **iTerm2/Kitty/WezTerm**：均支持全历史搜索，且支持正则表达式。
+- **Vibe99**：addon-search 仅搜索当前屏幕可见内容，对于已滚出 viewport 的历史输出无法检索。
+
+**影响**：Agent 输出大量日志后，用户无法找回之前滚出屏幕的关键信息。
+
+**建议**：将搜索索引从 xterm.js 内部剥离，在 Rust 层用 `regex` crate 建立文本索引（如 PRD 所规划），或至少实现基于前端缓冲区的全历史搜索。
+
+---
+
+#### 2.4 无多路复用器（tmux）集成
+
+**现状**：Vibe99 实现了基础的分屏和标签，但没有与 tmux 的集成。
+
+**差距**：
+- **iTerm2**：`tmux -CC` 原生集成，tmux 窗口映射为 iTerm2 原生窗口/标签，无需记忆 prefix key。
+- **WezTerm**：内置 multiplexer，功能足以替代 tmux，且支持通过 SSH 远程复用。
+- **Kitty**：内置 tiling 和远程控制协议，减少对 tmux 的依赖。
+
+**影响**：对于已有深厚 tmux 工作流的用户，Vibe99 的分屏无法替代 tmux 的会话持久化、远程 attach、结对编程等能力，导致这部分用户没有迁移动力。
+
+---
+
+#### 2.5 无全局热键 / Quake 模式
+
+**现状**：代码中没有任何系统级全局热键注册逻辑。Dock 菜单支持新建窗口，但无法通过热键召唤。
+
+**差距**：
+- **iTerm2 Hotkey Window**：系统级热键召唤下拉终端，即使全屏应用也可见。
+- **Ghostty Quick Terminal**：`global:ctrl+backtick` 召唤轻量终端，动画滑入菜单栏下方。
+- **Windows Terminal / Guake / Yakuake**：均有 Quake-style 下拉模式。
+
+**影响**：Agentic Coding 工作流要求终端随时可达。没有全局热键，用户必须切换应用再找到 Vibe99 窗口，打断心流。
+
+**建议**：利用 Tauri 2 的 `global-shortcut` API（或 macOS 私有 API）实现可配置的 Quake 模式窗口。
+
+---
+
+#### 2.6 无 Copy Mode（键盘驱动选择）
+
+**现状**：Vibe99 的文本选择完全依赖鼠标。`renderer.js` 中只有鼠标拖拽选择逻辑，没有键盘导航的复制模式。
+
+**差距**：
+- **iTerm2 / Ghostty / Kitty**：均提供 Vim-like Copy Mode（`Ctrl+[` 或等效键进入，用 `h/j/k/l` 导航，空格选择，y 复制）。
+- 这是无鼠标工作流（keyboard-driven workflow）的标配。
+
+**影响**：Power user 和 Vim 用户期望全程键盘操作，当前必须伸手去鼠标才能复制文本。
+
+---
+
+#### 2.7 智能选择与语义操作缺失
+
+**现状**：Vibe99 的双击选择由 xterm.js 内置逻辑处理，只能选择单词。右键菜单（`context-menu.js`）提供基础操作，但没有基于语义的智能识别。
+
+**差距**：
+- **iTerm2 Smart Selection**：四击自动识别 URL、文件路径、邮箱、引号字符串等语义对象。
+- **Ghostty**：三指轻点 / Force Touch 调用 macOS Quick Look。
+- **Kitty**：`Ctrl+Shift+Right-click` 打开 `ls` 输出中的文件。
+
+**影响**：在终端中处理 URL、文件路径时，用户需要手动精确选择，效率低下且易出错。
+
+---
+
+### 3. 低优先级差距（有机会时补充）
+
+#### 3.1 连字（Ligatures）渲染
+
+**现状**：PRD P1.4 已规划，但代码中未见实现。`styles.css` 中没有 `font-variant-ligatures` 相关规则。
+
+**差距**：Ghostty/Kitty/WezTerm/Alacritty 均已原生支持 Fira Code、JetBrains Mono 等字体的编程连字（`!=` → `≠`、`=>` → `⇒`）。
+
+---
+
+#### 3.2 粘贴保护
+
+**现状**：`renderer.js` 的粘贴逻辑（`isWindowsCtrlVPasteHotkey` 等）直接透传文本，没有多行命令检测或警告。
+
+**差距**：Ghostty 1.3 引入 `clipboard-paste-protection`，粘贴多行或包含控制字符的文本时弹出警告，防止 "粘贴劫持"（pastejacking）攻击。
+
+---
+
+#### 3.3 安全键盘输入
+
+**现状**：无相关实现。
+
+**差距**：Ghostty/iTerm2 在检测到密码提示或手动启用时，会阻止其他进程监听键盘事件，并显示锁图标提示。
+
+---
+
+#### 3.4 窗口排列与状态保存
+
+**现状**：Vibe99 支持 session restore（pane 布局、目录、profile），但不支持**多窗口排列**的快照保存（Window Arrangements）。
+
+**差距**：iTerm2 可保存整个窗口布局快照并在启动时自动恢复。Ghostty 支持 `window-save-state = always`。
+
+---
+
+#### 3.5 行级时间戳
+
+**现状**：无相关实现。
+
+**差距**：iTerm2 可开启 `View > Show Timestamps`，在每行左侧显示最后修改时间，便于判断操作耗时。
+
+---
+
+#### 3.6 密码管理器集成
+
+**现状**：无相关实现。
+
+**差距**：iTerm2 内置 Password Manager，与 macOS Keychain 集成，可在终端安全地自动填充密码。
+
+---
+
+#### 3.7 可编程配置
+
+**现状**：Vibe99 使用 GUI 设置面板 + JSON 持久化（`settings-ui.js`、`commands/settings.rs`）。配置是声明式的，无编程能力。
+
+**差距**：WezTerm 的 Lua 配置允许动态条件、事件钩子、自定义状态栏。Kitty 的配置文件支持包含、宏和条件。
+
+**注意**：这属于产品设计选择而非缺陷。GUI 配置对普通用户更友好，但会流失追求极致定制的 power user。
+
+---
+
+#### 3.8 原生 UI 体验差距
+
+**现状**：Vibe99 基于 Tauri 2 + WKWebView（macOS）/ WebView2（Windows）。所有 UI（tabs、pane、status bar）均为 Web 技术渲染。
+
+**差距**：
+- **Ghostty**：macOS 上使用 AppKit + SwiftUI 原生组件，Linux 上使用 GTK。字体渲染、动画曲线、可访问性均遵循平台原生规范。
+- **iTerm2**：完全原生 Cocoa 应用。
+- WebView 方案在以下方面存在固有差距：
+  1. **字体渲染**：WKWebView 的 CoreText 字体渲染与原生 AppKit 存在微妙差异（尤其 hinting、subpixel 抗锯齿）。
+  2. **可访问性**：Web 内容的 VoiceOver 支持不如原生 NSView 完善。
+  3. **电池/能耗**：WebView 的 JS 引擎和合成器功耗高于原生 Metal/OpenGL 应用。
+  4. **输入延迟**：WebView 的键盘事件需经过 WebKit 内核分发，比原生 NSResponder 链多一层延迟。
+
+---
+
+### 4. 差距汇总矩阵
+
+| 能力领域 | Vibe99 | iTerm2 | Warp | Ghostty | Kitty | WezTerm | 优先级 |
+|---------|--------|--------|------|---------|-------|---------|--------|
+| 原生 GPU 渲染 | ❌ (WebGL) | ⚠️ (Metal, 非极致) | ✅ (GPU) | ✅ (Metal/OpenGL) | ✅ (OpenGL) | ✅ (OpenGL) | 🔴 高 |
+| AI 命令建议/解释 | ❌ | ✅ (LLM Chat) | ✅ (核心) | ❌ | ❌ | ❌ | 🔴 高 |
+| Kitty Graphics Protocol | ❌ | ❌ | ❌ | ✅ | ✅ (原生) | ✅ | 🔴 高 |
+| 会话持久化/Daemon | ❌ (规划中) | ✅ | ❌ | ❌ | ❌ | ✅ | 🟡 中 |
+| 输出 Triggers | ❌ | ✅ | ❌ | ❌ | ⚠️ (kittens) | ✅ (Lua) | 🟡 中 |
+| 全历史 Scrollback 搜索 | ❌ (仅 viewport) | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 中 |
+| tmux 集成 | ❌ | ✅ (-CC) | ❌ | ❌ | ⚠️ | ⚠️ | 🟡 中 |
+| 全局热键/Quake 模式 | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | 🟡 中 |
+| Copy Mode | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | 🟡 中 |
+| 智能语义选择 | ❌ | ✅ | ❌ | ✅ (Quick Look) | ✅ | ❌ | 🟡 中 |
+| 编程连字 | ❌ (规划中) | ✅ | ✅ | ✅ | ✅ | ✅ | 🟢 低 |
+| 粘贴保护 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | 🟢 低 |
+| 安全键盘输入 | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | 🟢 低 |
+| 窗口排列快照 | ⚠️ (session only) | ✅ | ❌ | ✅ | ❌ | ✅ | 🟢 低 |
+| 行级时间戳 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | 🟢 低 |
+| 密码管理器 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | 🟢 低 |
+| 可编程配置 | ❌ (JSON/GUI) | ❌ (GUI) | ❌ | ❌ (KV) | ⚠️ | ✅ (Lua) | 🟢 低 |
+| 原生 UI 渲染 | ❌ (WebView) | ✅ | ❌ (自定义) | ✅ | ❌ (OpenGL) | ❌ (OpenGL) | 🟢 低 |
+
+> 注：表格中的 ❌ 表示当前版本不具备该能力；⚠️ 表示部分支持或依赖外部工具；✅ 表示原生支持。
+
+---
+
+### 5. 战略建议
+
+基于上述差距分析，对 Vibe99 的后续发展提出以下建议：
+
+1. **守住基本盘，补齐性能短板**：当前基于 xterm.js 的架构在 Agentic Coding 的大输出场景下是瓶颈。建议优先评估 Rust 层原生渲染方案（如 `alacritty_terminal`），或在 Tauri 中暴露原生 GPU 上下文。
+
+2. **落实 "Agentic" 定位，尽快落地 AI 功能**：PRD 中的 Agent Protocol 解析器（P2.1）应提升优先级。即使是轻量级的本地模型集成（命令建议 + 错误解释），也能让产品名与功能对齐，形成差异化。
+
+3. **拥抱 Kitty 协议生态**：Kitty Graphics Protocol 和 Keyboard Protocol 已成为现代 CLI 工具链的事实标准。不支持这些协议会让 Vibe99 被排除在 neovim/ranger/yazi 等生态之外。
+
+4. **Session Daemon 是护城河**：关闭窗口不丢会话是 Agentic Coding 的刚需（Agent 可能在后台跑数小时）。P0.3 的 Session Daemon 应尽早启动架构设计。
+
+5. **Triggers 是自动化的入口**：Agent 输出监控（"Approve this?" / "Error occurred"）需要输出触发器。这是连接 "终端" 与 "Agentic" 的关键桥梁，建议与 P0.1 的 Block-level Shell Integration 同步设计。
+
+---
+
+*本章节基于代码基检视与公开产品资料编制，旨在为产品路线图提供外部竞争视角参考。*
