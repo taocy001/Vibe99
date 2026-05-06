@@ -104,8 +104,6 @@ const panelDataMap = new Map();
 const activeCwdMap = new Map();
 const splitDividerElMap = new Map();
 const splitDividerDataMap = new WeakMap();
-// Background pane output buffer: panelId → data chunks accumulated while tab is not focused.
-const pendingDataMap = new Map();
 
 // ── DOM references ────────────────────────────────────────────────────────────
 const stageEl = document.getElementById('stage');
@@ -249,7 +247,6 @@ function destroyPanelNode(panelId, node, { destroyTerminal = true } = {}) {
   paneNodeMap.delete(panelId);
   panelDataMap.delete(panelId);
   activeCwdMap.delete(panelId);
-  pendingDataMap.delete(panelId);
 }
 
 function entryNeedsTabRefresh(paneId) {
@@ -923,7 +920,6 @@ paneManager = createPaneManager(st, {
   onRender: (refit = false) => layoutRenderer?.render(refit),
   onDestroyPanel: destroyPanelNode,
   onInitializePaneTerminal: initializePaneTerminal,
-  onPaneFocused: flushPendingData,
   reportError,
 });
 
@@ -1001,34 +997,10 @@ paneManager.attachPanelDragToStage(stageEl);
 
 // ── Bridge I/O ────────────────────────────────────────────────────────────────
 
-function flushPendingData(tabId) {
-  const pane = st.panes.find((p) => p.id === tabId);
-  if (!pane) return;
-  for (const panelId of collectPanelIds(getTabLayout(pane))) {
-    const chunks = pendingDataMap.get(panelId);
-    if (!chunks || chunks.length === 0) continue;
-    pendingDataMap.delete(panelId);
-    const node = paneNodeMap.get(panelId);
-    if (node) for (const chunk of chunks) node.terminal.write(chunk);
-  }
-}
-
 const removeTerminalDataListener = bridge.onTerminalData(({ paneId, data }) => {
   const node = paneNodeMap.get(paneId);
   if (!node) return;
-  const owningTabId = paneManager.getOwningTabId(paneId);
-  if (owningTabId !== st.focusedPaneId) {
-    let chunks = pendingDataMap.get(paneId);
-    if (!chunks) { chunks = []; pendingDataMap.set(paneId, chunks); }
-    chunks.push(data);
-  } else {
-    const buffered = pendingDataMap.get(paneId);
-    if (buffered && buffered.length > 0) {
-      pendingDataMap.delete(paneId);
-      for (const chunk of buffered) node.terminal.write(chunk);
-    }
-    node.terminal.write(data);
-  }
+  node.terminal.write(data);
   paneActivityWatcher.noteData(paneId);
 });
 
