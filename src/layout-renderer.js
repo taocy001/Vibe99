@@ -11,6 +11,7 @@ import {
 import * as ShortcutsRegistry from './shortcuts-registry.js';
 import { renderHintBar } from './hint-bar.js';
 import { t } from './i18n.js';
+import { rafThrottle } from './utils.js';
 
 /**
  * createLayoutRenderer(st, deps)
@@ -380,17 +381,6 @@ export function createLayoutRenderer(st, {
   }
 
   // ── Tab-width divider drag ────────────────────────────────────────────────
-
-  function rafThrottle(fn) {
-    let raf = null, latest = null;
-    function throttled(e) {
-      latest = e;
-      if (raf) return;
-      raf = requestAnimationFrame(() => { raf = null; fn(latest); });
-    }
-    throttled.cancel = () => { if (raf !== null) { cancelAnimationFrame(raf); raf = null; } };
-    return throttled;
-  }
 
   let dividerDrag = null;
   dividerEls.forEach((el) => {

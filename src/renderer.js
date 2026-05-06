@@ -1510,6 +1510,7 @@ function openTabSwitcher() {
   openCommandPalette(items, (paneId) => paneManager.focusPane(paneId), {
     placeholder: 'Switch tab by title…',
     emptyText: 'No matching tabs',
+    mruOrder: st.paneMruOrder,
   });
 }
 

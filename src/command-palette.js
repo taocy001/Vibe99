@@ -25,7 +25,7 @@ let paletteState = null;
  *
  * @param {PaletteItem[]} items
  * @param {(id: string) => void} onSelect
- * @param {{ placeholder?: string, emptyText?: string }} [options]
+ * @param {{ placeholder?: string, emptyText?: string, mruOrder?: string[] }} [options]
  */
 export function openCommandPalette(items, onSelect, options = {}) {
   if (paletteState) return;
@@ -145,11 +145,19 @@ export function openCommandPalette(items, onSelect, options = {}) {
     updateHighlight();
   }
 
+  const mruOrder = options.mruOrder ?? [];
+
   function applyQuery(query) {
     const trimmed = query.trim();
     if (!trimmed) {
-      // Empty query: show every item in its original order, unhighlighted.
-      currentResults = items.map((item) => ({ item, matches: [] }));
+      // Empty query: sort by MRU order so the most recently used item is first.
+      const rank = new Map(mruOrder.map((id, i) => [id, i]));
+      const ranked = items.slice().sort((a, b) => {
+        const ra = rank.has(a.id) ? rank.get(a.id) : Infinity;
+        const rb = rank.has(b.id) ? rank.get(b.id) : Infinity;
+        return ra - rb;
+      });
+      currentResults = ranked.map((item) => ({ item, matches: [] }));
     } else {
       currentResults = fuse.search(trimmed);
     }

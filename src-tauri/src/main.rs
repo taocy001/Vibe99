@@ -429,7 +429,7 @@ fn main() {
         .setup(|app| {
             // Initialize IS_LIGHT_MODE from saved settings before any Resized events fire.
             let is_light = get_saved_is_light(app.app_handle());
-            vibe99_lib::IS_LIGHT_MODE.store(is_light, std::sync::atomic::Ordering::Relaxed);
+            vibe99_lib::IS_LIGHT_MODE.store(is_light, std::sync::atomic::Ordering::Release);
 
             app.set_menu(build_menu(app.app_handle())?)?;
 
@@ -535,7 +535,7 @@ fn main() {
             // completes — the correct moment to set the colour.
             #[cfg(target_os = "macos")]
             if matches!(event, tauri::WindowEvent::Resized(_)) {
-                let is_light = vibe99_lib::IS_LIGHT_MODE.load(Ordering::Relaxed);
+                let is_light = vibe99_lib::IS_LIGHT_MODE.load(Ordering::Acquire);
                 let win = window.clone();
                 // run_on_main_thread ensures the AppKit call is on the right thread.
                 let _ = window.run_on_main_thread(move || {

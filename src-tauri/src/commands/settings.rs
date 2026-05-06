@@ -551,7 +551,7 @@ pub fn set_window_theme(app: AppHandle, mode: String) -> Result<(), String> {
     // without needing an IPC round-trip.
     crate::IS_LIGHT_MODE.store(
         mode == "light",
-        std::sync::atomic::Ordering::Relaxed,
+        std::sync::atomic::Ordering::Release,
     );
 
     let window = app.get_webview_window("main")

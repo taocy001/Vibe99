@@ -4,6 +4,7 @@
 // the same object.
 
 import * as ColorsRegistry from './colors-registry.js';
+import { rafThrottle } from './utils.js';
 import {
   split as _layoutSplit,
   replaceLeaf,
@@ -335,17 +336,6 @@ export function createPaneManager(st, {
     );
     onRender(true);
     requestAnimationFrame(() => { paneNodeMap.get(sourcePanelId)?.terminal.focus(); });
-  }
-
-  function rafThrottle(fn) {
-    let raf = null, latest = null;
-    function throttled(e) {
-      latest = e;
-      if (raf) return;
-      raf = requestAnimationFrame(() => { raf = null; fn(latest); });
-    }
-    throttled.cancel = () => { if (raf !== null) { cancelAnimationFrame(raf); raf = null; } };
-    return throttled;
   }
 
   const onPanelDragMouseMove = rafThrottle((e) => {

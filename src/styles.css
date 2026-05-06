@@ -2584,7 +2584,7 @@ body.is-dragging-tabs {
 
 /* Tab bar */
 .theme-light .tab {
-  color: rgba(0, 0, 0, 0.40);
+  color: rgba(0, 0, 0, 0.55);
 }
 
 .theme-light .tab:hover:not(.is-focused) {
@@ -2866,7 +2866,7 @@ body.is-dragging-tabs {
 }
 
 .theme-light .settings-caption {
-  color: rgba(0, 0, 0, 0.38);
+  color: rgba(0, 0, 0, 0.50);
 }
 
 .theme-light .settings-caption code {
@@ -3070,4 +3070,13 @@ body.is-dragging-tabs {
 }
 
 /* ── Block fold cover ───────────────────────────────────────────────────── */
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
