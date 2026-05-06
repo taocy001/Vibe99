@@ -421,7 +421,7 @@ export function createLayoutRenderer(st, {
     } else {
       newPaneWidth = initialPaneWidth + dx;
     }
-    newPaneWidth = Math.max(400, Math.min(2000, Math.round(newPaneWidth)));
+    newPaneWidth = Math.max(520, Math.min(2000, Math.round(newPaneWidth)));
     if (newPaneWidth !== settings.paneWidth) {
       settings.paneWidth = newPaneWidth;
       applySettings();

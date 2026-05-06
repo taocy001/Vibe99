@@ -718,7 +718,7 @@ fn resolve_working_directory(cwd: Option<&str>) -> PathBuf {
     if let Some(cwd) = cwd {
         let p = PathBuf::from(cwd);
         if p.is_dir() {
-            return p;
+            return std::fs::canonicalize(&p).unwrap_or(p);
         }
     }
 
