@@ -188,7 +188,7 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   min-width: 0;
   width: 100%;
   justify-content: center;
-  padding: 0 26px 0 20px;
+  padding: 0 10px 0 26px;
   color: inherit;
   font-size: var(--app-font-size);
   touch-action: none;
@@ -197,7 +197,7 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
 .tab-close {
   position: absolute;
   top: 50%;
-  right: 5px;
+  left: 5px;
   transform: translateY(-50%);
   width: 17px;
   height: 17px;
@@ -242,7 +242,8 @@ html.is-fullscreen.menu-bar-showing .tabs-panel {
   box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.35);
 }
 
-.tab.is-focused .tab-swatch {
+.tab.is-focused .tab-swatch,
+body:not(.is-navigation-mode) .tab:hover .tab-swatch {
   display: none;
 }
 
