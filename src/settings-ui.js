@@ -46,10 +46,11 @@ export function createTerminalTheme(accent) {
     return {
       background: '#f4f0ea',
       foreground: '#383a42',
+      // Dark near-bg selection: selectionBackgroundOpaque stays close to terminal bg,
+      // minimising the delta that glyph anti-aliased edges blend against.
+      selectionBackground: '#dbd6d0',
       cursor: accent,
       cursorAccent: '#ffffff',
-      selectionBackground: `${accent}55`,
-      selectionForeground: '#383a42',
       black: '#383a42', red: '#ca1243', green: '#3d8c40', yellow: '#c18401',
       blue: '#3b65cc', magenta: '#8b1fa8', cyan: '#0c7ba1', white: '#696c77',
       brightBlack: '#4f525e', brightRed: '#e06c75', brightGreen: '#50a14f',
@@ -60,10 +61,11 @@ export function createTerminalTheme(accent) {
   return {
     background: '#11111100',
     foreground: '#d9d4c7',
+    // Dark near-bg selection: selectionBackgroundOpaque stays close to terminal bg,
+    // minimising the delta that glyph anti-aliased edges blend against.
+    selectionBackground: '#2a2a2a',
     cursor: accent,
     cursorAccent: '#111111',
-    selectionBackground: `${accent}44`,
-    selectionForeground: '#d9d4c7',
     black: '#111111', red: '#ff6b57', green: '#98c379', yellow: '#e5c07b',
     blue: '#61afef', magenta: '#c678dd', cyan: '#56b6c2', white: '#d9d4c7',
     brightBlack: '#5a6374', brightRed: '#ff8578', brightGreen: '#b0d98b',

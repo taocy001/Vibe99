@@ -1888,6 +1888,7 @@ body.is-dragging-tabs {
   overflow: hidden !important;
 }
 
+
 /* Hide xterm's VS Code-style custom scrollbar widget; mouse-wheel scroll still works */
 .terminal-host .xterm .xterm-scrollable-element > .scrollbar {
   display: none !important;
