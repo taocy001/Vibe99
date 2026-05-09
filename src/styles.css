@@ -17,6 +17,14 @@
   --pane-height-offset: calc(
     var(--tabs-height) + var(--status-height) + (var(--stage-padding) * 2)
   );
+  /* Terminal colour scheme — override here for user-customisable themes */
+  --terminal-bg: #111111;
+  --terminal-fg: #d9d4c7;
+  --terminal-selection-bg: #2a2a2a;
+  --terminal-badge-bg: rgba(0, 0, 0, 0.60);
+  --terminal-badge-hover-bg: rgba(255, 255, 255, 0.10);
+  --terminal-badge-fg: rgba(255, 255, 255, 0.70);
+  --terminal-badge-hover-fg: rgba(255, 255, 255, 0.85);
 }
 
 :root.theme-light {
@@ -26,6 +34,14 @@
   --panel-border: #c8c0b8;
   --panel-muted: #6b6358;
   --text: #1a1a1a;
+  /* Terminal colour scheme */
+  --terminal-bg: #f4f0ea;
+  --terminal-fg: #686c82;
+  --terminal-selection-bg: #dbd6d0;
+  --terminal-badge-bg: rgba(0, 0, 0, 0.07);
+  --terminal-badge-hover-bg: rgba(0, 0, 0, 0.12);
+  --terminal-badge-fg: rgba(0, 0, 0, 0.60);
+  --terminal-badge-hover-fg: rgba(0, 0, 0, 0.75);
 }
 
 :root.theme-auto {
@@ -39,6 +55,13 @@
     --panel-border: #c8c0b8;
     --panel-muted: #6b6358;
     --text: #1a1a1a;
+    --terminal-bg: #f4f0ea;
+    --terminal-fg: #686c82;
+    --terminal-selection-bg: #dbd6d0;
+    --terminal-badge-bg: rgba(0, 0, 0, 0.07);
+    --terminal-badge-hover-bg: rgba(0, 0, 0, 0.12);
+    --terminal-badge-fg: rgba(0, 0, 0, 0.60);
+    --terminal-badge-hover-fg: rgba(0, 0, 0, 0.75);
   }
 
   :root.theme-auto,
@@ -3030,31 +3053,34 @@ body.is-dragging-tabs {
   font-weight: 600;
   min-width: 16px;
   text-align: center;
-  background: rgba(0, 0, 0, 0.60);
+  background: var(--terminal-badge-bg);
   border-radius: 3px;
   padding: 1px 4px;
 }
 
 .cmd-block-btn {
-  background: rgba(0, 0, 0, 0.60);
+  background: var(--terminal-badge-bg);
   border: none;
   cursor: pointer;
   pointer-events: auto;       /* re-enable for buttons specifically */
   padding: 1px 5px;
   font-size: 12px;
   line-height: 1.3;
-  color: rgba(255, 255, 255, 0.70);
+  color: var(--terminal-badge-fg);
   border-radius: 3px;
   transition: color 80ms ease, background 80ms ease;
 }
 
 .cmd-block-btn:hover {
-  color: rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.10);
+  color: var(--terminal-badge-hover-fg);
+  background: var(--terminal-badge-hover-bg);
 }
 
-.theme-light .cmd-block-btn       { color: rgba(0, 0, 0, 0.40); }
-.theme-light .cmd-block-btn:hover { color: rgba(0, 0, 0, 0.75); background: rgba(0, 0, 0, 0.08); }
+/* xterm.js hardcodes composition-view to #000/#FFF; override with theme variables */
+.xterm .composition-view {
+  background: var(--terminal-bg) !important;
+  color: var(--terminal-fg) !important;
+}
 
 .cmd-block-active-bg {
   pointer-events: none;

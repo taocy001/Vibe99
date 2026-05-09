@@ -41,29 +41,35 @@ export function resolveEffectiveColorMode() {
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
+function readTerminalVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 export function createTerminalTheme(accent) {
+  const bg    = readTerminalVar('--terminal-bg');
+  const fg    = readTerminalVar('--terminal-fg');
+  const selBg = readTerminalVar('--terminal-selection-bg');
   if (resolveEffectiveColorMode() === 'light') {
     return {
-      background: '#f4f0ea',
-      foreground: '#383a42',
-      // Dark near-bg selection: selectionBackgroundOpaque stays close to terminal bg,
-      // minimising the delta that glyph anti-aliased edges blend against.
-      selectionBackground: '#dbd6d0',
+      background: bg,
+      foreground: fg,
+      // Near-bg selection keeps selectionBackgroundOpaque close to terminal bg,
+      // minimising the glyph anti-aliased edge delta in the WebGL renderer.
+      selectionBackground: selBg,
       cursor: accent,
       cursorAccent: '#ffffff',
-      black: '#383a42', red: '#ca1243', green: '#3d8c40', yellow: '#c18401',
-      blue: '#3b65cc', magenta: '#8b1fa8', cyan: '#0c7ba1', white: '#696c77',
-      brightBlack: '#4f525e', brightRed: '#e06c75', brightGreen: '#50a14f',
-      brightYellow: '#986801', brightBlue: '#4078f2', brightMagenta: '#a626a4',
-      brightCyan: '#0184bc', brightWhite: '#383a42',
+      black: '#686c82', red: '#c94038', green: '#229055', yellow: '#b07200',
+      blue: '#1f6dad', magenta: '#8344a8', cyan: '#1a8895', white: '#686c80',
+      brightBlack: '#5e6274', brightRed: '#e8806a', brightGreen: '#48b86a',
+      brightYellow: '#d88810', brightBlue: '#2878b8', brightMagenta: '#9058b8',
+      brightCyan: '#18a898', brightWhite: '#848898',
     };
   }
   return {
+    // Transparent background lets allowTransparency:true show through to CSS bg.
     background: '#11111100',
-    foreground: '#d9d4c7',
-    // Dark near-bg selection: selectionBackgroundOpaque stays close to terminal bg,
-    // minimising the delta that glyph anti-aliased edges blend against.
-    selectionBackground: '#2a2a2a',
+    foreground: fg,
+    selectionBackground: selBg,
     cursor: accent,
     cursorAccent: '#111111',
     black: '#111111', red: '#ff6b57', green: '#98c379', yellow: '#e5c07b',
@@ -76,7 +82,9 @@ export function createTerminalTheme(accent) {
 
 export function fixXtermViewportBg(terminalHost, _mode) {
   const vp = terminalHost.querySelector('.xterm-viewport');
-  if (vp) vp.style.backgroundColor = resolveEffectiveColorMode() === 'light' ? '#f4f0ea' : '';
+  if (vp) vp.style.backgroundColor = resolveEffectiveColorMode() === 'light'
+    ? readTerminalVar('--terminal-bg')
+    : '';
 }
 
 // ---------------------------------------------------------------------------
