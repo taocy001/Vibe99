@@ -10,6 +10,8 @@ import {
   serializeLayout,
   collectPanelIds,
 } from './split-layout.js';
+import { COLOR_PRESETS, DEFAULT_PRESET_ID, getPreset } from './color-presets.js';
+import { parseItermcolors, generateItermcolors } from './itermcolors.js';
 
 // Exported shared settings object.  Initialised with safe defaults; the
 // real fontFamily is patched in by createSettingsUI once the bridge is known.
@@ -30,6 +32,8 @@ export const settings = {
   windowTitleFormat: '\\w',
   statusBarFormat: '\\w\\p',
   statusBarHints: 'cycleRecent,enterNav,newPane,closePane,toggleSearch,splitRight',
+  colorPresetId: DEFAULT_PRESET_ID,
+  customPalette: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -46,37 +50,27 @@ function readTerminalVar(name) {
 }
 
 export function createTerminalTheme(accent) {
+  const mode  = resolveEffectiveColorMode();
   const bg    = readTerminalVar('--terminal-bg');
   const fg    = readTerminalVar('--terminal-fg');
   const selBg = readTerminalVar('--terminal-selection-bg');
-  if (resolveEffectiveColorMode() === 'light') {
-    return {
-      background: bg,
-      foreground: fg,
-      // Near-bg selection keeps selectionBackgroundOpaque close to terminal bg,
-      // minimising the glyph anti-aliased edge delta in the WebGL renderer.
-      selectionBackground: selBg,
-      cursor: accent,
-      cursorAccent: '#ffffff',
-      black: '#686c82', red: '#c94038', green: '#229055', yellow: '#b07200',
-      blue: '#1f6dad', magenta: '#8344a8', cyan: '#1a8895', white: '#686c80',
-      brightBlack: '#5e6274', brightRed: '#e8806a', brightGreen: '#48b86a',
-      brightYellow: '#d88810', brightBlue: '#2878b8', brightMagenta: '#9058b8',
-      brightCyan: '#18a898', brightWhite: '#848898',
-    };
-  }
+  const preset = settings.colorPresetId === 'custom' && settings.customPalette
+    ? settings.customPalette : getPreset(settings.colorPresetId ?? DEFAULT_PRESET_ID);
+  const p = preset[mode] ?? getPreset(DEFAULT_PRESET_ID)[mode];
+  const a = p.ansi;
   return {
     // Transparent background lets allowTransparency:true show through to CSS bg.
-    background: '#11111100',
+    background: mode === 'dark' ? bg + '00' : bg,
     foreground: fg,
+    // Near-bg selection keeps selectionBackgroundOpaque close to terminal bg,
+    // minimising the glyph anti-aliased edge delta in the WebGL renderer.
     selectionBackground: selBg,
     cursor: accent,
-    cursorAccent: '#111111',
-    black: '#111111', red: '#ff6b57', green: '#98c379', yellow: '#e5c07b',
-    blue: '#61afef', magenta: '#c678dd', cyan: '#56b6c2', white: '#d9d4c7',
-    brightBlack: '#5a6374', brightRed: '#ff8578', brightGreen: '#b0d98b',
-    brightYellow: '#f0d58a', brightBlue: '#7eb7ff', brightMagenta: '#d9a5e8',
-    brightCyan: '#7fd8e6', brightWhite: '#ffffff',
+    cursorAccent: mode === 'dark' ? p.background : '#ffffff',
+    black: a[0], red: a[1], green: a[2], yellow: a[3],
+    blue: a[4], magenta: a[5], cyan: a[6], white: a[7],
+    brightBlack: a[8], brightRed: a[9], brightGreen: a[10], brightYellow: a[11],
+    brightBlue: a[12], brightMagenta: a[13], brightCyan: a[14], brightWhite: a[15],
   };
 }
 
@@ -85,6 +79,16 @@ export function fixXtermViewportBg(terminalHost, _mode) {
   if (vp) vp.style.backgroundColor = resolveEffectiveColorMode() === 'light'
     ? readTerminalVar('--terminal-bg')
     : '';
+}
+
+export function applyTerminalPalette() {
+  const mode = resolveEffectiveColorMode();
+  const preset = settings.colorPresetId === 'custom' && settings.customPalette
+    ? settings.customPalette : getPreset(settings.colorPresetId ?? DEFAULT_PRESET_ID);
+  const p = preset[mode] ?? getPreset(DEFAULT_PRESET_ID)[mode];
+  document.documentElement.style.setProperty('--terminal-bg', p.background);
+  document.documentElement.style.setProperty('--terminal-fg', p.foreground);
+  document.documentElement.style.setProperty('--terminal-selection-bg', p.selectionBg);
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +207,10 @@ export function createSettingsUI({
   const statusBarFormatInputEl   = document.getElementById('status-bar-format');
   const statusBarHintsInputEl    = document.getElementById('status-bar-hints');
   const colorModeSegmentedEl     = document.getElementById('color-mode-segmented');
+  const colorPresetGridEl  = document.getElementById('color-preset-grid');
+  const colorImportBtnEl   = document.getElementById('color-import-btn');
+  const colorExportBtnEl   = document.getElementById('color-export-btn');
+  const colorImportInputEl = document.getElementById('color-import-input');
   const shellProfilesSettingsBtn = document.getElementById('shell-profiles-settings-btn');
   const keyboardShortcutsSettingsBtn = document.getElementById('keyboard-shortcuts-settings-btn');
   const shellIntegrationInstallBtn   = document.getElementById('shell-integration-install-btn');
@@ -234,6 +242,43 @@ export function createSettingsUI({
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
+  function _buildColorPresetsGrid() {
+    if (!colorPresetGridEl) return;
+    const mode = resolveEffectiveColorMode();
+    colorPresetGridEl.replaceChildren();
+    const entries = [...Object.entries(COLOR_PRESETS)];
+    if (settings.colorPresetId === 'custom' && settings.customPalette) {
+      entries.push(['custom', { label: 'Custom', ...settings.customPalette }]);
+    }
+    for (const [id, preset] of entries) {
+      const palette = preset[mode];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'color-preset-card';
+      if (id === settings.colorPresetId) btn.classList.add('is-active');
+      btn.dataset.presetId = id;
+      const preview = document.createElement('div');
+      preview.className = 'color-preset-preview';
+      preview.style.background = palette.background;
+      for (const i of [1, 2, 3, 4, 5, 6]) {
+        const dot = document.createElement('span');
+        dot.className = 'color-preset-dot';
+        dot.style.background = palette.ansi[i];
+        preview.appendChild(dot);
+      }
+      const label = document.createElement('span');
+      label.className = 'color-preset-label';
+      label.textContent = preset.label;
+      btn.appendChild(preview);
+      btn.appendChild(label);
+      colorPresetGridEl.appendChild(btn);
+    }
+  }
+
+  function applyColorsUI() {
+    _buildColorPresetsGrid();
+  }
+
   function applyColorModeUI(mode) {
     colorModeSegmentedEl?.querySelectorAll('.settings-segment').forEach(btn => {
       btn.classList.toggle('is-active', btn.dataset.value === mode);
@@ -247,6 +292,7 @@ export function createSettingsUI({
     document.documentElement.classList.remove('theme-dark', 'theme-light', 'theme-auto');
     document.documentElement.classList.add(`theme-${effectiveClass}`);
     bridge.setWindowTheme(mode).catch(() => {});
+    applyTerminalPalette();
     for (const [, node] of paneNodeMap) {
       const accent = node.accent || '#888888';
       node.terminal.options.theme = createTerminalTheme(accent);
@@ -294,6 +340,7 @@ export function createSettingsUI({
     document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
     applyColorModeUI(settings.colorMode);
     applyColorMode(settings.colorMode);
+    applyColorsUI();
     languageSelectEl.value = settings.language;
     if (windowTitleFormatInputEl) windowTitleFormatInputEl.value = settings.windowTitleFormat;
     if (statusBarFormatInputEl)   statusBarFormatInputEl.value   = settings.statusBarFormat;
@@ -364,6 +411,10 @@ export function createSettingsUI({
     if (typeof uiSettings.windowTitleFormat === 'string') settings.windowTitleFormat = uiSettings.windowTitleFormat;
     if (typeof uiSettings.statusBarFormat   === 'string') settings.statusBarFormat   = uiSettings.statusBarFormat;
     if (typeof uiSettings.statusBarHints    === 'string') settings.statusBarHints    = uiSettings.statusBarHints;
+    if (typeof uiSettings.colorPresetId === 'string') settings.colorPresetId = uiSettings.colorPresetId;
+    if (uiSettings.customPalette && typeof uiSettings.customPalette === 'object') {
+      settings.customPalette = uiSettings.customPalette;
+    }
 
     if (typeof uiSettings.shortcuts === 'object' && uiSettings.shortcuts !== null) {
       ShortcutsRegistry.loadShortcutsFromSettings(uiSettings);
@@ -1401,6 +1452,60 @@ export function createSettingsUI({
   shellIntegrationInstallBtn.addEventListener('click', runInstallShellIntegration);
   shellIntegrationInstallBtn.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); runInstallShellIntegration(); }
+  });
+
+  // ── Colors tab ─────────────────────────────────────────────────────────────
+
+  colorPresetGridEl?.addEventListener('click', (e) => {
+    const card = e.target.closest('.color-preset-card');
+    if (!card) return;
+    settings.colorPresetId = card.dataset.presetId;
+    applyTerminalPalette();
+    for (const [, node] of paneNodeMap) {
+      node.terminal.options.theme = createTerminalTheme(node.accent || '#888888');
+    }
+    applyColorsUI();
+    scheduleSettingsSave();
+  });
+
+  colorImportBtnEl?.addEventListener('click', () => colorImportInputEl?.click());
+  colorImportBtnEl?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); colorImportInputEl?.click(); }
+  });
+
+  colorImportInputEl?.addEventListener('change', () => {
+    const file = colorImportInputEl.files?.[0];
+    if (!file) return;
+    file.text().then((text) => {
+      const palette = parseItermcolors(text);
+      if (!palette) return;
+      settings.colorPresetId = 'custom';
+      settings.customPalette = { dark: palette, light: palette };
+      applyTerminalPalette();
+      for (const [, node] of paneNodeMap) {
+        node.terminal.options.theme = createTerminalTheme(node.accent || '#888888');
+      }
+      applyColorsUI();
+      scheduleSettingsSave();
+    });
+    colorImportInputEl.value = '';
+  });
+
+  colorExportBtnEl?.addEventListener('click', () => {
+    const mode = resolveEffectiveColorMode();
+    const preset = settings.colorPresetId === 'custom' && settings.customPalette
+      ? settings.customPalette : getPreset(settings.colorPresetId ?? DEFAULT_PRESET_ID);
+    const p = preset[mode] ?? getPreset(DEFAULT_PRESET_ID)[mode];
+    const xml = generateItermcolors(p);
+    const blob = new Blob([xml], { type: 'application/xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${settings.colorPresetId}.itermcolors`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  colorExportBtnEl?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); colorExportBtnEl.click(); }
   });
 
   bridge.onOpenSettings(() => {

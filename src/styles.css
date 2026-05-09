@@ -367,7 +367,7 @@ body:not(.is-navigation-mode) .tab:hover .tab-swatch {
 /* ── Tab navigation ───────────────────────────────────────────── */
 .settings-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   padding: 6px 8px 0;
   gap: 2px;
@@ -669,6 +669,56 @@ body:not(.is-navigation-mode) .tab:hover .tab-swatch {
   height: 1px;
   margin: 4px 0;
   background: rgba(255, 255, 255, 0.07);
+}
+
+/* ── Color preset grid ───────────────────────────────────────── */
+.color-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.color-preset-card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.60);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.color-preset-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.80);
+}
+
+.color-preset-card.is-active {
+  border-color: rgba(255, 255, 255, 0.60);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.color-preset-preview {
+  display: flex;
+  gap: 4px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  align-items: center;
+}
+
+.color-preset-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .settings-btn {
@@ -2865,6 +2915,20 @@ body.is-dragging-tabs {
 .theme-light .settings-tab-btn.is-active {
   color: rgba(0, 0, 0, 0.90);
   border-bottom-color: rgba(0, 0, 0, 0.50);
+}
+
+.theme-light .color-preset-card {
+  background: rgba(0, 0, 0, 0.03);
+  color: rgba(0, 0, 0, 0.50);
+  border-color: transparent;
+}
+.theme-light .color-preset-card:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.70);
+}
+.theme-light .color-preset-card.is-active {
+  border-color: rgba(0, 0, 0, 0.45);
+  color: rgba(0, 0, 0, 0.85);
 }
 
 .theme-light .settings-segmented {

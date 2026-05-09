@@ -22,6 +22,7 @@
           <nav class="settings-tabs" role="tablist">
             <button class="settings-tab-btn is-active" role="tab" data-tab="appearance" aria-selected="true" data-i18n="settings.tab.appearance">Appearance</button>
             <button class="settings-tab-btn" role="tab" data-tab="window" aria-selected="false" data-i18n="settings.tab.window">Window</button>
+            <button class="settings-tab-btn" role="tab" data-tab="colors" aria-selected="false">Colors</button>
             <button class="settings-tab-btn" role="tab" data-tab="general" aria-selected="false" data-i18n="settings.tab.general">General</button>
           </nav>
 
@@ -128,6 +129,23 @@
               <input class="settings-number" id="window-title-format" type="text" placeholder="\w" value="\w" />
               <p class="settings-caption"><code>\w</code> dir &nbsp; <code>\W</code> dirname &nbsp; <code>\u</code> user &nbsp; <code>\h</code> host &nbsp; <code>\H</code> full host &nbsp; <code>\p</code> panel</p>
 
+            </div>
+          </div>
+
+          <!-- Colors tab: terminal colour presets, import/export -->
+          <div class="settings-tab-panel is-hidden" id="settings-tab-colors" role="tabpanel">
+            <div class="settings-section">
+              <div class="color-preset-grid" id="color-preset-grid"></div>
+              <div class="settings-divider"></div>
+              <div class="settings-row settings-clickable-row" id="color-import-btn" role="button" tabindex="0">
+                <span>Import .itermcolors…</span>
+                <span class="settings-row-hint">›</span>
+              </div>
+              <div class="settings-row settings-clickable-row" id="color-export-btn" role="button" tabindex="0">
+                <span>Export .itermcolors…</span>
+                <span class="settings-row-hint">↓</span>
+              </div>
+              <input type="file" id="color-import-input" accept=".itermcolors" class="is-hidden" />
             </div>
           </div>
 
