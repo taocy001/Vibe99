@@ -27,6 +27,7 @@ export const settings = {
   notificationSilenceMs: 30000,
   copyOnSelect: false,
   rightClickPaste: false,
+  ambiguousDouble: false,
   showStatusBar: false,
   colorMode: 'dark',
   language: 'en',
@@ -204,6 +205,7 @@ export function createSettingsUI({
   const notificationSilenceRow  = document.getElementById('notifications-silence-row');
   const copyOnSelectToggleEl    = document.getElementById('copy-on-select-toggle');
   const rightClickPasteToggleEl = document.getElementById('right-click-paste-toggle');
+  const ambiguousDoubleToggleEl = document.getElementById('ambiguous-double-toggle');
   const showStatusBarToggleEl  = document.getElementById('show-status-bar-toggle');
   const statusBarConfigRowsEl  = document.getElementById('status-bar-config-rows');
   const windowTitleFormatInputEl = document.getElementById('window-title-format');
@@ -341,7 +343,8 @@ export function createSettingsUI({
     if (notificationSilenceEl) notificationSilenceEl.value = String(Math.round(settings.notificationSilenceMs / 1000));
     if (notificationSilenceRow) notificationSilenceRow.classList.toggle('is-hidden', !settings.notificationsEnabled);
     copyOnSelectToggleEl.checked = settings.copyOnSelect;
-    if (rightClickPasteToggleEl) rightClickPasteToggleEl.checked = settings.rightClickPaste;
+    if (rightClickPasteToggleEl)  rightClickPasteToggleEl.checked  = settings.rightClickPaste;
+    if (ambiguousDoubleToggleEl)  ambiguousDoubleToggleEl.checked  = settings.ambiguousDouble;
     showStatusBarToggleEl.checked = settings.showStatusBar;
     document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
     if (statusBarConfigRowsEl) statusBarConfigRowsEl.classList.toggle('is-hidden', !settings.showStatusBar);
@@ -408,8 +411,9 @@ export function createSettingsUI({
     if (typeof uiSettings.breathingAlertEnabled  === 'boolean') settings.breathingAlertEnabled  = uiSettings.breathingAlertEnabled;
     if (typeof uiSettings.notificationsEnabled   === 'boolean') settings.notificationsEnabled   = uiSettings.notificationsEnabled;
     if (Number.isFinite(uiSettings.notificationSilenceMs) && uiSettings.notificationSilenceMs >= 5000) settings.notificationSilenceMs = uiSettings.notificationSilenceMs;
-    if (typeof uiSettings.copyOnSelect   === 'boolean') settings.copyOnSelect   = uiSettings.copyOnSelect;
+    if (typeof uiSettings.copyOnSelect    === 'boolean') settings.copyOnSelect    = uiSettings.copyOnSelect;
     if (typeof uiSettings.rightClickPaste === 'boolean') settings.rightClickPaste = uiSettings.rightClickPaste;
+    if (typeof uiSettings.ambiguousDouble === 'boolean') settings.ambiguousDouble = uiSettings.ambiguousDouble;
     if (typeof uiSettings.showStatusBar === 'boolean')         settings.showStatusBar         = uiSettings.showStatusBar;
     if (typeof uiSettings.colorMode === 'string') settings.colorMode = uiSettings.colorMode;
     if (typeof uiSettings.language === 'string') {
@@ -1346,6 +1350,11 @@ export function createSettingsUI({
 
   rightClickPasteToggleEl?.addEventListener('change', () => {
     settings.rightClickPaste = rightClickPasteToggleEl.checked;
+    scheduleSettingsSave();
+  });
+
+  ambiguousDoubleToggleEl?.addEventListener('change', () => {
+    settings.ambiguousDouble = ambiguousDoubleToggleEl.checked;
     scheduleSettingsSave();
   });
 

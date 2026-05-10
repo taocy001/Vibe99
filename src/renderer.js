@@ -438,7 +438,7 @@ function createPane(pane, { tabId = null } = {}) {
   // apps (Node.js / Ink-based UIs like Claude Code) assume, so CJK
   // characters reliably consume two cells instead of drifting between one
   // and two when an app redraws after IME input.
-  terminal.loadAddon(new GraphemeUnicodeAddon());
+  terminal.loadAddon(new GraphemeUnicodeAddon(() => settings.ambiguousDouble));
   terminal.open(terminalHost);
   fixXtermViewportBg(terminalHost, settings.colorMode);
   terminal.loadAddon(new ImageAddon());

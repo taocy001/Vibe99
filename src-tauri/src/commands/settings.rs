@@ -307,6 +307,11 @@ fn sanitize_ui_config(ui: Option<&Value>) -> Value {
         obj.insert("rightClickPaste".into(), Value::Bool(v));
     }
 
+    // Preserve ambiguousDouble boolean
+    if let Some(v) = ui.get("ambiguousDouble").and_then(|v| v.as_bool()) {
+        obj.insert("ambiguousDouble".into(), Value::Bool(v));
+    }
+
     // Preserve showStatusBar boolean
     if let Some(show) = ui.get("showStatusBar").and_then(|v| v.as_bool()) {
         obj.insert("showStatusBar".into(), Value::Bool(show));
