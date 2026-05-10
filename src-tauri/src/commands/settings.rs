@@ -302,6 +302,11 @@ fn sanitize_ui_config(ui: Option<&Value>) -> Value {
         obj.insert("copyOnSelect".into(), Value::Bool(v));
     }
 
+    // Preserve rightClickPaste boolean
+    if let Some(v) = ui.get("rightClickPaste").and_then(|v| v.as_bool()) {
+        obj.insert("rightClickPaste".into(), Value::Bool(v));
+    }
+
     // Preserve showStatusBar boolean
     if let Some(show) = ui.get("showStatusBar").and_then(|v| v.as_bool()) {
         obj.insert("showStatusBar".into(), Value::Bool(show));

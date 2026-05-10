@@ -695,9 +695,16 @@ function createPane(pane, { tabId = null } = {}) {
     abortCtrl,
   };
 
-  terminalHost.addEventListener('contextmenu', (event) => {
+  terminalHost.addEventListener('contextmenu', async (event) => {
     event.preventDefault();
     paneManager.focusSplitPanel(node.paneId, { focusTerminal: false });
+    if (settings.rightClickPaste) {
+      const snap = await getClipboardSnapshot();
+      if (snap.text) {
+        void pasteIntoTerminal(node.paneId, { clipboardSnapshot: snap });
+        return;
+      }
+    }
     void showTerminalContextMenu(node, event);
   }, { signal });
 
