@@ -15,7 +15,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
-import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { GraphemeUnicodeAddon } from './grapheme-unicode.js';
 import { ImageAddon } from '@xterm/addon-image';
 import {
   openCommandPalette,
@@ -438,8 +438,7 @@ function createPane(pane, { tabId = null } = {}) {
   // apps (Node.js / Ink-based UIs like Claude Code) assume, so CJK
   // characters reliably consume two cells instead of drifting between one
   // and two when an app redraws after IME input.
-  terminal.loadAddon(new Unicode11Addon());
-  terminal.unicode.activeVersion = '11';
+  terminal.loadAddon(new GraphemeUnicodeAddon());
   terminal.open(terminalHost);
   fixXtermViewportBg(terminalHost, settings.colorMode);
   terminal.loadAddon(new ImageAddon());
