@@ -1539,7 +1539,7 @@ function handleMenuAction(action, paneId) {
   }
 
   if (action === 'ssh-connections') {
-    openSettingsToTab('general');
+    openSettingsToTab('appearance');
     openSshConnectionsSubPage();
     return;
   }

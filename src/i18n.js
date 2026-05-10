@@ -1,7 +1,10 @@
 const TRANSLATIONS = {
   en: {
     'settings.tab.appearance': 'Appearance',
+    'settings.tab.terminal': 'Terminal',
     'settings.tab.window': 'Window',
+    'settings.tab.profiles': 'Profiles',
+    'settings.tab.keys': 'Keys',
     'settings.tab.general': 'General',
     'settings.font': 'Font',
     'settings.fontCustom': 'Custom…',
@@ -63,7 +66,10 @@ const TRANSLATIONS = {
   },
   'zh-CN': {
     'settings.tab.appearance': '外观',
+    'settings.tab.terminal': '终端',
     'settings.tab.window': '窗口',
+    'settings.tab.profiles': '配置',
+    'settings.tab.keys': '快捷键',
     'settings.tab.general': '通用',
     'settings.font': '字体',
     'settings.fontCustom': '自定义…',
@@ -125,7 +131,10 @@ const TRANSLATIONS = {
   },
   'zh-TW': {
     'settings.tab.appearance': '外觀',
+    'settings.tab.terminal': '終端機',
     'settings.tab.window': '視窗',
+    'settings.tab.profiles': '設定檔',
+    'settings.tab.keys': '快捷鍵',
     'settings.tab.general': '一般',
     'settings.font': '字體',
     'settings.fontCustom': '自訂…',
@@ -187,7 +196,10 @@ const TRANSLATIONS = {
   },
   ja: {
     'settings.tab.appearance': '外観',
+    'settings.tab.terminal': 'ターミナル',
     'settings.tab.window': 'ウィンドウ',
+    'settings.tab.profiles': 'プロファイル',
+    'settings.tab.keys': 'ショートカット',
     'settings.tab.general': '一般',
     'settings.font': 'フォント',
     'settings.fontCustom': 'カスタム…',

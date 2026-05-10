@@ -330,7 +330,7 @@ body:not(.is-navigation-mode) .tab:hover .tab-swatch {
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  width: 340px;
+  width: 400px;
   max-height: calc(100vh - var(--tabs-height) - 24px);
   padding: 0 0 4px;
   border: 1px solid rgba(255, 255, 255, 0.13);
@@ -367,7 +367,7 @@ body:not(.is-navigation-mode) .tab:hover .tab-swatch {
 /* ── Tab navigation ───────────────────────────────────────────── */
 .settings-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   padding: 6px 8px 0;
   gap: 2px;
@@ -409,6 +409,32 @@ body:not(.is-navigation-mode) .tab:hover .tab-swatch {
 
 .settings-tab-panel.is-hidden {
   display: none;
+}
+
+/* Profiles and Keys tabs need column flex so inner content fills height */
+#settings-tab-profiles,
+#settings-tab-keys {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#settings-tab-profiles.is-hidden,
+#settings-tab-keys.is-hidden {
+  display: none;
+}
+
+#settings-tab-profiles .shell-profiles-modal-body {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.profiles-tab-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
 /* ── Settings sub-page (inline navigation) ───────────────────── */
@@ -2435,15 +2461,17 @@ body.is-dragging-tabs {
   padding: 6px 10px 4px;
 }
 
-/* In the settings subpage, hide descriptions and tighten padding so more
-   items fit without scrolling */
-.settings-subpage-content .shortcuts-list {
+/* In the settings subpage / keys tab, hide descriptions and tighten padding */
+.settings-subpage-content .shortcuts-list,
+#settings-tab-keys .shortcuts-list {
   padding: 4px 10px 4px;
 }
-.settings-subpage-content .shortcut-description {
+.settings-subpage-content .shortcut-description,
+#settings-tab-keys .shortcut-description {
   display: none;
 }
-.settings-subpage-content .shortcut-item {
+.settings-subpage-content .shortcut-item,
+#settings-tab-keys .shortcut-item {
   padding: 5px 10px;
 }
 

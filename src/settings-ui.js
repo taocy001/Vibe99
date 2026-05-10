@@ -203,6 +203,7 @@ export function createSettingsUI({
   const notificationSilenceRow  = document.getElementById('notifications-silence-row');
   const copyOnSelectToggleEl   = document.getElementById('copy-on-select-toggle');
   const showStatusBarToggleEl  = document.getElementById('show-status-bar-toggle');
+  const statusBarConfigRowsEl  = document.getElementById('status-bar-config-rows');
   const windowTitleFormatInputEl = document.getElementById('window-title-format');
   const statusBarFormatInputEl   = document.getElementById('status-bar-format');
   const statusBarHintsInputEl    = document.getElementById('status-bar-hints');
@@ -211,9 +212,11 @@ export function createSettingsUI({
   const colorImportBtnEl   = document.getElementById('color-import-btn');
   const colorExportBtnEl   = document.getElementById('color-export-btn');
   const colorImportInputEl = document.getElementById('color-import-input');
-  const shellProfilesSettingsBtn = document.getElementById('shell-profiles-settings-btn');
-  const keyboardShortcutsSettingsBtn = document.getElementById('keyboard-shortcuts-settings-btn');
   const shellIntegrationInstallBtn   = document.getElementById('shell-integration-install-btn');
+  const profilesTabListEl   = document.getElementById('profiles-tab-list');
+  const profilesTabEditorEl = document.getElementById('profiles-tab-editor');
+  const profilesTabAddBtnEl = document.getElementById('profiles-tab-add-btn');
+  const keysTabContentEl    = document.getElementById('keys-tab-content');
   const languageSelectEl = document.getElementById('language-select');
   const settingsSubpageEl      = document.getElementById('settings-subpage');
   const settingsSubpageTitleEl = document.getElementById('settings-subpage-title');
@@ -338,6 +341,7 @@ export function createSettingsUI({
     copyOnSelectToggleEl.checked = settings.copyOnSelect;
     showStatusBarToggleEl.checked = settings.showStatusBar;
     document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
+    if (statusBarConfigRowsEl) statusBarConfigRowsEl.classList.toggle('is-hidden', !settings.showStatusBar);
     applyColorModeUI(settings.colorMode);
     applyColorMode(settings.colorMode);
     applyColorsUI();
@@ -485,7 +489,7 @@ export function createSettingsUI({
   // ── Shell profile management ───────────────────────────────────────────────
 
   function loadShellProfiles() {
-    Promise.all([
+    return Promise.all([
       bridge.listShellProfiles(),
       bridge.detectShellProfiles().catch(() => []),
     ]).then(([config, detected]) => {
@@ -1172,26 +1176,13 @@ export function createSettingsUI({
     settingsSubpageEl.classList.add('is-hidden');
     settingsPanelEl.classList.remove('has-subpage');
     settingsSubpageContentEl.replaceChildren();
-    _spShellListEl = null;
-    _spShellEditorEl = null;
     settingsSubpageBackEl.focus();
   }
 
-  function openShellProfilesSubPage() {
-    loadShellProfiles();
-    openSubPage('Shell Profiles', (contentEl) => {
-      contentEl.innerHTML = `
-        <div class="shell-profiles-modal-body">
-          <div class="shell-profiles-sidebar">
-            <div class="shell-profile-list" id="sp-shell-profile-list"></div>
-          </div>
-          <div class="shell-profiles-editor-panel" id="sp-shell-profile-editor">
-            <div class="shell-profiles-editor-placeholder">Select a profile or create a new one</div>
-          </div>
-        </div>
-      `;
-      _spShellListEl = contentEl.querySelector('#sp-shell-profile-list');
-      _spShellEditorEl = contentEl.querySelector('#sp-shell-profile-editor');
+  function initProfilesTab() {
+    _spShellListEl = profilesTabListEl;
+    _spShellEditorEl = profilesTabEditorEl;
+    loadShellProfiles().then(() => {
       if (shellProfiles.length > 0) {
         const first = shellProfiles[0];
         selectedShellProfileId = first.id;
@@ -1212,14 +1203,13 @@ export function createSettingsUI({
         editingShellProfile = null;
       }
       renderModalShellProfiles();
-    }, '+', () => {
-      editingShellProfile = { id: '', name: '', command: '', args: '', kind: 'local', sshHost: '', sshPort: '', sshUser: '', sshIdentityFile: '', isNew: true };
-      selectedShellProfileId = null;
-      renderModalShellProfiles();
     });
   }
 
   // ── Settings UI event listeners ────────────────────────────────────────────
+
+  let profilesTabInitialized = false;
+  let keysTabInitialized = false;
 
   settingsPanelEl.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -1233,6 +1223,14 @@ export function createSettingsUI({
     settingsPanelEl.querySelectorAll('.settings-tab-panel').forEach(p => {
       p.classList.toggle('is-hidden', p.id !== `settings-tab-${tabId}`);
     });
+    if (tabId === 'profiles' && !profilesTabInitialized) {
+      profilesTabInitialized = true;
+      initProfilesTab();
+    }
+    if (tabId === 'keys' && !keysTabInitialized) {
+      keysTabInitialized = true;
+      ShortcutsUI.renderIntoContainer(keysTabContentEl, bridge, scheduleSettingsSave);
+    }
   });
 
   fontSizeRangeEl.addEventListener('input', () => {
@@ -1345,6 +1343,7 @@ export function createSettingsUI({
   showStatusBarToggleEl.addEventListener('change', () => {
     settings.showStatusBar = showStatusBarToggleEl.checked;
     document.body.classList.toggle('hide-status-bar', !settings.showStatusBar);
+    if (statusBarConfigRowsEl) statusBarConfigRowsEl.classList.toggle('is-hidden', !settings.showStatusBar);
     scheduleSettingsSave();
   });
 
@@ -1416,23 +1415,10 @@ export function createSettingsUI({
     closeSubPage();
   });
 
-  shellProfilesSettingsBtn.addEventListener('click', () => { openShellProfilesSubPage(); });
-  shellProfilesSettingsBtn.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openShellProfilesSubPage(); }
-  });
-
-  keyboardShortcutsSettingsBtn.addEventListener('click', () => {
-    openSubPage('Keyboard Shortcuts', (contentEl) => {
-      ShortcutsUI.renderIntoContainer(contentEl, bridge, scheduleSettingsSave);
-    });
-  });
-  keyboardShortcutsSettingsBtn.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      openSubPage('Keyboard Shortcuts', (contentEl) => {
-        ShortcutsUI.renderIntoContainer(contentEl, bridge, scheduleSettingsSave);
-      });
-    }
+  profilesTabAddBtnEl?.addEventListener('click', () => {
+    editingShellProfile = { id: '', name: '', command: '', args: '', kind: 'local', sshHost: '', sshPort: '', sshUser: '', sshIdentityFile: '', isNew: true };
+    selectedShellProfileId = null;
+    renderModalShellProfiles();
   });
 
   async function runInstallShellIntegration() {

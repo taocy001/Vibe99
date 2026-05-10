@@ -21,12 +21,14 @@
           <!-- Tab navigation -->
           <nav class="settings-tabs" role="tablist">
             <button class="settings-tab-btn is-active" role="tab" data-tab="appearance" aria-selected="true" data-i18n="settings.tab.appearance">Appearance</button>
+            <button class="settings-tab-btn" role="tab" data-tab="terminal" aria-selected="false" data-i18n="settings.tab.terminal">Terminal</button>
             <button class="settings-tab-btn" role="tab" data-tab="window" aria-selected="false" data-i18n="settings.tab.window">Window</button>
-            <button class="settings-tab-btn" role="tab" data-tab="colors" aria-selected="false">Colors</button>
+            <button class="settings-tab-btn" role="tab" data-tab="profiles" aria-selected="false" data-i18n="settings.tab.profiles">Profiles</button>
+            <button class="settings-tab-btn" role="tab" data-tab="keys" aria-selected="false" data-i18n="settings.tab.keys">Keys</button>
             <button class="settings-tab-btn" role="tab" data-tab="general" aria-selected="false" data-i18n="settings.tab.general">General</button>
           </nav>
 
-          <!-- Appearance tab: theme, font, activity indicator -->
+          <!-- Appearance tab: theme, font, colour presets -->
           <div class="settings-tab-panel" id="settings-tab-appearance" role="tabpanel">
             <div class="settings-section">
 
@@ -51,6 +53,40 @@
 
               <div class="settings-divider"></div>
 
+              <div class="color-preset-grid" id="color-preset-grid"></div>
+              <div class="settings-divider"></div>
+              <div class="settings-row settings-clickable-row" id="color-import-btn" role="button" tabindex="0">
+                <span>Import .itermcolors…</span>
+                <span class="settings-row-hint">›</span>
+              </div>
+              <div class="settings-row settings-clickable-row" id="color-export-btn" role="button" tabindex="0">
+                <span>Export .itermcolors…</span>
+                <span class="settings-row-hint">↓</span>
+              </div>
+              <input type="file" id="color-import-input" accept=".itermcolors" class="is-hidden" />
+
+            </div>
+          </div>
+
+          <!-- Terminal tab: scrollback, copy on select, activity indicator, notifications -->
+          <div class="settings-tab-panel is-hidden" id="settings-tab-terminal" role="tabpanel">
+            <div class="settings-section">
+
+              <label class="settings-row" for="scrollback-input">
+                <span data-i18n="settings.scrollback">Scrollback</span>
+                <span id="scrollback-display" class="settings-value">5000</span>
+              </label>
+              <input id="scrollback-input" type="range" min="1000" max="50000" step="1000" value="5000" />
+
+              <div class="settings-divider"></div>
+
+              <label class="settings-row" for="copy-on-select-toggle">
+                <span data-i18n="settings.copyOnSelect">Copy on select</span>
+                <input id="copy-on-select-toggle" class="settings-toggle" type="checkbox" />
+              </label>
+
+              <div class="settings-divider"></div>
+
               <label class="settings-row" for="breathing-alert-toggle">
                 <span data-i18n="settings.activityIndicator">Activity indicator</span>
                 <input id="breathing-alert-toggle" class="settings-toggle" type="checkbox" checked />
@@ -69,7 +105,7 @@
             </div>
           </div>
 
-          <!-- Window tab: pane layout, scrollback, status bar, window title -->
+          <!-- Window tab: pane dimensions, status bar, window title -->
           <div class="settings-tab-panel is-hidden" id="settings-tab-window" role="tabpanel">
             <div class="settings-section">
 
@@ -93,35 +129,20 @@
 
               <div class="settings-divider"></div>
 
-              <label class="settings-row" for="scrollback-input">
-                <span data-i18n="settings.scrollback">Scrollback</span>
-                <span id="scrollback-display" class="settings-value">5000</span>
-              </label>
-              <input id="scrollback-input" type="range" min="1000" max="50000" step="1000" value="5000" />
-
-              <div class="settings-divider"></div>
-
-              <label class="settings-row" for="copy-on-select-toggle">
-                <span data-i18n="settings.copyOnSelect">Copy on select</span>
-                <input id="copy-on-select-toggle" class="settings-toggle" type="checkbox" />
-              </label>
-
-              <div class="settings-divider"></div>
-
               <label class="settings-row" for="show-status-bar-toggle">
                 <span data-i18n="settings.showStatusBar">Show status bar</span>
                 <input id="show-status-bar-toggle" class="settings-toggle" type="checkbox" />
               </label>
 
-              <div class="settings-divider"></div>
+              <div id="status-bar-config-rows" class="is-hidden">
+                <label class="settings-label" for="status-bar-format" data-i18n="settings.statusBarFormat">Status bar format</label>
+                <input class="settings-number" id="status-bar-format" type="text" placeholder="\w\p" value="\w\p" />
+                <p class="settings-caption"><code>\w</code> dir &nbsp; <code>\W</code> dirname &nbsp; <code>\u</code> user &nbsp; <code>\h</code> host &nbsp; <code>\H</code> full host &nbsp; <code>\p</code> panel</p>
 
-              <label class="settings-label" for="status-bar-format" data-i18n="settings.statusBarFormat">Status bar format</label>
-              <input class="settings-number" id="status-bar-format" type="text" placeholder="\w\p" value="\w\p" />
-              <p class="settings-caption"><code>\w</code> dir &nbsp; <code>\W</code> dirname &nbsp; <code>\u</code> user &nbsp; <code>\h</code> host &nbsp; <code>\H</code> full host &nbsp; <code>\p</code> panel</p>
-
-              <label class="settings-label" for="status-bar-hints" data-i18n="settings.statusBarHints">Hints</label>
-              <input class="settings-number" id="status-bar-hints" type="text" placeholder="*" value="*" />
-              <p class="settings-caption"><code>*</code> all &nbsp; empty = none &nbsp; or action IDs: <code>enterNav,newPane,cycleRecent</code></p>
+                <label class="settings-label" for="status-bar-hints" data-i18n="settings.statusBarHints">Hints</label>
+                <input class="settings-number" id="status-bar-hints" type="text" placeholder="*" value="*" />
+                <p class="settings-caption"><code>*</code> all &nbsp; empty = none &nbsp; or action IDs: <code>enterNav,newPane,cycleRecent</code></p>
+              </div>
 
               <div class="settings-divider"></div>
 
@@ -132,24 +153,27 @@
             </div>
           </div>
 
-          <!-- Colors tab: terminal colour presets, import/export -->
-          <div class="settings-tab-panel is-hidden" id="settings-tab-colors" role="tabpanel">
-            <div class="settings-section">
-              <div class="color-preset-grid" id="color-preset-grid"></div>
-              <div class="settings-divider"></div>
-              <div class="settings-row settings-clickable-row" id="color-import-btn" role="button" tabindex="0">
-                <span>Import .itermcolors…</span>
-                <span class="settings-row-hint">›</span>
+          <!-- Profiles tab: shell profiles manager (inlined) -->
+          <div class="settings-tab-panel is-hidden" id="settings-tab-profiles" role="tabpanel">
+            <div class="profiles-tab-header">
+              <button type="button" id="profiles-tab-add-btn" class="settings-subpage-action">+</button>
+            </div>
+            <div class="shell-profiles-modal-body">
+              <div class="shell-profiles-sidebar">
+                <div class="shell-profile-list" id="profiles-tab-list"></div>
               </div>
-              <div class="settings-row settings-clickable-row" id="color-export-btn" role="button" tabindex="0">
-                <span>Export .itermcolors…</span>
-                <span class="settings-row-hint">↓</span>
+              <div class="shell-profiles-editor-panel" id="profiles-tab-editor">
+                <div class="shell-profiles-editor-placeholder">Select a profile or create a new one</div>
               </div>
-              <input type="file" id="color-import-input" accept=".itermcolors" class="is-hidden" />
             </div>
           </div>
 
-          <!-- General tab: language, shell profiles, shortcuts, integration -->
+          <!-- Keys tab: keyboard shortcuts (inlined) -->
+          <div class="settings-tab-panel is-hidden" id="settings-tab-keys" role="tabpanel">
+            <div id="keys-tab-content"></div>
+          </div>
+
+          <!-- General tab: language, shell integration -->
           <div class="settings-tab-panel is-hidden" id="settings-tab-general" role="tabpanel">
             <div class="settings-section">
 
@@ -158,14 +182,6 @@
 
               <div class="settings-divider"></div>
 
-              <div class="settings-row settings-clickable-row" id="shell-profiles-settings-btn" role="button" tabindex="0" aria-label="Configure shell profiles">
-                <span data-i18n="settings.shellProfiles">Shell Profiles</span>
-                <span class="settings-row-hint">›</span>
-              </div>
-              <div class="settings-row settings-clickable-row" id="keyboard-shortcuts-settings-btn" role="button" tabindex="0" aria-label="Configure keyboard shortcuts">
-                <span data-i18n="settings.keyboardShortcuts">Keyboard Shortcuts</span>
-                <span class="settings-row-hint">›</span>
-              </div>
               <div class="settings-row settings-clickable-row" id="shell-integration-install-btn" role="button" tabindex="0" aria-label="Install shell integration">
                 <span data-i18n="settings.installShellIntegration">Install Shell Integration</span>
                 <span class="settings-row-hint">›</span>
