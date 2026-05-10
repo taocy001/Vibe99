@@ -81,8 +81,9 @@ fn parse_ssh_config(content: &str, home: &Path) -> Vec<SshHostEntry> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let (keyword, value) = match line.split_once(|c: char| c.is_whitespace()) {
-            Some((k, v)) => (k.to_lowercase(), v.trim()),
+        // ssh_config allows both `keyword value` and `keyword=value` (with optional spaces).
+        let (keyword, value) = match line.split_once(|c: char| c.is_whitespace() || c == '=') {
+            Some((k, v)) => (k.to_lowercase(), v.trim_start_matches('=').trim()),
             None => continue,
         };
         match keyword.as_str() {
@@ -210,6 +211,25 @@ mod tests {
         let entries = parse_ssh_config(content, &home());
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].host, "example.com");
+    }
+
+    #[test]
+    fn equals_separator_parsed() {
+        // ssh_config allows `keyword=value` and `keyword = value` per man ssh_config
+        let content = "Host myserver\n  HostName=example.com\n  Port=2222\n  User=ubuntu\n";
+        let entries = parse_ssh_config(content, &home());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].host, "example.com");
+        assert_eq!(entries[0].port, Some(2222));
+        assert_eq!(entries[0].user.as_deref(), Some("ubuntu"));
+    }
+
+    #[test]
+    fn equals_with_spaces_separator_parsed() {
+        let content = "Host myserver\n  HostName = example.com\n  Port = 22\n";
+        let entries = parse_ssh_config(content, &home());
+        assert_eq!(entries[0].host, "example.com");
+        assert_eq!(entries[0].port, Some(22));
     }
 
     #[test]
