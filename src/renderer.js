@@ -1615,14 +1615,6 @@ function handleMenuAction(action, paneId) {
     return;
   }
 
-  if (action === 'appearance-light' || action === 'appearance-dark' || action === 'appearance-auto') {
-    const mode = action.slice('appearance-'.length);
-    settings.colorMode = mode;
-    applyColorModeUI(mode);
-    applyColorMode(mode);
-    scheduleSettingsSave();
-    return;
-  }
 
   if (action === 'toggle-status-bar') {
     settings.showStatusBar = !settings.showStatusBar;

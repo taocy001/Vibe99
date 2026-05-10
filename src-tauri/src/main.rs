@@ -175,15 +175,15 @@ fn build_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::
         .build(app)?;
 
     let app_menu = SubmenuBuilder::new(app, "Vibe99")
-        .item(&PredefinedMenuItem::about(app, None, None)?)
+        .item(&PredefinedMenuItem::about(app, Some(ml("关于 Vibe99", "Vibe99 について", "About Vibe99")), None)?)
         .separator()
         .item(&settings_item)
         .separator()
-        .item(&PredefinedMenuItem::hide(app, None)?)
-        .item(&PredefinedMenuItem::hide_others(app, None)?)
-        .item(&PredefinedMenuItem::show_all(app, None)?)
+        .item(&PredefinedMenuItem::hide(app, Some(ml("隐藏 Vibe99", "Vibe99 を隠す", "Hide Vibe99")))?)
+        .item(&PredefinedMenuItem::hide_others(app, Some(ml("隐藏其他", "ほかを隠す", "Hide Others")))?)
+        .item(&PredefinedMenuItem::show_all(app, Some(ml("全部显示", "すべてを表示", "Show All")))?)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, None)?)
+        .item(&PredefinedMenuItem::quit(app, Some(ml("退出 Vibe99", "Vibe99 を終了", "Quit Vibe99")))?)
         .build()?;
 
     // ── SSH menu ──────────────────────────────────────────────────
@@ -296,13 +296,13 @@ fn build_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::
     .build(app)?;
 
     let edit_menu = SubmenuBuilder::new(app, ml("编辑", "編集", "Edit"))
-        .item(&PredefinedMenuItem::undo(app, None)?)
-        .item(&PredefinedMenuItem::redo(app, None)?)
+        .item(&PredefinedMenuItem::undo(app, Some(ml("撤销", "取り消す", "Undo")))?)
+        .item(&PredefinedMenuItem::redo(app, Some(ml("重做", "やり直す", "Redo")))?)
         .separator()
-        .item(&PredefinedMenuItem::cut(app, None)?)
-        .item(&PredefinedMenuItem::copy(app, None)?)
-        .item(&PredefinedMenuItem::paste(app, None)?)
-        .item(&PredefinedMenuItem::select_all(app, None)?)
+        .item(&PredefinedMenuItem::cut(app, Some(ml("剪切", "カット", "Cut")))?)
+        .item(&PredefinedMenuItem::copy(app, Some(ml("复制", "コピー", "Copy")))?)
+        .item(&PredefinedMenuItem::paste(app, Some(ml("粘贴", "ペースト", "Paste")))?)
+        .item(&PredefinedMenuItem::select_all(app, Some(ml("全选", "すべてを選択", "Select All")))?)
         .separator()
         .item(&clear_scrollback_item)
         .build()?;
@@ -321,21 +321,6 @@ fn build_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::
         .accelerator("CmdOrCtrl+0")
         .build(app)?;
 
-    let appearance_light = MenuItemBuilder::new(ml("浅色", "ライト", "Light"))
-        .id("appearance-light")
-        .build(app)?;
-    let appearance_dark = MenuItemBuilder::new(ml("深色", "ダーク", "Dark"))
-        .id("appearance-dark")
-        .build(app)?;
-    let appearance_auto = MenuItemBuilder::new(ml("跟随系统", "システムに合わせる", "Auto"))
-        .id("appearance-auto")
-        .build(app)?;
-    let appearance_submenu = SubmenuBuilder::new(app, ml("外观", "外観", "Appearance"))
-        .item(&appearance_light)
-        .item(&appearance_dark)
-        .item(&appearance_auto)
-        .build()?;
-
     let toggle_status_bar_item =
         CheckMenuItemBuilder::new(ml("显示状态栏", "ステータスバーを表示", "Show Status Bar"))
             .id("toggle-status-bar")
@@ -347,13 +332,11 @@ fn build_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::
         .build(app)?;
 
     let view_menu = SubmenuBuilder::new(app, ml("视图", "表示", "View"))
-        .item(&PredefinedMenuItem::fullscreen(app, None)?)
+        .item(&PredefinedMenuItem::fullscreen(app, Some(ml("进入全屏", "フルスクリーン切替", "Toggle Full Screen")))?)
         .separator()
         .item(&font_increase_item)
         .item(&font_decrease_item)
         .item(&font_reset_item)
-        .separator()
-        .item(&appearance_submenu)
         .separator()
         .item(&toggle_status_bar_item)
         .item(&navigation_mode_item)
@@ -382,8 +365,8 @@ fn build_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::
         .build(app)?;
 
     let window_menu = SubmenuBuilder::new(app, ml("窗口", "ウィンドウ", "Window"))
-        .item(&PredefinedMenuItem::minimize(app, None)?)
-        .item(&PredefinedMenuItem::maximize(app, None)?)
+        .item(&PredefinedMenuItem::minimize(app, Some(ml("最小化", "最小化", "Minimize")))?)
+        .item(&PredefinedMenuItem::maximize(app, Some(ml("缩放", "ズーム", "Zoom")))?)
         .separator()
         .item(&next_tab_item)
         .item(&prev_tab_item)
