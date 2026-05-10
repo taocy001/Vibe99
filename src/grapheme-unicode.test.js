@@ -1,11 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { GraphemeProvider } from './grapheme-unicode.js';
+import { GraphemeProvider, encodeProperty, extractWidth } from './grapheme-unicode.js';
 
-// Property value encoding: bit 0 = combined, bits 1-2 = width.
-function encodeProperty(width, combined) {
-  return (width & 3) << 1 | (combined ? 1 : 0);
-}
-function extractWidth(prop) { return (prop >> 1) & 3; }
 function extractCombined(prop) { return (prop & 1) !== 0; }
 
 describe('GraphemeProvider', () => {
@@ -42,9 +37,8 @@ describe('GraphemeProvider', () => {
   });
 
   it('character after ZWJ is combined with width 0', () => {
-    // Simulate 👨 ZWJ 👩 sequence
-    const propMan = p.charProperties(0x1F468, 0);        // 👨 — base
-    const propZWJ = p.charProperties(0x200D, propMan);   // ZWJ
+    const propMan  = p.charProperties(0x1F468, 0);        // 👨 — base
+    const propZWJ  = p.charProperties(0x200D, propMan);   // ZWJ
     const propWoman = p.charProperties(0x1F469, propZWJ); // 👩 — must be combined
 
     expect(extractCombined(propWoman)).toBe(true);
@@ -89,11 +83,31 @@ describe('GraphemeProvider', () => {
     expect(extractWidth(prop)).toBe(2);
   });
 
+  it('narrow character (ASCII) after ZWJ is NOT combined', () => {
+    // Malformed sequence: ZWJ followed by a width-1 character.
+    // Must not silently combine 'A' — that would corrupt rendering.
+    const propEmoji = p.charProperties(0x1F468, 0);      // 👨
+    const propZWJ   = p.charProperties(0x200D, propEmoji); // ZWJ
+    const propA     = p.charProperties(0x41, propZWJ);    // 'A'
+
+    expect(extractCombined(propA)).toBe(false);
+    expect(extractWidth(propA)).toBe(1);
+  });
+
+  it('resetZWJState() clears pending ZWJ flag', () => {
+    p.charProperties(0x1F468, 0); // 👨
+    p.charProperties(0x200D, 0);  // ZWJ — _lastWasZWJ is now true
+    p.resetZWJState();             // simulate ESC c terminal reset
+    const prop = p.charProperties(0x1F469, 0); // 👩 after reset
+    expect(extractCombined(prop)).toBe(false);
+    expect(extractWidth(prop)).toBe(2);
+  });
+
   // ── CJK combining marks still work ───────────────────────────────────────
 
   it('zero-width combining mark after CJK character is combined', () => {
-    const propCJK = p.charProperties(0x4E2D, 0);                    // 中
-    const propMark = p.charProperties(0x0308, propCJK);             // combining diaeresis
+    const propCJK  = p.charProperties(0x4E2D, 0);   // 中
+    const propMark = p.charProperties(0x0308, propCJK); // combining diaeresis
     expect(extractWidth(propCJK)).toBe(2);
     expect(extractCombined(propMark)).toBe(true);
   });
