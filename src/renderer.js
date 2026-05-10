@@ -753,10 +753,20 @@ function createPane(pane, { tabId = null } = {}) {
     if (entryNeedsTabRefresh(owningTabId)) layoutRenderer.renderTabs();
   });
 
+  // Mouse selection: read the finalised selection at mouseup, before any
+  // subsequent focus() call in a requestAnimationFrame could clear it.
+  terminalHost.addEventListener('mouseup', (e) => {
+    if (e.button !== 0 || !settings.copyOnSelect) return;
+    const selection = terminal.getSelection();
+    if (selection) bridge.writeClipboardText(selection).catch(() => {});
+  }, { signal });
+
+  // Keyboard selection (Shift+arrow, selectAll, etc.) has no mouseup;
+  // use onSelectionChange as the fallback for those paths.
   terminal.onSelectionChange(() => {
     if (!settings.copyOnSelect) return;
     const selection = terminal.getSelection();
-    if (selection) bridge.writeClipboardText(selection);
+    if (selection) bridge.writeClipboardText(selection).catch(() => {});
   });
 
   // OSC 7 — shell reports current working directory.
