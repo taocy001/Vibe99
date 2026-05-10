@@ -13,6 +13,9 @@ import {
 import { COLOR_PRESETS, DEFAULT_PRESET_ID, getPreset } from './color-presets.js';
 import { parseItermcolors, generateItermcolors } from './itermcolors.js';
 
+// True when the system reports a CJK locale — used to auto-set ambiguousDouble.
+const _isCJKLocale = /^(zh|ja|ko)/.test(navigator.language);
+
 // Exported shared settings object.  Initialised with safe defaults; the
 // real fontFamily is patched in by createSettingsUI once the bridge is known.
 export const settings = {
@@ -27,7 +30,7 @@ export const settings = {
   notificationSilenceMs: 30000,
   copyOnSelect: false,
   rightClickPaste: false,
-  ambiguousDouble: false,
+  ambiguousDouble: _isCJKLocale,
   showStatusBar: false,
   colorMode: 'dark',
   language: 'en',
