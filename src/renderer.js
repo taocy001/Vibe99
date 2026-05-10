@@ -489,6 +489,14 @@ function createPane(pane, { tabId = null } = {}) {
         setTimeout(() => { if (ta.isConnected) ta.value = ''; }, 0);
       }
     }
+    // Safety reset: if _compositionActive is stuck (compositionend never fired — a
+    // known WKWebView edge case when composition is cancelled via Escape or focus loss)
+    // and the browser confirms we're not composing, unblock input now so vi/vim and
+    // other programs that need raw keyboard access continue to work.
+    if (_compositionActive && !e.isComposing && e.keyCode !== 229) {
+      _compositionActive = false;
+      _compositionData = '';
+    }
     // During active composition, block all keydown events from reaching xterm.
     // The OS-level IME has already processed the key (candidate selection, backspace,
     // arrow navigation, etc.) before this event fires; xterm must not also process it
