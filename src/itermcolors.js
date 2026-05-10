@@ -65,6 +65,6 @@ export function generateItermcolors(palette) {
     const { r, g, b } = hexToComps(hex);
     return `\n\t<key>${key}</key>\n\t<dict>\n\t\t<key>Alpha Component</key><real>1</real>\n\t\t<key>Blue Component</key><real>${b.toFixed(10)}</real>\n\t\t<key>Color Space</key><string>sRGB</string>\n\t\t<key>Green Component</key><real>${g.toFixed(10)}</real>\n\t\t<key>Red Component</key><real>${r.toFixed(10)}</real>\n\t</dict>`;
   }
-  const ansiEntries = ANSI_KEYS.map((k, i) => entry(k, palette.ansi[i])).join('');
+  const ansiEntries = ANSI_KEYS.map((k, i) => entry(k, palette.ansi[i] ?? '#000000')).join('');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>${ansiEntries}${entry('Background Color', palette.background)}${entry('Foreground Color', palette.foreground)}${entry('Selection Color', palette.selectionBg)}\n</dict>\n</plist>`;
 }

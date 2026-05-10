@@ -31,11 +31,9 @@ export function renderHintBar(keymap, currentMode, focusedPaneLabel, platform = 
     const hasCycleRecent = entries.some(e => e.action === 'cycleRecent');
     const hasCycleRecentReverse = entries.some(e => e.action === 'cycleRecentReverse');
     if (hasCycleRecent && hasCycleRecentReverse) {
-      entries = entries.filter(e => e.action !== 'cycleRecentReverse');
-      const cycleEntry = entries.find(e => e.action === 'cycleRecent');
-      if (cycleEntry) {
-        cycleEntry.hint = t('hint.ctrlTabRecent');
-      }
+      entries = entries
+        .filter(e => e.action !== 'cycleRecentReverse')
+        .map(e => e.action === 'cycleRecent' ? { ...e, hint: t('hint.ctrlTabRecent') } : e);
     }
   }
 
@@ -166,8 +164,11 @@ function formatChordForHint(chord, platform) {
   const isMac = platform === 'darwin';
   const modSymbols = [];
 
-  if (modifiers.includes('ctrl') || modifiers.includes('cmd') || modifiers.includes('meta')) {
-    modSymbols.push(isMac ? '⌘' : 'Ctrl');
+  if (modifiers.includes('cmd') || modifiers.includes('meta')) {
+    modSymbols.push(isMac ? '⌘' : 'Cmd');
+  }
+  if (modifiers.includes('ctrl')) {
+    modSymbols.push(isMac ? '^' : 'Ctrl');
   }
   if (modifiers.includes('shift')) {
     modSymbols.push(isMac ? '⇧' : 'Shift');

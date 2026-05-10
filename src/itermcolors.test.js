@@ -62,6 +62,13 @@ describe('generateItermcolors', () => {
     // The background entry should have red=1.0, green=0.0, blue=0.0
     expect(xml).toMatch(/Background Color[\s\S]*?Red Component[\s\S]*?1\.0000/);
   });
+
+  it('BUG: does not crash when palette.ansi has fewer than 16 entries', () => {
+    // ANSI_KEYS.map((k,i) => entry(k, palette.ansi[i])) passes undefined to hexToComps
+    // when the array is short, causing TypeError: Cannot read properties of undefined (reading 'slice')
+    const shortPalette = { ...SAMPLE_PALETTE, ansi: ['#ff0000'] };
+    expect(() => generateItermcolors(shortPalette)).not.toThrow();
+  });
 });
 
 describe('parseItermcolors', () => {
