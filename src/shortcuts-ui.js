@@ -6,37 +6,13 @@
  */
 
 import * as ShortcutsRegistry from './shortcuts-registry.js';
+import { t } from './i18n.js';
 
 /**
  * Get human-readable names for shortcut actions
  */
 function getShortcutActionName(actionId) {
-  const names = {
-    'new-tab': 'New Tab',
-    'close-tab': 'Close Tab',
-    'navigation-mode': 'Navigation Mode',
-    'copy': 'Copy',
-    'paste': 'Paste',
-    'navigate-left': 'Navigate Left',
-    'navigate-right': 'Navigate Right',
-    'split-right': 'Split Right',
-    'split-down': 'Split Down',
-    'focus-panel-prev': 'Focus Left Panel',
-    'focus-panel-next': 'Focus Right Panel',
-    'font-size-increase': 'Increase Font Size',
-    'font-size-decrease': 'Decrease Font Size',
-    'font-size-reset': 'Reset Font Size',
-    'search': 'Search',
-    'nav-left': 'Focus Previous',
-    'nav-right': 'Focus Next',
-    'focus-first': 'Focus First',
-    'focus-last': 'Focus Last',
-    'jump-to': 'Jump to Pane',
-    'new-pane': 'New Pane',
-    'close-pane': 'Close Pane',
-    'rename-pane': 'Rename Pane',
-  };
-  return names[actionId] || actionId;
+  return t(`shortcuts.action.${actionId}`, actionId);
 }
 
 /**
@@ -82,11 +58,11 @@ function showConfirmDialog(message) {
 
     overlay.innerHTML = `
       <div class="shortcut-recorder-dialog" style="max-width: 360px;">
-        <div class="shortcut-recorder-title">Confirm</div>
+        <div class="shortcut-recorder-title">${t('shortcuts.confirm.title')}</div>
         <div style="margin: 16px 0; color: var(--text); font-size: 14px;">${message}</div>
         <div class="shortcut-recorder-actions">
-          <button type="button" class="shortcut-recorder-btn" id="confirm-cancel">Cancel</button>
-          <button type="button" class="shortcut-recorder-btn is-primary" id="confirm-ok">OK</button>
+          <button type="button" class="shortcut-recorder-btn" id="confirm-cancel">${t('shortcuts.confirm.cancel')}</button>
+          <button type="button" class="shortcut-recorder-btn is-primary" id="confirm-ok">${t('shortcuts.confirm.ok')}</button>
         </div>
       </div>
     `;
@@ -118,7 +94,7 @@ export function renderIntoContainer(container, bridge, scheduleSettingsSave) {
   container.innerHTML = `
     <div class="shortcuts-list" id="sp-shortcuts-list"></div>
     <div class="settings-modal-footer" style="padding:10px 14px;">
-      <button type="button" class="settings-modal-btn" id="sp-shortcuts-reset">Reset to Defaults</button>
+      <button type="button" class="settings-modal-btn" id="sp-shortcuts-reset">${t('shortcuts.resetToDefaults')}</button>
     </div>
   `;
   const listEl = container.querySelector('#sp-shortcuts-list');
@@ -138,7 +114,7 @@ export function renderIntoContainer(container, bridge, scheduleSettingsSave) {
       if (shortcut.mode === 'nav') {
         const badge = document.createElement('span');
         badge.className = 'shortcut-mode-badge';
-        badge.textContent = 'Nav';
+        badge.textContent = t('shortcuts.navBadge');
         name.appendChild(badge);
       }
       const description = document.createElement('div');
@@ -155,7 +131,7 @@ export function renderIntoContainer(container, bridge, scheduleSettingsSave) {
       editBtn.type = 'button';
       editBtn.className = 'shortcut-edit-btn';
       editBtn.textContent = '✎';
-      editBtn.title = 'Change shortcut';
+      editBtn.title = t('shortcuts.changeShortcut');
       editBtn.addEventListener('click', () => startRecording(id));
       binding.append(keys, editBtn);
       item.append(info, binding);
@@ -169,7 +145,7 @@ export function renderIntoContainer(container, bridge, scheduleSettingsSave) {
   }
 
   resetBtn.addEventListener('click', async () => {
-    const confirmed = await showConfirmDialog('Reset all keyboard shortcuts to their default values?');
+    const confirmed = await showConfirmDialog(t('shortcuts.confirm.resetMessage'));
     if (confirmed) {
       ShortcutsRegistry.resetShortcutsToDefaults();
       scheduleSettingsSave();
@@ -189,14 +165,14 @@ function _startShortcutRecording(shortcutId, scheduleSettingsSave, onRecordCompl
   recorderOverlay.tabIndex = -1;
   recorderOverlay.innerHTML = `
     <div class="shortcut-recorder-dialog">
-      <div class="shortcut-recorder-title">Record Shortcut</div>
-      <div class="shortcut-recorder-hint">Press your new key combination for "${getShortcutActionName(shortcutId)}"</div>
+      <div class="shortcut-recorder-title">${t('shortcuts.recorder.title')}</div>
+      <div class="shortcut-recorder-hint">${t('shortcuts.recorder.hint').replace('%s', getShortcutActionName(shortcutId))}</div>
       <div class="shortcut-recorder-keys" id="shortcut-recorder-keys">
-        <div class="shortcut-recorder-key">Press keys...</div>
+        <div class="shortcut-recorder-key">${t('shortcuts.recorder.pressKeys')}</div>
       </div>
       <div class="shortcut-recorder-actions">
-        <button type="button" class="shortcut-recorder-btn" id="shortcut-recorder-cancel">Cancel</button>
-        <button type="button" class="shortcut-recorder-btn is-primary" id="shortcut-recorder-save" disabled>Save</button>
+        <button type="button" class="shortcut-recorder-btn" id="shortcut-recorder-cancel">${t('shortcuts.recorder.cancel')}</button>
+        <button type="button" class="shortcut-recorder-btn is-primary" id="shortcut-recorder-save" disabled>${t('shortcuts.recorder.save')}</button>
       </div>
     </div>
   `;
@@ -229,7 +205,7 @@ function _startShortcutRecording(shortcutId, scheduleSettingsSave, onRecordCompl
     if (conflictId) {
       const w = document.createElement('div');
       w.className = 'shortcut-conflict-warning';
-      w.textContent = `Conflicts with "${getShortcutActionName(conflictId)}"`;
+      w.textContent = t('shortcuts.recorder.conflict').replace('%s', getShortcutActionName(conflictId));
       keysDisplay.appendChild(w);
       saveBtn.disabled = true;
     } else {
@@ -261,15 +237,15 @@ export function openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose
   overlay.innerHTML = `
     <div class="settings-modal" style="min-width: 420px;">
       <div class="settings-modal-header">
-        <span>Keyboard Shortcuts</span>
-        <button type="button" class="settings-modal-close" aria-label="Close">×</button>
+        <span>${t('shortcuts.modalTitle')}</span>
+        <button type="button" class="settings-modal-close" aria-label="${t('shortcuts.closeAriaLabel')}">×</button>
       </div>
       <div class="settings-modal-body" style="max-height: 450px; overflow-y: auto;">
         <div class="shortcuts-list" id="modal-shortcuts-list"></div>
       </div>
       <div class="settings-modal-footer">
-        <button type="button" class="settings-modal-btn" id="modal-shortcuts-reset">Reset to Defaults</button>
-        <button type="button" class="settings-modal-btn primary close-btn">Done</button>
+        <button type="button" class="settings-modal-btn" id="modal-shortcuts-reset">${t('shortcuts.resetToDefaults')}</button>
+        <button type="button" class="settings-modal-btn primary close-btn">${t('shortcuts.done')}</button>
       </div>
     </div>
   `;
@@ -288,7 +264,7 @@ export function openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose
 
   // Reset shortcuts button
   overlay.querySelector('#modal-shortcuts-reset').addEventListener('click', async () => {
-    const confirmed = await showConfirmDialog('Reset all keyboard shortcuts to their default values?');
+    const confirmed = await showConfirmDialog(t('shortcuts.confirm.resetMessage'));
     if (confirmed) {
       ShortcutsRegistry.resetShortcutsToDefaults();
       scheduleSettingsSave();
@@ -327,7 +303,7 @@ export function openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose
       if (shortcut.mode === 'nav') {
         const badge = document.createElement('span');
         badge.className = 'shortcut-mode-badge';
-        badge.textContent = 'Nav';
+        badge.textContent = t('shortcuts.navBadge');
         name.appendChild(badge);
       }
 
@@ -351,7 +327,7 @@ export function openKeyboardShortcutsModal(bridge, scheduleSettingsSave, onClose
       editBtn.type = 'button';
       editBtn.className = 'shortcut-edit-btn';
       editBtn.textContent = '✎';
-      editBtn.title = 'Change shortcut';
+      editBtn.title = t('shortcuts.changeShortcut');
       editBtn.addEventListener('click', () => {
         startShortcutRecording(id, () => renderModalShortcuts());
       });

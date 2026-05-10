@@ -56,11 +56,11 @@
               <div class="color-preset-grid" id="color-preset-grid"></div>
               <div class="settings-divider"></div>
               <div class="settings-row settings-clickable-row" id="color-import-btn" role="button" tabindex="0">
-                <span>Import .itermcolors…</span>
+                <span data-i18n="colors.import">Import .itermcolors…</span>
                 <span class="settings-row-hint">›</span>
               </div>
               <div class="settings-row settings-clickable-row" id="color-export-btn" role="button" tabindex="0">
-                <span>Export .itermcolors…</span>
+                <span data-i18n="colors.export">Export .itermcolors…</span>
                 <span class="settings-row-hint">↓</span>
               </div>
               <input type="file" id="color-import-input" accept=".itermcolors" class="is-hidden" />
@@ -208,7 +208,7 @@
       </main>
 
       <footer class="status-bar">
-        <span id="broadcast-indicator">⊕ BROADCAST</span>
+        <span id="broadcast-indicator" data-i18n="broadcast.label">⊕ BROADCAST</span>
         <span id="status-label" aria-live="polite"></span>
         <span class="status-hint" id="status-hint"></span>
       </footer>
@@ -221,7 +221,7 @@
       <button id="search-prev" type="button" class="search-nav" aria-label="Previous match" title="Previous (Shift+Enter)">↑</button>
       <button id="search-next" type="button" class="search-nav" aria-label="Next match" title="Next (Enter)">↓</button>
       <button id="search-close" type="button" class="search-close" aria-label="Close search">×</button>
-      <button id="search-all-panes" type="button" class="search-all-panes" title="Search all tabs" aria-label="Search all tabs" aria-pressed="false">All</button>
+      <button id="search-all-panes" type="button" class="search-all-panes" title="Search all tabs" aria-label="Search all tabs" aria-pressed="false" data-i18n="search.allPanes">All</button>
     </div>
 
     <div id="search-results-panel" class="search-results-panel is-hidden" aria-label="Cross-pane search results"></div>
