@@ -18,6 +18,7 @@ function rgbToHex(r, g, b) {
 }
 
 function hexToComps(hex) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return { r: 0, g: 0, b: 0 };
   return {
     r: parseInt(hex.slice(1, 3), 16) / 255,
     g: parseInt(hex.slice(3, 5), 16) / 255,

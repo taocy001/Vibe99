@@ -195,7 +195,7 @@ export function createSettingsUI({
     fontFamilySelectEl.value = FONT_PRESET_VALUES.has(settings.fontFamily)
       ? settings.fontFamily
       : '__custom__';
-  });
+  }).catch(() => {});
   const paneWidthRangeEl      = document.getElementById('pane-width-range');
   const paneWidthValueEl      = document.getElementById('pane-width-value');
   const paneOpacityRangeEl    = document.getElementById('pane-opacity-range');

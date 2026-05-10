@@ -1338,12 +1338,14 @@ function selectAllInTerminal(paneId = st.focusedPaneId) {
   return true;
 }
 
+const IMAGE_PASTE_TRIGGER = '\x16'; // SYN (^V) — triggers iTerm2-compatible image paste protocol
+
 async function pasteImageIntoTerminal(paneId = st.focusedPaneId, options = {}) {
   const node = paneManager.getPaneNode(paneId);
   if (!node?.sessionReady) return false;
   const snap = options.clipboardSnapshot ?? (await getClipboardSnapshot());
   if (!snap.hasImage) return false;
-  bridge.writeTerminal({ paneId: node.paneId, data: '' });
+  bridge.writeTerminal({ paneId: node.paneId, data: IMAGE_PASTE_TRIGGER });
   return true;
 }
 
@@ -1438,35 +1440,64 @@ function showColorPicker(paneId) {
 
   const picker = document.createElement('div');
   picker.className = 'color-picker-overlay';
-  picker.innerHTML = `
-    <div class="color-picker-dialog">
-      <div class="color-picker-header">
-        <span>Pane Color</span>
-        <button type="button" class="color-picker-close" aria-label="Close">×</button>
-      </div>
-      <div class="color-picker-presets">
-        ${ColorsRegistry.PRESET_PANE_COLORS.map(color => `
-          <button type="button" class="color-preset${color === currentColor ? ' is-selected' : ''}"
-                  style="--color: ${color}" data-color="${color}" aria-label="Select ${color}"></button>
-        `).join('')}
-      </div>
-      <div class="color-picker-custom">
-        <label>Custom:</label>
-        <input type="color" class="color-picker-input" value="${currentColor}" />
-      </div>
-      <div class="color-picker-footer">
-        <button type="button" class="color-picker-clear">Clear Color</button>
-      </div>
-    </div>
-  `;
-  picker.addEventListener('click', (e) => { if (e.target === picker) picker.remove(); });
-  picker.querySelector('.color-picker-close').addEventListener('click', () => picker.remove());
-  picker.querySelectorAll('.color-preset').forEach(btn => {
-    btn.addEventListener('click', () => { setPaneColor(paneId, btn.dataset.color); picker.remove(); });
-  });
-  const colorInput = picker.querySelector('.color-picker-input');
+
+  const dialog = document.createElement('div');
+  dialog.className = 'color-picker-dialog';
+
+  const header = document.createElement('div');
+  header.className = 'color-picker-header';
+  const headerTitle = document.createElement('span');
+  headerTitle.textContent = 'Pane Color';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'color-picker-close';
+  closeBtn.setAttribute('type', 'button');
+  closeBtn.setAttribute('aria-label', 'Close');
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', () => picker.remove());
+  header.appendChild(headerTitle);
+  header.appendChild(closeBtn);
+
+  const presets = document.createElement('div');
+  presets.className = 'color-picker-presets';
+  for (const color of ColorsRegistry.PRESET_PANE_COLORS) {
+    const btn = document.createElement('button');
+    btn.className = 'color-preset';
+    btn.classList.toggle('is-selected', color === currentColor);
+    btn.style.setProperty('--color', color);
+    btn.dataset.color = color;
+    btn.setAttribute('type', 'button');
+    btn.setAttribute('aria-label', 'Select ' + color);
+    btn.addEventListener('click', () => { setPaneColor(paneId, color); picker.remove(); });
+    presets.appendChild(btn);
+  }
+
+  const custom = document.createElement('div');
+  custom.className = 'color-picker-custom';
+  const customLabel = document.createElement('label');
+  customLabel.textContent = 'Custom:';
+  const colorInput = document.createElement('input');
+  colorInput.setAttribute('type', 'color');
+  colorInput.value = currentColor || '#000000';
   colorInput.addEventListener('input', () => { setPaneColor(paneId, colorInput.value); });
-  picker.querySelector('.color-picker-clear').addEventListener('click', () => { clearPaneColor(paneId); picker.remove(); });
+  customLabel.appendChild(colorInput);
+  custom.appendChild(customLabel);
+
+  const footer = document.createElement('div');
+  footer.className = 'color-picker-footer';
+  const clearBtn = document.createElement('button');
+  clearBtn.setAttribute('type', 'button');
+  clearBtn.className = 'color-picker-clear';
+  clearBtn.textContent = 'Clear Color';
+  clearBtn.addEventListener('click', () => { clearPaneColor(paneId); picker.remove(); });
+  footer.appendChild(clearBtn);
+
+  dialog.appendChild(header);
+  dialog.appendChild(presets);
+  dialog.appendChild(custom);
+  dialog.appendChild(footer);
+  picker.appendChild(dialog);
+
+  picker.addEventListener('click', (e) => { if (e.target === picker) picker.remove(); });
   document.body.appendChild(picker);
   colorInput.focus();
 }

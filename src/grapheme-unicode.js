@@ -116,12 +116,18 @@ function buildU11Provider() {
   return provider;
 }
 
+let _cachedU11Provider = null;
+function getU11Provider() {
+  if (!_cachedU11Provider) _cachedU11Provider = buildU11Provider();
+  return _cachedU11Provider;
+}
+
 export class GraphemeProvider {
   // getAmbiguousDouble: () => boolean — read live from settings each call so
   // the toggle takes effect without restarting the terminal.
   constructor(getAmbiguousDouble) {
     this.version = 'grapheme-v1';
-    this._u11 = buildU11Provider();
+    this._u11 = getU11Provider();
     this._lastWasZWJ = false;
     this._getAmbiguousDouble = getAmbiguousDouble || (() => false);
   }
