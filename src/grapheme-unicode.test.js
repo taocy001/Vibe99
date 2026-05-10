@@ -103,6 +103,29 @@ describe('GraphemeProvider', () => {
     expect(extractWidth(prop)).toBe(2);
   });
 
+  // ── Skin-tone modifiers ───────────────────────────────────────────────────
+
+  it('skin-tone modifier after base emoji is combined (width 0)', () => {
+    const propHand = p.charProperties(0x1F44B, 0);           // 👋
+    const propTone = p.charProperties(0x1F3FD, propHand);    // 🏽 medium skin
+    expect(extractCombined(propTone)).toBe(true);
+    expect(extractWidth(propTone)).toBe(0);
+  });
+
+  it('base emoji before skin tone retains width 2', () => {
+    const propHand = p.charProperties(0x1F44B, 0); // 👋
+    expect(extractWidth(propHand)).toBe(2);
+    expect(extractCombined(propHand)).toBe(false);
+  });
+
+  it('all five skin-tone modifier codepoints are combined', () => {
+    for (let cp = 0x1F3FB; cp <= 0x1F3FF; cp++) {
+      const prop = p.charProperties(cp, encodeProperty(2, false));
+      expect(extractCombined(prop), `U+${cp.toString(16)}`).toBe(true);
+      expect(extractWidth(prop), `U+${cp.toString(16)}`).toBe(0);
+    }
+  });
+
   // ── CJK combining marks still work ───────────────────────────────────────
 
   it('zero-width combining mark after CJK character is combined', () => {

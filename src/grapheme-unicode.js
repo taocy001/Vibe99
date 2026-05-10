@@ -11,12 +11,16 @@
 // it into the preceding grapheme cluster cell.
 //
 // NOT HANDLED (out of scope for P2.3):
-//   - Regional indicator flag pairs (🇺🇸 = U+1F1FA U+1F1F8, no ZWJ)
-//   - Skin-tone modifier sequences (👋🏽 = U+1F44B U+1F3FD, no ZWJ)
+//   - Regional indicator flag pairs (🇺🇸): each RI has wcwidth=1 so two RIs
+//     naturally occupy 2 cells — no fix needed.
+//   - Subdivision flags (🏴󠁧󠁢󠁥󠁮󠁧󠁿): tag chars U+E0020–U+E007F have wcwidth=0
+//     so they're already combined by the U11 provider — no fix needed.
 
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 
 const ZWJ = 0x200D;
+const SKIN_TONE_START = 0x1F3FB;
+const SKIN_TONE_END   = 0x1F3FF;
 
 // Matches xterm's internal createPropertyValue(charKind=0, width, shouldJoin).
 // Encoding: bit 0 = shouldJoin, bits 1-2 = width. charKind (bits 3+) is always
@@ -71,6 +75,13 @@ export class GraphemeProvider {
     // Narrow codepoints (width 1, e.g. ASCII) after a ZWJ are not collapsed —
     // that would be a malformed sequence and must not corrupt rendering.
     if (afterZWJ && this._u11.wcwidth(codepoint) === 2) {
+      return encodeProperty(0, true);
+    }
+
+    // Skin-tone modifiers (U+1F3FB–U+1F3FF) have wcwidth=2 but must be
+    // combined with the preceding base emoji (e.g. 👋🏽). They always follow
+    // a base emoji without ZWJ.
+    if (codepoint >= SKIN_TONE_START && codepoint <= SKIN_TONE_END) {
       return encodeProperty(0, true);
     }
 
