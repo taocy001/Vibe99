@@ -504,6 +504,12 @@ function createPane(pane, { tabId = null } = {}) {
       e.stopImmediatePropagation();
       return;
     }
+    // Any non-Enter, non-composition key clears _compositionFailed so that vi/vim Enter
+    // is not permanently blocked after a cancelled Pinyin composition. _compositionFailed
+    // only needs to catch the Enter that fires *immediately* after compositionend.
+    if (_compositionFailed && e.key !== 'Enter' && e.keyCode !== 229) {
+      _compositionFailed = false;
+    }
     // Suppress Enter that commits IME composition.
     // _compositionJustEnded catches the case where Enter fires within 50ms of compositionend
     // (standard IME where compositionend carries data, e.g. selecting a Chinese character).
