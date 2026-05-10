@@ -582,6 +582,12 @@ function createPane(pane, { tabId = null } = {}) {
       }
     } else {
       _compositionFailed = true;
+      // Composition was cancelled (all chars deleted via Backspace). Clear ta.value so
+      // xterm doesn't read the residual IME text and send it to the terminal.
+      if (ta) {
+        ta.value = '';
+        setTimeout(() => { if (ta.isConnected) ta.value = ''; }, 0);
+      }
     }
   }, { capture: true, signal });
 
