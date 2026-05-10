@@ -72,8 +72,8 @@ const EAW_A_RANGES = [
   [0x2312,0x2312],
   // Enclosed alphanumerics (circled numbers/letters ①-ⓩ)
   [0x2460,0x24E9],[0x24EB,0x24FF],
-  // Box drawing (all — single and double)
-  [0x2500,0x257F],
+  // Box drawing: only double-line (EAW=A); single-line U+2500-U+254F are Na
+  [0x2550,0x2573],
   // Block elements
   [0x2580,0x258F],[0x2592,0x2595],
   // Geometric shapes
