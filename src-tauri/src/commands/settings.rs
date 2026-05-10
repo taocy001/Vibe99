@@ -782,3 +782,486 @@ pub fn settings_save(app: AppHandle, mut settings: Value) -> Result<Value, Strin
 
     Ok(sanitized)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn ver() -> u64 { CURRENT_CONFIG_VERSION as u64 }
+    fn ui_of(cfg: &Value) -> &Value { cfg.get("ui").unwrap() }
+    fn shell_of(cfg: &Value) -> &Value { cfg.get("shell").unwrap() }
+
+    fn v2(ui: Value) -> Value {
+        json!({ "version": 2, "ui": ui, "shell": { "profiles": [], "defaultProfile": "" } })
+    }
+
+    // ── sanitize_config: null / defaults ──────────────────────────────────
+
+    #[test]
+    fn null_returns_versioned_defaults() {
+        let r = sanitize_config(&Value::Null);
+        assert_eq!(r["version"].as_u64().unwrap(), ver());
+        assert_eq!(ui_of(&r)["fontSize"].as_u64().unwrap(), DEFAULT_FONT_SIZE as u64);
+        assert!((ui_of(&r)["paneOpacity"].as_f64().unwrap() - DEFAULT_PANE_OPACITY).abs() < 0.01);
+        assert_eq!(ui_of(&r)["paneWidth"].as_u64().unwrap(), DEFAULT_PANE_WIDTH as u64);
+        assert_eq!(shell_of(&r)["profiles"].as_array().unwrap().len(), 0);
+        assert_eq!(shell_of(&r)["defaultProfile"].as_str().unwrap(), "");
+    }
+
+    #[test]
+    fn non_object_returns_defaults() {
+        assert_eq!(sanitize_config(&json!(42))["version"].as_u64().unwrap(), ver());
+        assert_eq!(sanitize_config(&json!("string"))["version"].as_u64().unwrap(), ver());
+    }
+
+    // ── legacy flat format ────────────────────────────────────────────────
+
+    #[test]
+    fn legacy_flat_format_promoted() {
+        let input = json!({ "fontSize": 16, "paneOpacity": 0.9, "paneWidth": 800 });
+        let r = sanitize_config(&input);
+        assert_eq!(r["version"].as_u64().unwrap(), ver());
+        assert_eq!(ui_of(&r)["fontSize"].as_u64().unwrap(), 16);
+        assert_eq!(shell_of(&r)["profiles"].as_array().unwrap().len(), 0);
+    }
+
+    // ── version migration ─────────────────────────────────────────────────
+
+    #[test]
+    fn v1_migrated_to_current() {
+        let input = json!({ "version": 1, "ui": { "fontSize": 14 } });
+        let r = sanitize_config(&input);
+        assert_eq!(r["version"].as_u64().unwrap(), ver());
+        assert_eq!(ui_of(&r)["fontSize"].as_u64().unwrap(), 14);
+        assert_eq!(shell_of(&r)["profiles"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn v2_passthrough_preserves_ui() {
+        let r = sanitize_config(&v2(json!({ "fontSize": 15 })));
+        assert_eq!(ui_of(&r)["fontSize"].as_u64().unwrap(), 15);
+    }
+
+    // ── font size clamping ────────────────────────────────────────────────
+
+    #[test]
+    fn font_size_clamped_low() {
+        let r = sanitize_config(&v2(json!({ "fontSize": 5 })));
+        assert_eq!(ui_of(&r)["fontSize"].as_u64().unwrap(), 10);
+    }
+
+    #[test]
+    fn font_size_clamped_high() {
+        let r = sanitize_config(&v2(json!({ "fontSize": 99 })));
+        assert_eq!(ui_of(&r)["fontSize"].as_u64().unwrap(), 24);
+    }
+
+    #[test]
+    fn font_size_within_range_preserved() {
+        let r = sanitize_config(&v2(json!({ "fontSize": 18 })));
+        assert_eq!(ui_of(&r)["fontSize"].as_u64().unwrap(), 18);
+    }
+
+    #[test]
+    fn font_size_nan_falls_back_to_default() {
+        let r = sanitize_config(&v2(json!({ "fontSize": "large" })));
+        assert_eq!(ui_of(&r)["fontSize"].as_u64().unwrap(), DEFAULT_FONT_SIZE as u64);
+    }
+
+    // ── pane opacity clamping ─────────────────────────────────────────────
+
+    #[test]
+    fn pane_opacity_clamped_low() {
+        let r = sanitize_config(&v2(json!({ "paneOpacity": 0.0 })));
+        let v = ui_of(&r)["paneOpacity"].as_f64().unwrap();
+        assert!((v - 0.55).abs() < 0.01);
+    }
+
+    #[test]
+    fn pane_opacity_clamped_high() {
+        let r = sanitize_config(&v2(json!({ "paneOpacity": 2.0 })));
+        let v = ui_of(&r)["paneOpacity"].as_f64().unwrap();
+        assert!((v - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn pane_opacity_rounds_to_two_decimals() {
+        let r = sanitize_config(&v2(json!({ "paneOpacity": 0.756 })));
+        let v = ui_of(&r)["paneOpacity"].as_f64().unwrap();
+        // 0.756 * 100 = 75.6 → round = 76 → 0.76
+        assert!((v - 0.76).abs() < 0.001);
+    }
+
+    // ── pane width clamping ───────────────────────────────────────────────
+
+    #[test]
+    fn pane_width_clamped_low() {
+        let r = sanitize_config(&v2(json!({ "paneWidth": 100 })));
+        assert_eq!(ui_of(&r)["paneWidth"].as_u64().unwrap(), 520);
+    }
+
+    #[test]
+    fn pane_width_clamped_high() {
+        let r = sanitize_config(&v2(json!({ "paneWidth": 5000 })));
+        assert_eq!(ui_of(&r)["paneWidth"].as_u64().unwrap(), 2000);
+    }
+
+    #[test]
+    fn pane_width_snaps_to_nearest_10() {
+        let r = sanitize_config(&v2(json!({ "paneWidth": 723 })));
+        let w = ui_of(&r)["paneWidth"].as_u64().unwrap();
+        assert_eq!(w, 720); // 72.3 → round to 72 → 720
+        assert_eq!(w % 10, 0);
+    }
+
+    // ── language validation ───────────────────────────────────────────────
+
+    #[test]
+    fn valid_languages_preserved() {
+        for lang in ["en", "zh-CN", "zh-TW", "ja"] {
+            let r = sanitize_config(&v2(json!({ "language": lang })));
+            assert_eq!(ui_of(&r)["language"].as_str().unwrap(), lang);
+        }
+    }
+
+    #[test]
+    fn invalid_language_dropped() {
+        let r = sanitize_config(&v2(json!({ "language": "fr" })));
+        assert!(ui_of(&r).get("language").is_none());
+    }
+
+    // ── color mode validation ─────────────────────────────────────────────
+
+    #[test]
+    fn valid_color_modes_preserved() {
+        for mode in ["dark", "light", "auto"] {
+            let r = sanitize_config(&v2(json!({ "colorMode": mode })));
+            assert_eq!(ui_of(&r)["colorMode"].as_str().unwrap(), mode);
+        }
+    }
+
+    #[test]
+    fn invalid_color_mode_dropped() {
+        let r = sanitize_config(&v2(json!({ "colorMode": "purple" })));
+        assert!(ui_of(&r).get("colorMode").is_none());
+    }
+
+    // ── boolean settings ──────────────────────────────────────────────────
+
+    #[test]
+    fn boolean_settings_round_trip() {
+        let r = sanitize_config(&v2(json!({
+            "copyOnSelect": true,
+            "rightClickPaste": false,
+            "ambiguousDouble": true,
+            "showStatusBar": true,
+        })));
+        let ui = ui_of(&r);
+        assert_eq!(ui["copyOnSelect"].as_bool().unwrap(), true);
+        assert_eq!(ui["rightClickPaste"].as_bool().unwrap(), false);
+        assert_eq!(ui["ambiguousDouble"].as_bool().unwrap(), true);
+        assert_eq!(ui["showStatusBar"].as_bool().unwrap(), true);
+    }
+
+    // ── scrollback clamping ───────────────────────────────────────────────
+
+    #[test]
+    fn scrollback_clamped_low() {
+        let r = sanitize_config(&v2(json!({ "scrollback": 100 })));
+        assert_eq!(ui_of(&r)["scrollback"].as_u64().unwrap(), 1000);
+    }
+
+    #[test]
+    fn scrollback_clamped_high() {
+        let r = sanitize_config(&v2(json!({ "scrollback": 999999 })));
+        assert_eq!(ui_of(&r)["scrollback"].as_u64().unwrap(), 50000);
+    }
+
+    #[test]
+    fn scrollback_in_range_preserved() {
+        let r = sanitize_config(&v2(json!({ "scrollback": 5000 })));
+        assert_eq!(ui_of(&r)["scrollback"].as_u64().unwrap(), 5000);
+    }
+
+    // ── font family ───────────────────────────────────────────────────────
+
+    #[test]
+    fn font_family_preserved() {
+        let r = sanitize_config(&v2(json!({ "fontFamily": "Fira Code" })));
+        assert_eq!(ui_of(&r)["fontFamily"].as_str().unwrap(), "Fira Code");
+    }
+
+    #[test]
+    fn whitespace_only_font_family_dropped() {
+        let r = sanitize_config(&v2(json!({ "fontFamily": "   " })));
+        assert!(ui_of(&r).get("fontFamily").is_none());
+    }
+
+    // ── ShellProfile::sanitize ────────────────────────────────────────────
+
+    #[test]
+    fn shell_profile_valid_local() {
+        let v = json!({ "id": "zsh", "command": "/bin/zsh", "args": ["-il"] });
+        let p = ShellProfile::sanitize(&v).unwrap();
+        assert_eq!(p.id, "zsh");
+        assert_eq!(p.command, "/bin/zsh");
+        assert_eq!(p.args, vec!["-il"]);
+        assert_eq!(p.kind, "local");
+        assert!(p.ssh_config.is_none());
+    }
+
+    #[test]
+    fn shell_profile_missing_id_rejected() {
+        assert!(ShellProfile::sanitize(&json!({ "command": "/bin/bash" })).is_none());
+    }
+
+    #[test]
+    fn shell_profile_whitespace_id_rejected() {
+        assert!(ShellProfile::sanitize(&json!({ "id": "  ", "command": "/bin/bash" })).is_none());
+    }
+
+    #[test]
+    fn shell_profile_empty_command_rejected() {
+        assert!(ShellProfile::sanitize(&json!({ "id": "x", "command": "" })).is_none());
+    }
+
+    #[test]
+    fn shell_profile_command_starting_with_dash_rejected() {
+        assert!(ShellProfile::sanitize(&json!({ "id": "x", "command": "-rm" })).is_none());
+    }
+
+    #[test]
+    fn shell_profile_control_chars_stripped_from_command() {
+        let v = json!({ "id": "x", "command": "/bin/zsh\x00\x01" });
+        let p = ShellProfile::sanitize(&v).unwrap();
+        assert_eq!(p.command, "/bin/zsh");
+    }
+
+    #[test]
+    fn shell_profile_ssh_defaults_command_to_ssh() {
+        let v = json!({
+            "id": "myserver", "kind": "ssh",
+            "sshConfig": { "host": "example.com" }
+        });
+        let p = ShellProfile::sanitize(&v).unwrap();
+        assert_eq!(p.command, "ssh");
+        assert_eq!(p.kind, "ssh");
+        assert_eq!(p.ssh_config.as_ref().unwrap().host, "example.com");
+    }
+
+    #[test]
+    fn shell_profile_ssh_missing_host_rejected() {
+        let v = json!({ "id": "s", "kind": "ssh", "sshConfig": { "host": "" } });
+        assert!(ShellProfile::sanitize(&v).is_none());
+    }
+
+    #[test]
+    fn shell_profile_ssh_host_starts_with_dash_rejected() {
+        let v = json!({ "id": "s", "kind": "ssh", "sshConfig": { "host": "-proxycmd" } });
+        assert!(ShellProfile::sanitize(&v).is_none());
+    }
+
+    #[test]
+    fn shell_profile_ssh_missing_sshconfig_rejected() {
+        let v = json!({ "id": "s", "kind": "ssh" });
+        assert!(ShellProfile::sanitize(&v).is_none());
+    }
+
+    #[test]
+    fn shell_profile_display_name_falls_back_to_id() {
+        let p = ShellProfile {
+            id: "zsh".into(), name: "".into(), command: "/bin/zsh".into(),
+            args: vec![], kind: "local".into(), ssh_config: None,
+        };
+        assert_eq!(p.display_name(), "zsh");
+    }
+
+    #[test]
+    fn shell_profile_display_name_uses_name_when_set() {
+        let p = ShellProfile {
+            id: "zsh".into(), name: "My Shell".into(), command: "/bin/zsh".into(),
+            args: vec![], kind: "local".into(), ssh_config: None,
+        };
+        assert_eq!(p.display_name(), "My Shell");
+    }
+
+    // ── sanitize_ssh_args ─────────────────────────────────────────────────
+
+    fn ssh_profile_args(args: Vec<&str>) -> Vec<String> {
+        let v = json!({
+            "id": "s", "kind": "ssh",
+            "sshConfig": { "host": "example.com" },
+            "args": args,
+        });
+        ShellProfile::sanitize(&v).unwrap().args
+    }
+
+    #[test]
+    fn ssh_args_standalone_t_allowed() {
+        assert!(ssh_profile_args(vec!["-t"]).contains(&"-t".to_string()));
+    }
+
+    #[test]
+    fn ssh_args_dash_dash_allowed() {
+        assert!(ssh_profile_args(vec!["--"]).contains(&"--".to_string()));
+    }
+
+    #[test]
+    fn ssh_args_p_with_valid_port_allowed() {
+        let args = ssh_profile_args(vec!["-p", "22"]);
+        assert!(args.contains(&"-p".to_string()));
+        assert!(args.contains(&"22".to_string()));
+    }
+
+    #[test]
+    fn ssh_args_p_with_invalid_port_dropped() {
+        let args = ssh_profile_args(vec!["-p", "99999"]);
+        assert!(!args.contains(&"-p".to_string()));
+    }
+
+    #[test]
+    fn ssh_args_dangerous_o_flag_dropped() {
+        // -o is not in the allowlist and is dropped; its value is treated as a
+        // positional (hostname), which is safe — SSH won't interpret it as an option.
+        let args = ssh_profile_args(vec!["-o", "ProxyCommand=evil"]);
+        assert!(!args.contains(&"-o".to_string()));
+        // The value "ProxyCommand=evil" passes through as a positional hostname arg.
+        // This is safe: it's not a flag, and SSH would just try to connect to that hostname.
+    }
+
+    #[test]
+    fn ssh_args_bare_hostname_allowed() {
+        let args = ssh_profile_args(vec!["user@host"]);
+        assert!(args.contains(&"user@host".to_string()));
+    }
+
+    #[test]
+    fn ssh_args_i_with_path_allowed() {
+        let args = ssh_profile_args(vec!["-i", "~/.ssh/id_rsa"]);
+        assert!(args.contains(&"-i".to_string()));
+        assert!(args.contains(&"~/.ssh/id_rsa".to_string()));
+    }
+
+    #[test]
+    fn ssh_args_l_with_user_allowed() {
+        let args = ssh_profile_args(vec!["-l", "ubuntu"]);
+        assert!(args.contains(&"-l".to_string()));
+        assert!(args.contains(&"ubuntu".to_string()));
+    }
+
+    #[test]
+    fn ssh_args_dangling_flag_without_value_dropped() {
+        let args = ssh_profile_args(vec!["-p"]);
+        assert!(!args.contains(&"-p".to_string()));
+    }
+
+    // ── defaultProfile resolution ─────────────────────────────────────────
+
+    #[test]
+    fn default_profile_falls_back_to_first_when_missing() {
+        let input = json!({
+            "version": 2, "ui": {},
+            "shell": {
+                "profiles": [
+                    { "id": "zsh", "command": "/bin/zsh" },
+                    { "id": "bash", "command": "/bin/bash" }
+                ],
+                "defaultProfile": "nonexistent"
+            }
+        });
+        assert_eq!(sanitize_config(&input)["shell"]["defaultProfile"].as_str().unwrap(), "zsh");
+    }
+
+    #[test]
+    fn valid_default_profile_preserved() {
+        let input = json!({
+            "version": 2, "ui": {},
+            "shell": {
+                "profiles": [
+                    { "id": "zsh", "command": "/bin/zsh" },
+                    { "id": "bash", "command": "/bin/bash" }
+                ],
+                "defaultProfile": "bash"
+            }
+        });
+        assert_eq!(sanitize_config(&input)["shell"]["defaultProfile"].as_str().unwrap(), "bash");
+    }
+
+    #[test]
+    fn duplicate_profile_ids_deduplicated() {
+        let input = json!({
+            "version": 2, "ui": {},
+            "shell": {
+                "profiles": [
+                    { "id": "zsh", "command": "/bin/zsh" },
+                    { "id": "zsh", "command": "/usr/bin/zsh" }
+                ],
+                "defaultProfile": "zsh"
+            }
+        });
+        assert_eq!(sanitize_config(&input)["shell"]["profiles"].as_array().unwrap().len(), 1);
+    }
+
+    // ── sanitize_session ──────────────────────────────────────────────────
+
+    #[test]
+    fn session_invalid_accents_filtered() {
+        let input = json!({
+            "version": 2, "ui": {},
+            "shell": { "profiles": [], "defaultProfile": "" },
+            "session": {
+                "panes": [
+                    { "accent": "#aabbcc" },
+                    { "accent": "invalid" },
+                    { "accent": "#XXYYZZ" },
+                    { "accent": "#aabbcc99" },
+                ],
+                "focusedPaneIndex": 0
+            }
+        });
+        let r = sanitize_config(&input);
+        let panes = r["session"]["panes"].as_array().unwrap();
+        assert_eq!(panes.len(), 1);
+        assert_eq!(panes[0]["accent"].as_str().unwrap(), "#aabbcc");
+    }
+
+    #[test]
+    fn session_empty_panes_excluded_from_output() {
+        let input = json!({
+            "version": 2, "ui": {},
+            "shell": { "profiles": [], "defaultProfile": "" },
+            "session": { "panes": [], "focusedPaneIndex": 0 }
+        });
+        let r = sanitize_config(&input);
+        assert!(r.get("session").is_none());
+    }
+
+    #[test]
+    fn focused_pane_index_clamped_to_last() {
+        let input = json!({
+            "version": 2, "ui": {},
+            "shell": { "profiles": [], "defaultProfile": "" },
+            "session": {
+                "panes": [{ "accent": "#aabbcc" }],
+                "focusedPaneIndex": 99
+            }
+        });
+        let r = sanitize_config(&input);
+        assert_eq!(r["session"]["focusedPaneIndex"].as_u64().unwrap(), 0);
+    }
+
+    #[test]
+    fn session_uppercase_hex_accepted() {
+        let input = json!({
+            "version": 2, "ui": {},
+            "shell": { "profiles": [], "defaultProfile": "" },
+            "session": {
+                "panes": [{ "accent": "#AABBCC" }],
+                "focusedPaneIndex": 0
+            }
+        });
+        let r = sanitize_config(&input);
+        assert_eq!(r["session"]["panes"].as_array().unwrap().len(), 1);
+    }
+}

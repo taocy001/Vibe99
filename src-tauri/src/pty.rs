@@ -800,3 +800,125 @@ fn is_executable(path: &Path) -> bool {
 fn is_executable(path: &Path) -> bool {
     path.is_file()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── utf8_safe_cut ─────────────────────────────────────────────────────
+
+    #[test]
+    fn utf8_safe_cut_empty_buffer() {
+        assert_eq!(utf8_safe_cut(&[]), 0);
+    }
+
+    #[test]
+    fn utf8_safe_cut_all_ascii_returns_length() {
+        let buf = b"hello world";
+        assert_eq!(utf8_safe_cut(buf), buf.len());
+    }
+
+    #[test]
+    fn utf8_safe_cut_complete_two_byte_char() {
+        let s = "héllo"; // é = 2 bytes (0xC3 0xA9)
+        let buf = s.as_bytes();
+        assert_eq!(utf8_safe_cut(buf), buf.len());
+    }
+
+    #[test]
+    fn utf8_safe_cut_incomplete_two_byte_char() {
+        // 'h' (0x68) + first byte of 'é' (0xC3) — incomplete
+        let buf: &[u8] = &[0x68, 0xC3];
+        assert_eq!(utf8_safe_cut(buf), 1); // only 'h' is safe
+    }
+
+    #[test]
+    fn utf8_safe_cut_complete_three_byte_char() {
+        let s = "日"; // 3 bytes: E6 97 A5
+        let buf = s.as_bytes();
+        assert_eq!(utf8_safe_cut(buf), 3);
+    }
+
+    #[test]
+    fn utf8_safe_cut_incomplete_three_byte_char() {
+        let s = "日";
+        let buf = s.as_bytes();
+        assert_eq!(utf8_safe_cut(&buf[..2]), 0); // both bytes are part of the sequence
+    }
+
+    #[test]
+    fn utf8_safe_cut_complete_four_byte_char() {
+        let s = "𝄞"; // 4 bytes: F0 9D 84 9E
+        let buf = s.as_bytes();
+        assert_eq!(utf8_safe_cut(buf), 4);
+    }
+
+    #[test]
+    fn utf8_safe_cut_incomplete_four_byte_char() {
+        let s = "𝄞";
+        let buf = s.as_bytes();
+        // 3 bytes of a 4-byte sequence
+        assert_eq!(utf8_safe_cut(&buf[..3]), 0);
+    }
+
+    #[test]
+    fn utf8_safe_cut_mixed_ascii_and_cjk() {
+        let s = "hi日本語";
+        let buf = s.as_bytes();
+        assert_eq!(utf8_safe_cut(buf), buf.len());
+    }
+
+    #[test]
+    fn utf8_safe_cut_single_ascii_byte() {
+        assert_eq!(utf8_safe_cut(b"a"), 1);
+    }
+
+    #[test]
+    fn utf8_safe_cut_ascii_then_incomplete_multibyte() {
+        // "abc" + first byte of 'é'
+        let buf: Vec<u8> = b"abc".iter().chain(&[0xC3u8]).copied().collect();
+        assert_eq!(utf8_safe_cut(&buf), 3);
+    }
+
+    // ── display_name_to_id ────────────────────────────────────────────────
+
+    #[test]
+    fn display_name_to_id_basic_lowercase() {
+        assert_eq!(display_name_to_id("PowerShell"), "powershell");
+    }
+
+    #[test]
+    fn display_name_to_id_parens_become_dash() {
+        assert_eq!(display_name_to_id("WSL (Ubuntu)"), "wsl-ubuntu");
+    }
+
+    #[test]
+    fn display_name_to_id_spaces_collapsed_to_dash() {
+        assert_eq!(display_name_to_id("My Shell 2"), "my-shell-2");
+    }
+
+    #[test]
+    fn display_name_to_id_leading_trailing_dashes_stripped() {
+        assert_eq!(display_name_to_id("(Ubuntu)"), "ubuntu");
+    }
+
+    #[test]
+    fn display_name_to_id_runs_of_non_alphanumeric_become_single_dash() {
+        assert_eq!(display_name_to_id("a  --  b"), "a-b");
+    }
+
+    #[test]
+    fn display_name_to_id_already_slug() {
+        assert_eq!(display_name_to_id("bash"), "bash");
+    }
+
+    #[test]
+    fn display_name_to_id_empty_string() {
+        assert_eq!(display_name_to_id(""), "");
+    }
+
+    #[test]
+    fn display_name_to_id_only_special_chars() {
+        assert_eq!(display_name_to_id("---"), "");
+    }
+}

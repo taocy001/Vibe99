@@ -104,3 +104,129 @@ fn parse_ssh_config(content: &str, home: &Path) -> Vec<SshHostEntry> {
     flush_entry(&aliases, &hostname, port, &user, &identity_file, home, &mut entries);
     entries
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::{Path, PathBuf};
+
+    fn home() -> PathBuf { PathBuf::from("/home/user") }
+
+    #[test]
+    fn basic_host_parsed() {
+        let content = "Host myserver\n  HostName example.com\n  Port 2222\n  User ubuntu\n";
+        let entries = parse_ssh_config(content, &home());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].alias, "myserver");
+        assert_eq!(entries[0].host, "example.com");
+        assert_eq!(entries[0].port, Some(2222));
+        assert_eq!(entries[0].user.as_deref(), Some("ubuntu"));
+    }
+
+    #[test]
+    fn missing_hostname_falls_back_to_alias() {
+        let entries = parse_ssh_config("Host myserver\n", &home());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].host, "myserver");
+    }
+
+    #[test]
+    fn wildcard_star_host_skipped() {
+        let entries = parse_ssh_config("Host *\n  ServerAliveInterval 60\n", &home());
+        assert_eq!(entries.len(), 0);
+    }
+
+    #[test]
+    fn wildcard_question_mark_host_skipped() {
+        let entries = parse_ssh_config("Host server?\n  HostName example.com\n", &home());
+        assert_eq!(entries.len(), 0);
+    }
+
+    #[test]
+    fn multiple_hosts_all_parsed() {
+        let content = "Host a\n  HostName a.example.com\nHost b\n  HostName b.example.com\n";
+        let entries = parse_ssh_config(content, &home());
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].alias, "a");
+        assert_eq!(entries[1].alias, "b");
+    }
+
+    #[test]
+    fn comments_and_blank_lines_ignored() {
+        let content = "\n# comment\nHost myserver\n  # inline comment\n  HostName example.com\n";
+        let entries = parse_ssh_config(content, &home());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].host, "example.com");
+    }
+
+    #[test]
+    fn tilde_identity_file_returns_filename_only() {
+        let content = "Host myserver\n  IdentityFile ~/.ssh/id_rsa\n";
+        let entries = parse_ssh_config(content, &home());
+        assert_eq!(entries[0].identity_file.as_deref(), Some("id_rsa"));
+    }
+
+    #[test]
+    fn absolute_identity_file_returns_filename_only() {
+        let content = "Host myserver\n  IdentityFile /home/user/.ssh/mykey\n";
+        let entries = parse_ssh_config(content, &home());
+        assert_eq!(entries[0].identity_file.as_deref(), Some("mykey"));
+    }
+
+    #[test]
+    fn empty_config_returns_empty() {
+        assert!(parse_ssh_config("", &home()).is_empty());
+    }
+
+    #[test]
+    fn multiple_aliases_on_one_host_line() {
+        let content = "Host alias1 alias2\n  HostName example.com\n";
+        let entries = parse_ssh_config(content, &home());
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].alias, "alias1");
+        assert_eq!(entries[1].alias, "alias2");
+        assert_eq!(entries[0].host, "example.com");
+        assert_eq!(entries[1].host, "example.com");
+    }
+
+    #[test]
+    fn invalid_port_produces_none() {
+        let content = "Host myserver\n  Port notanumber\n";
+        let entries = parse_ssh_config(content, &home());
+        assert!(entries[0].port.is_none());
+    }
+
+    #[test]
+    fn keywords_are_case_insensitive() {
+        let content = "HOST myserver\n  HOSTNAME example.com\n  PORT 22\n";
+        let entries = parse_ssh_config(content, &home());
+        assert_eq!(entries[0].host, "example.com");
+        assert_eq!(entries[0].port, Some(22));
+    }
+
+    #[test]
+    fn host_without_trailing_newline_parsed() {
+        let content = "Host myserver\n  HostName example.com";
+        let entries = parse_ssh_config(content, &home());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].host, "example.com");
+    }
+
+    #[test]
+    fn expand_tilde_replaces_prefix() {
+        let home = home();
+        assert_eq!(expand_tilde("~/.ssh/id_rsa", &home), "/home/user/.ssh/id_rsa");
+    }
+
+    #[test]
+    fn expand_tilde_leaves_absolute_path_unchanged() {
+        let home = home();
+        assert_eq!(expand_tilde("/absolute/path", &home), "/absolute/path");
+    }
+
+    #[test]
+    fn expand_tilde_leaves_relative_path_unchanged() {
+        let home = home();
+        assert_eq!(expand_tilde("relative/path", &home), "relative/path");
+    }
+}
