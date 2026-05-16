@@ -257,6 +257,11 @@ function entryNeedsTabRefresh(paneId) {
 function fitTerminal(node, force = false) {
   node.terminal.options.fontSize = settings.fontSize;
   node.terminal.options.fontFamily = settings.fontFamily || getDefaultFontFamily(bridge.platform);
+  // When font settings actually change, the old glyph atlas is stale. xterm.js
+  // clears it internally only when it detects a value diff, but if fontSize or
+  // fontFamily didn't change on this call we still clear it on force-refit so
+  // any atlas built before fonts were fully loaded gets rebuilt correctly.
+  if (force) node.webglAddon?.clearTextureAtlas();
   node.fitAddon.fit();
   const cols = Math.max(20, node.terminal.cols || 80);
   const rows = Math.max(8, node.terminal.rows || 24);
@@ -442,7 +447,17 @@ function createPane(pane, { tabId = null } = {}) {
   terminal.open(terminalHost);
   fixXtermViewportBg(terminalHost, settings.colorMode);
   terminal.loadAddon(new ImageAddon());
-  try { terminal.loadAddon(new WebglAddon()); } catch {}
+  let webglAddon = null;
+  try {
+    const _addon = new WebglAddon();
+    // WKWebView (Tauri/Metal) can lose the WebGL context, causing all subsequent
+    // renders to produce garbled output. Dispose on context loss so xterm falls
+    // back to its canvas renderer, which composites correctly with transparent
+    // terminal backgrounds and doesn't require a context to stay valid.
+    _addon.onContextLoss(() => _addon.dispose());
+    terminal.loadAddon(_addon);
+    webglAddon = _addon;
+  } catch {}
 
   // WKWebView IME fix (diagnosed via event logging).
   //
@@ -698,6 +713,7 @@ function createPane(pane, { tabId = null } = {}) {
     terminal,
     fitAddon,
     searchAddon,
+    webglAddon,
     titleEl: panelTitleText,
     sessionReady: false,
     sizeKey: '',
@@ -735,7 +751,7 @@ function createPane(pane, { tabId = null } = {}) {
     const hit = _blocks.find(b => !b.promptMk.isDisposed &&
       bufRow >= b.promptMk.line &&
       bufRow <= (b.endMk && !b.endMk.isDisposed ? b.endMk.line : b.promptMk.line));
-    if (hit) { setActiveBlock(hit); return; }
+    if (hit) { setActiveBlock(hit); terminal.focus(); return; }
 
     // In-progress block: prompt fired (OSC A) but command not yet done (no OSC D).
     // Highlight from the prompt line to the current cursor as a point-in-time snapshot.
@@ -744,6 +760,7 @@ function createPane(pane, { tabId = null } = {}) {
       if (bufRow >= _shellPromptMarker.line && bufRow <= cursorLine) {
         _activeBlock = null;
         _applyHighlight(_shellPromptMarker, Math.min(Math.max(1, cursorLine - _shellPromptMarker.line + 1), terminal.rows + 4));
+        terminal.focus();
         return;
       }
     }
