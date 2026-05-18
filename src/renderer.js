@@ -455,6 +455,13 @@ function createPane(pane, { tabId = null } = {}) {
     // back to its canvas renderer, which composites correctly with transparent
     // terminal backgrounds and doesn't require a context to stay valid.
     _addon.onContextLoss(() => _addon.dispose());
+    // When the atlas runs out of pages it merges/evicts the oldest ones and
+    // remaps glyph texture coordinates. If any cached GPU references still
+    // hold old coordinates the wrong glyph is drawn — producing the "random
+    // CJK character replaced by a different glyph" garbling that appears
+    // after 10–20 minutes of CJK-heavy output. Clearing the atlas immediately
+    // forces a clean rebuild with consistent coordinates.
+    _addon.onRemoveTextureAtlasCanvas(() => _addon.clearTextureAtlas());
     terminal.loadAddon(_addon);
     webglAddon = _addon;
   } catch {}
