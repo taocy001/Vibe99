@@ -578,6 +578,17 @@ function createPane(pane, { tabId = null } = {}) {
   }, { capture: true, signal });
 
   terminalHost.addEventListener('compositionstart', () => {
+    // In application cursor key mode (vi/vim/nano/less/…) the terminal app
+    // manages its own input — raw keystrokes must pass through unmodified.
+    // Skip composition tracking entirely: no _compositionActive block, no
+    // backspace cancel. xterm's compositionHelper self-recovers on the next
+    // non-IME keydown if its own _isComposing gets stuck (WKWebView bug).
+    if (terminal.modes.applicationCursorKeysMode) {
+      _compositionActive = false;
+      _compositionFailed = false;
+      _compositionData = '';
+      return;
+    }
     _compositionData = '';
     _compositionFailed = false;
     _compositionActive = true;
@@ -619,6 +630,17 @@ function createPane(pane, { tabId = null } = {}) {
     _compositionData = '';
     const ta = _ta();
 
+    // In app cursor mode composition tracking was skipped, so there is nothing
+    // to commit. Clear the textarea so xterm's deferred read sees no diff.
+    if (terminal.modes.applicationCursorKeysMode) {
+      _compositionFailed = false;
+      if (ta) {
+        ta.value = '';
+        setTimeout(() => { if (ta.isConnected) ta.value = ''; }, 0);
+      }
+      return;
+    }
+
     // Set flag unconditionally — compositionend always signals that Enter (or another
     // commit key) was pressed; the 50ms window covers WKWebView's cross-task delay.
     _compositionJustEnded = true;
@@ -644,6 +666,13 @@ function createPane(pane, { tabId = null } = {}) {
   }, { capture: true, signal });
 
   terminalHost.addEventListener('input', (e) => {
+    // In app cursor mode all IME text injection is suppressed — clear the textarea
+    // so xterm doesn't pick up residual IME content via _handleAnyTextareaChanges.
+    if (terminal.modes.applicationCursorKeysMode) {
+      const ta = _ta();
+      if (ta) ta.value = '';
+      return;
+    }
     // Path A: Chinese Shift+key punctuation (e.g. Shift+/ → ？) on WKWebView/macOS.
     // These arrive as insertText WITHOUT composition events. Xterm's _inputEvent
     // rejects them because (ev.composed=true && _keyDownSeen=true). We detect this
