@@ -1115,6 +1115,12 @@ const removeTerminalDataListener = bridge.onTerminalData(({ paneId, data }) => {
   if (!node) return;
   node.terminal.write(data);
   paneActivityWatcher.noteData(paneId);
+  // WKWebView can silently drop textarea focus when xterm switches buffers
+  // (e.g. \x1b[?1049h from vi). Only re-assert if focus truly escaped to body.
+  if (node.sessionReady && document.activeElement === document.body) {
+    const focusedPanelId = st.panes.find(p => p.id === st.focusedPaneId)?.focusedPanelId ?? st.focusedPaneId;
+    if (paneId === focusedPanelId) node.terminal.focus();
+  }
 });
 
 function showSshReconnectOverlay(node, profile) {
