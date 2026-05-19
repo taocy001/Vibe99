@@ -461,7 +461,13 @@ function createPane(pane, { tabId = null } = {}) {
     // CJK character replaced by a different glyph" garbling that appears
     // after 10–20 minutes of CJK-heavy output. Clearing the atlas immediately
     // forces a clean rebuild with consistent coordinates.
-    _addon.onRemoveTextureAtlasCanvas(() => _addon.clearTextureAtlas());
+    _addon.onRemoveTextureAtlasCanvas(() => {
+      _addon.clearTextureAtlas();
+      // Force xterm to re-render all visible rows so stale cells painted with
+      // old atlas coordinates are replaced immediately rather than persisting
+      // until the next update.
+      terminal.refresh(0, terminal.rows - 1);
+    });
     terminal.loadAddon(_addon);
     webglAddon = _addon;
   } catch {}
