@@ -492,6 +492,12 @@ function createPane(pane, { tabId = null } = {}) {
   // Enter keydown (which arrives microseconds later on WKWebView) is still caught.
   let _compositionJustEnded = false;
   let _compositionJustEndedTimer = null;
+  // Counts keydowns that fired while _compositionActive=true without an intervening
+  // compositionupdate. During normal Pinyin each keydown is immediately followed by
+  // compositionupdate (same task), so the counter never exceeds 1. If it exceeds 1
+  // it means compositionend never fired (WKWebView bug) AND isComposing is stuck true
+  // — force-reset _compositionActive so vi/vim regains keyboard access.
+  let _compositionKeysSinceUpdate = 0;
   // Tracks the last char xterm sent via _keyDown (when not composing).
   // Used to detect whether the following `input` event was already handled by xterm.
   let _xtermLastKeydownData = null;
@@ -512,11 +518,21 @@ function createPane(pane, { tabId = null } = {}) {
     }
     // Safety reset: if _compositionActive is stuck (compositionend never fired — a
     // known WKWebView edge case when composition is cancelled via Escape or focus loss)
-    // and the browser confirms we're not composing, unblock input now so vi/vim and
-    // other programs that need raw keyboard access continue to work.
-    if (_compositionActive && !e.isComposing && e.keyCode !== 229) {
-      _compositionActive = false;
-      _compositionData = '';
+    // unblock input so vi/vim and other programs regain keyboard access.
+    // Two-part guard:
+    //   1. !e.isComposing: reliable when WKWebView correctly clears isComposing after cancel.
+    //   2. _compositionKeysSinceUpdate > 1: fallback for the case where WKWebView keeps
+    //      isComposing=true indefinitely (IME stuck). During normal Pinyin each keydown is
+    //      followed by compositionupdate in the same task, resetting the counter to 0 before
+    //      the next keydown can push it past 1. Two consecutive keydowns without a
+    //      compositionupdate unambiguously signal a stuck state.
+    if (_compositionActive && e.keyCode !== 229) {
+      _compositionKeysSinceUpdate++;
+      if (!e.isComposing || _compositionKeysSinceUpdate > 1) {
+        _compositionActive = false;
+        _compositionData = '';
+        _compositionKeysSinceUpdate = 0;
+      }
     }
     // During active composition, block all keydown events from reaching xterm.
     // The OS-level IME has already processed the key (candidate selection, backspace,
@@ -577,6 +593,7 @@ function createPane(pane, { tabId = null } = {}) {
 
   terminalHost.addEventListener('compositionupdate', (e) => {
     if (e.data) _compositionData = e.data;
+    _compositionKeysSinceUpdate = 0;
   }, { capture: true, signal });
 
   terminalHost.addEventListener('beforeinput', (e) => {
@@ -591,6 +608,7 @@ function createPane(pane, { tabId = null } = {}) {
 
   terminalHost.addEventListener('compositionend', (e) => {
     _compositionActive = false;
+    _compositionKeysSinceUpdate = 0;
     const data = e.data || _compositionData;
     _compositionData = '';
     const ta = _ta();
