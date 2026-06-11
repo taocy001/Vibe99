@@ -323,6 +323,9 @@ async function initializePaneTerminal(node) {
     const focusedPanelId = st.panes.find((p) => p.id === st.focusedPaneId)?.focusedPanelId ?? st.focusedPaneId;
     if (node.paneId === focusedPanelId) node.terminal.focus();
   } catch (error) {
+    // Drop any frame held for the dead session so its flush timer cannot
+    // dump stale output after the error message.
+    node.flowPending -= node.syncGate.reset();
     const message = error instanceof Error ? error.message : String(error);
     node.terminal.writeln(`\x1b[38;5;204mFailed to start shell${profileId ? ` "${profileId}"` : ''}: ${message}\x1b[0m`);
   }
@@ -376,6 +379,11 @@ let settingsUI;
 let layoutRenderer;
 
 // ── createPane ────────────────────────────────────────────────────────────────
+
+// Monotonic epoch for atlas page versions, shared across panes because panes
+// with the same font config share one texture atlas (xterm CharAtlasCache).
+// See the atlas eviction recovery comment inside createPane.
+let _atlasVersionEpoch = 0;
 
 function createPane(pane, { tabId = null } = {}) {
   const owningTabId = tabId ?? pane.id;
@@ -506,41 +514,72 @@ function createPane(pane, { tabId = null } = {}) {
           if (ln) ln.webglAddon = webglAddon;
         }, 2000);
       });
-      // Atlas eviction recovery.
+      // Atlas eviction recovery (root cause verified against addon-webgl
+      // 0.19 sources; fixed upstream in 0.20.0-beta by xterm.js dc726a2).
       //
-      // When the atlas is full, xterm calls _mergePages() which:
-      //   (a) updates all glyph texture coords in-place in the CPU cache, then
-      //   (b) fires onRemoveTextureAtlasCanvas for each old page.
+      // When the atlas is full, _mergePages() splices source pages out of the
+      // pages array and pushes the merged page, so PAGE INDEXES SHIFT. Every
+      // frame, GlyphRenderer re-uploads GL texture unit i only when
+      //   pages[i].version !== uploadedVersion[i]
+      // but `version` is a per-page-INSTANCE counter and a merged page's
+      // version is stuck at 1 (merged pages never rejoin the active set, so
+      // the per-glyph version bump never touches them). After an index shift
+      // the slot check can collide — typically merged page replacing merged
+      // page, both at version 1 — and the upload is skipped FOREVER: the GPU
+      // unit keeps another page's pixels while vertex coords address the new
+      // page's layout → persistently garbled cells. Selecting a cell
+      // "repairs" it because the fg/bg change causes a glyph-cache miss and a
+      // fresh rasterization into an active page whose version always bumps.
       //
-      // Two problems require clearTextureAtlas() after eviction:
+      // clearTextureAtlas() CANNOT fix this: TextureAtlas.clearTexture()
+      // early-returns when pages[0].currentRow is (0,0) — which is always
+      // true for merged pages (they are filled by drawImage, not the row
+      // allocator) — so once pages[0] is a merged page the clear silently
+      // does nothing. That is why garbling still appeared in long sessions
+      // despite the previous clear-on-evict mitigation.
       //
-      // 1. Version collision: the merged page starts at version 1 (bumped once
-      //    by _createNewPage). If the evicted page also had version 1 (only one
-      //    glyph was ever rasterized to it), the GlyphRenderer's version check
-      //    skips the texture re-upload → stale GPU texture → garbled cells.
+      // Fix, mirroring upstream's globally-monotonic versions at app level:
+      // after each merge, rebase EVERY page's version to a fresh value above
+      // the global maximum ever seen, so every GPU slot mismatches and
+      // re-uploads on the next frame. A plain `version++` would NOT work —
+      // bumped pages and future merged pages could meet at the same number
+      // again. CPU-side glyph coords are already correct after a merge (the
+      // merge mutates glyphs in place), so no cache wipe is needed — which
+      // also avoids the re-rasterization storm that used to refill the atlas
+      // and immediately re-trigger eviction.
       //
-      // 2. Stale model in inactive panes: a non-focused split panel may not
-      //    render until it receives new data. Its vertex buffer still references
-      //    old texture coordinates that are now wrong after the merge.
-      //
-      // clearTextureAtlas() resets all page versions so all GPU textures are
-      // unconditionally re-uploaded on the next render, and clears the glyph
-      // cache so every cell is re-rasterized from scratch.
-      //
-      // Cascade prevention: clearing the cache forces re-rasterization, which
-      // can fill the atlas and trigger another eviction — firing this handler
-      // again mid-render and corrupting the in-progress vertex buffer.
-      // Deferring via queueMicrotask ensures we only clear ONCE per eviction
-      // cycle, AFTER _createNewPage() has fully committed its merged page.
-      // Any further evictions in the next render frame schedule at most one
-      // additional microtask, so the cascade converges in 1–2 extra frames.
+      // queueMicrotask: merges fire mid-render; defer until the current task
+      // completes so we act once per eviction cycle. Worst case (a second
+      // merge in the same frame) is one garbled frame, healed on the next.
       let _atlasClearPending = false;
       _addon.onRemoveTextureAtlasCanvas(() => {
+        // Harvest the epoch synchronously: at event-fire time the merging
+        // pages (about to be spliced out) are still in the pages array, so
+        // their high-water versions are captured before they disappear. The
+        // deferred rebase alone would miss them — and merge candidates are
+        // exactly the most-used pages, i.e. the likeliest version maxima.
+        const livePages = _addon._renderer?._charAtlas?.pages;
+        if (livePages) {
+          for (const page of livePages) {
+            if (page.version > _atlasVersionEpoch) _atlasVersionEpoch = page.version;
+          }
+        }
         if (_atlasClearPending) return;
         _atlasClearPending = true;
         queueMicrotask(() => {
           _atlasClearPending = false;
-          _addon.clearTextureAtlas();
+          // Private fields, but names are verified present in the shipped
+          // 0.19 bundle; if a future upgrade renames them, fall back to
+          // clearTextureAtlas() (partial mitigation, see above).
+          const pages = _addon._renderer?._charAtlas?.pages;
+          if (pages && pages.length) {
+            let epoch = _atlasVersionEpoch;
+            for (const page of pages) epoch = Math.max(epoch, page.version);
+            for (const page of pages) page.version = ++epoch;
+            _atlasVersionEpoch = epoch;
+          } else {
+            _addon.clearTextureAtlas();
+          }
           terminal.refresh(0, terminal.rows - 1);
         });
       });
