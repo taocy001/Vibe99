@@ -16,6 +16,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { GraphemeUnicodeAddon } from './grapheme-unicode.js';
+import { SyncOutputGate } from './sync-output.js';
 import { ImageAddon } from '@xterm/addon-image';
 import {
   openCommandPalette,
@@ -240,6 +241,9 @@ function destroyPanelNode(panelId, node, { destroyTerminal = true } = {}) {
     node.searchAddon?.clearDecorations();
   }
   node.abortCtrl.abort();
+  // Cancel the sync gate's flush timer so it cannot write into the disposed
+  // terminal; held chunks die with the session.
+  node.syncGate?.reset();
   paneActivityWatcher.forget(panelId);
   if (destroyTerminal) bridge.destroyTerminal({ paneId: panelId });
   node.terminal.dispose();
@@ -309,8 +313,12 @@ async function initializePaneTerminal(node) {
     node.sessionReady = true;
     // A fresh PTY session always starts unpaused on the Rust side; clear any
     // stale pause flag from a previous session (SSH reconnect, shell change)
-    // so the flow-control watermarks re-engage from a clean state.
+    // so the flow-control watermarks re-engage from a clean state. Drop any
+    // output the sync gate was holding for the old session (its partial frame
+    // is meaningless) and fix up the pending-byte accounting for chunks whose
+    // write callback will now never run.
     node.flowPaused = false;
+    node.flowPending -= node.syncGate.reset();
     fitTerminal(node, true);
     const focusedPanelId = st.panes.find((p) => p.id === st.focusedPaneId)?.focusedPanelId ?? st.focusedPaneId;
     if (node.paneId === focusedPanelId) node.terminal.focus();
@@ -853,10 +861,25 @@ function createPane(pane, { tabId = null } = {}) {
     needsFit: true,
     flowPending: 0,
     flowPaused: false,
+    syncGate: null,
     accent: pane.accent,
     shellCmdMarker: null,
     abortCtrl,
   };
+
+  // Synchronized output (mode 2026): PTY chunks flow through the gate, which
+  // holds frames between BSU/ESU and releases them atomically. The gate calls
+  // this writer exactly once per chunk, in order, so the flow-control
+  // accounting in onTerminalData stays symmetric.
+  node.syncGate = new SyncOutputGate((chunk) => {
+    terminal.write(chunk, () => {
+      node.flowPending -= chunk.length;
+      if (node.flowPaused && node.flowPending < FLOW_RESUME_THRESHOLD) {
+        node.flowPaused = false;
+        bridge.setTerminalPaused({ paneId: node.paneId, paused: false }).catch(() => {});
+      }
+    });
+  });
 
   terminalHost.addEventListener('contextmenu', async (event) => {
     event.preventDefault();
@@ -1202,13 +1225,7 @@ const removeTerminalDataListener = bridge.onTerminalData(({ paneId, data }) => {
     node.flowPaused = true;
     bridge.setTerminalPaused({ paneId, paused: true }).catch(() => {});
   }
-  node.terminal.write(data, () => {
-    node.flowPending -= data.length;
-    if (node.flowPaused && node.flowPending < FLOW_RESUME_THRESHOLD) {
-      node.flowPaused = false;
-      bridge.setTerminalPaused({ paneId, paused: false }).catch(() => {});
-    }
-  });
+  node.syncGate.feed(data);
   paneActivityWatcher.noteData(paneId);
   // WKWebView can silently drop textarea focus when xterm switches buffers
   // (e.g. \x1b[?1049h from vi). Only re-assert if focus truly escaped to body.
