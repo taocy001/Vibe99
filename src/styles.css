@@ -1872,7 +1872,12 @@ body.hide-status-bar .status-bar {
   padding: 0 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.65);
-  font-size: 14px;
+  font-size: 12px;
+  /* Use system UI font: Menlo has no CJK glyphs; PingFang SC fallback has larger
+     line-height than Menlo, causing hint elements to overflow the 20px row on WKWebView. */
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1;
+  overflow: hidden;
 }
 
 #status-label {
