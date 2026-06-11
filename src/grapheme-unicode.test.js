@@ -126,6 +126,27 @@ describe('GraphemeProvider', () => {
     }
   });
 
+  it('stranded skin-tone modifier (line start) is NOT combined', () => {
+    const prop = p.charProperties(0x1F3FD, 0); // 🏽 with no preceding char
+    expect(extractCombined(prop)).toBe(false);
+    expect(extractWidth(prop)).toBe(2);
+  });
+
+  it('skin-tone modifier after a narrow ASCII char is NOT combined', () => {
+    const propA = p.charProperties(0x41, 0); // 'A'
+    const prop = p.charProperties(0x1F3FD, propA);
+    expect(extractCombined(prop)).toBe(false);
+    expect(extractWidth(prop)).toBe(2);
+  });
+
+  it('skin-tone modifier after a ZWJ-joined component is combined', () => {
+    // 👨‍👩🏽 — the 👩 is itself joined (width 0); the modifier must still combine.
+    const joined = encodeProperty(0, true);
+    const prop = p.charProperties(0x1F3FD, joined);
+    expect(extractCombined(prop)).toBe(true);
+    expect(extractWidth(prop)).toBe(0);
+  });
+
   // ── CJK combining marks still work ───────────────────────────────────────
 
   it('zero-width combining mark after CJK character is combined', () => {

@@ -157,9 +157,13 @@ export class GraphemeProvider {
     }
 
     // Skin-tone modifiers (U+1F3FB–U+1F3FF) have wcwidth=2 but must be
-    // combined with the preceding base emoji (e.g. 👋🏽). They always follow
-    // a base emoji without ZWJ.
-    if (codepoint >= SKIN_TONE_START && codepoint <= SKIN_TONE_END) {
+    // combined with the preceding base emoji (e.g. 👋🏽). Only combine when
+    // the preceding cell is plausibly an emoji base: a wide char, or a char
+    // already joined into a cluster (ZWJ sequences like 👨‍👩🏽). A stranded
+    // modifier (line start, after ASCII) renders standalone instead of
+    // swallowing the previous cell.
+    if (codepoint >= SKIN_TONE_START && codepoint <= SKIN_TONE_END
+        && (extractWidth(preceding) === 2 || (preceding & 1) === 1)) {
       return encodeProperty(0, true);
     }
 
@@ -191,6 +195,11 @@ export class GraphemeUnicodeAddon {
     terminal.parser.registerEscHandler({ final: 'c' }, () => {
       provider.resetZWJState();
       return false; // let xterm handle the reset normally
+    });
+    // Same for soft reset (DECSTR, CSI ! p) — vim and friends send it on exit.
+    terminal.parser.registerCsiHandler({ intermediates: '!', final: 'p' }, () => {
+      provider.resetZWJState();
+      return false;
     });
   }
 
