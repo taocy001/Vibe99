@@ -479,6 +479,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             terminal::terminal_create,
             terminal::terminal_write,
+            terminal::terminal_set_paused,
             terminal::terminal_resize,
             terminal::terminal_destroy,
             terminal::get_cwd,

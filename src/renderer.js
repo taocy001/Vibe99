@@ -262,9 +262,21 @@ function fitTerminal(node, force = false) {
   // fontFamily didn't change on this call we still clear it on force-refit so
   // any atlas built before fonts were fully loaded gets rebuilt correctly.
   if (force) node.webglAddon?.clearTextureAtlas();
-  node.fitAddon.fit();
-  const cols = Math.max(20, node.terminal.cols || 80);
-  const rows = Math.max(8, node.terminal.rows || 24);
+  // The PTY clamps to a 20x8 minimum (pty.rs MIN_COLS/MIN_ROWS). Apply the
+  // same clamp to xterm's grid: if they disagree, TUI apps lay out lines for
+  // the PTY width while xterm wraps at a smaller width, permanently garbling
+  // everything written into the scrollback. Clamp the PROPOSED dimensions and
+  // resize exactly once — fitAddon.fit() would first apply a sub-minimum size,
+  // truncating the alternate buffer without reflow, and since the PTY size
+  // never changes there is no SIGWINCH to make the TUI app repaint.
+  const proposed = node.fitAddon.proposeDimensions();
+  const fitCols = proposed && Number.isFinite(proposed.cols) ? proposed.cols : 0;
+  const fitRows = proposed && Number.isFinite(proposed.rows) ? proposed.rows : 0;
+  const cols = Math.max(20, fitCols > 0 ? fitCols : (node.terminal.cols || 80));
+  const rows = Math.max(8, fitRows > 0 ? fitRows : (node.terminal.rows || 24));
+  if (cols !== node.terminal.cols || rows !== node.terminal.rows) {
+    node.terminal.resize(cols, rows);
+  }
   const nextSizeKey = `${cols}x${rows}`;
   if (node.sessionReady && (force || nextSizeKey !== node.sizeKey)) {
     bridge.resizeTerminal({ paneId: node.paneId, cols, rows });
@@ -295,6 +307,10 @@ async function initializePaneTerminal(node) {
       shellProfileId: profileId,
     });
     node.sessionReady = true;
+    // A fresh PTY session always starts unpaused on the Rust side; clear any
+    // stale pause flag from a previous session (SSH reconnect, shell change)
+    // so the flow-control watermarks re-engage from a clean state.
+    node.flowPaused = false;
     fitTerminal(node, true);
     const focusedPanelId = st.panes.find((p) => p.id === st.focusedPaneId)?.focusedPanelId ?? st.focusedPaneId;
     if (node.paneId === focusedPanelId) node.terminal.focus();
@@ -448,54 +464,86 @@ function createPane(pane, { tabId = null } = {}) {
   fixXtermViewportBg(terminalHost, settings.colorMode);
   terminal.loadAddon(new ImageAddon());
   let webglAddon = null;
-  try {
-    const _addon = new WebglAddon();
-    // WKWebView (Tauri/Metal) can lose the WebGL context, causing all subsequent
-    // renders to produce garbled output. Dispose on context loss so xterm falls
-    // back to its canvas renderer, which composites correctly with transparent
-    // terminal backgrounds and doesn't require a context to stay valid.
-    _addon.onContextLoss(() => _addon.dispose());
-    // Atlas eviction recovery.
-    //
-    // When the atlas is full, xterm calls _mergePages() which:
-    //   (a) updates all glyph texture coords in-place in the CPU cache, then
-    //   (b) fires onRemoveTextureAtlasCanvas for each old page.
-    //
-    // Two problems require clearTextureAtlas() after eviction:
-    //
-    // 1. Version collision: the merged page starts at version 1 (bumped once
-    //    by _createNewPage). If the evicted page also had version 1 (only one
-    //    glyph was ever rasterized to it), the GlyphRenderer's version check
-    //    skips the texture re-upload → stale GPU texture → garbled cells.
-    //
-    // 2. Stale model in inactive panes: a non-focused split panel may not
-    //    render until it receives new data. Its vertex buffer still references
-    //    old texture coordinates that are now wrong after the merge.
-    //
-    // clearTextureAtlas() resets all page versions so all GPU textures are
-    // unconditionally re-uploaded on the next render, and clears the glyph
-    // cache so every cell is re-rasterized from scratch.
-    //
-    // Cascade prevention: clearing the cache forces re-rasterization, which
-    // can fill the atlas and trigger another eviction — firing this handler
-    // again mid-render and corrupting the in-progress vertex buffer.
-    // Deferring via queueMicrotask ensures we only clear ONCE per eviction
-    // cycle, AFTER _createNewPage() has fully committed its merged page.
-    // Any further evictions in the next render frame schedule at most one
-    // additional microtask, so the cascade converges in 1–2 extra frames.
-    let _atlasClearPending = false;
-    _addon.onRemoveTextureAtlasCanvas(() => {
-      if (_atlasClearPending) return;
-      _atlasClearPending = true;
-      queueMicrotask(() => {
-        _atlasClearPending = false;
-        _addon.clearTextureAtlas();
-        terminal.refresh(0, terminal.rows - 1);
+  // WKWebView (Tauri/Metal) can lose the WebGL context under GPU memory
+  // pressure or after sleep/wake, causing all subsequent renders to produce
+  // garbled output. On context loss we dispose the addon so xterm falls back
+  // to its DOM renderer (correct but slower, and customGlyphs no longer
+  // applies — box drawing comes from the font), then retry WebGL after a
+  // delay. Bounded retries: a machine that keeps losing contexts stays on
+  // the DOM renderer instead of thrash-looping.
+  let webglRetriesLeft = 3;
+  const tryAttachWebgl = () => {
+    let _addon;
+    try {
+      _addon = new WebglAddon();
+    } catch {
+      return null;
+    }
+    try {
+      _addon.onContextLoss(() => {
+        _addon.dispose();
+        webglAddon = null;
+        const liveNode = paneNodeMap.get(pane.id);
+        if (liveNode) liveNode.webglAddon = null;
+        const willRetry = webglRetriesLeft > 0;
+        console.warn(`[vibe99] WebGL context lost on pane ${pane.id}; ${willRetry
+          ? `retrying in 2s (${webglRetriesLeft} retries left)`
+          : 'staying on DOM renderer'}`);
+        if (!willRetry) return;
+        webglRetriesLeft--;
+        setTimeout(() => {
+          if (signal.aborted) return;
+          webglAddon = tryAttachWebgl();
+          const ln = paneNodeMap.get(pane.id);
+          if (ln) ln.webglAddon = webglAddon;
+        }, 2000);
       });
-    });
-    terminal.loadAddon(_addon);
-    webglAddon = _addon;
-  } catch {}
+      // Atlas eviction recovery.
+      //
+      // When the atlas is full, xterm calls _mergePages() which:
+      //   (a) updates all glyph texture coords in-place in the CPU cache, then
+      //   (b) fires onRemoveTextureAtlasCanvas for each old page.
+      //
+      // Two problems require clearTextureAtlas() after eviction:
+      //
+      // 1. Version collision: the merged page starts at version 1 (bumped once
+      //    by _createNewPage). If the evicted page also had version 1 (only one
+      //    glyph was ever rasterized to it), the GlyphRenderer's version check
+      //    skips the texture re-upload → stale GPU texture → garbled cells.
+      //
+      // 2. Stale model in inactive panes: a non-focused split panel may not
+      //    render until it receives new data. Its vertex buffer still references
+      //    old texture coordinates that are now wrong after the merge.
+      //
+      // clearTextureAtlas() resets all page versions so all GPU textures are
+      // unconditionally re-uploaded on the next render, and clears the glyph
+      // cache so every cell is re-rasterized from scratch.
+      //
+      // Cascade prevention: clearing the cache forces re-rasterization, which
+      // can fill the atlas and trigger another eviction — firing this handler
+      // again mid-render and corrupting the in-progress vertex buffer.
+      // Deferring via queueMicrotask ensures we only clear ONCE per eviction
+      // cycle, AFTER _createNewPage() has fully committed its merged page.
+      // Any further evictions in the next render frame schedule at most one
+      // additional microtask, so the cascade converges in 1–2 extra frames.
+      let _atlasClearPending = false;
+      _addon.onRemoveTextureAtlasCanvas(() => {
+        if (_atlasClearPending) return;
+        _atlasClearPending = true;
+        queueMicrotask(() => {
+          _atlasClearPending = false;
+          _addon.clearTextureAtlas();
+          terminal.refresh(0, terminal.rows - 1);
+        });
+      });
+      terminal.loadAddon(_addon);
+      return _addon;
+    } catch {
+      try { _addon.dispose(); } catch {}
+      return null;
+    }
+  };
+  webglAddon = tryAttachWebgl();
 
   // WKWebView IME fix (diagnosed via event logging).
   //
@@ -803,6 +851,8 @@ function createPane(pane, { tabId = null } = {}) {
     sessionReady: false,
     sizeKey: '',
     needsFit: true,
+    flowPending: 0,
+    flowPaused: false,
     accent: pane.accent,
     shellCmdMarker: null,
     abortCtrl,
@@ -1135,10 +1185,30 @@ paneManager.attachPanelDragToStage(stageEl);
 
 // ── Bridge I/O ────────────────────────────────────────────────────────────────
 
+// Flow control: xterm parses asynchronously, so without backpressure a fast
+// producer (`cat bigfile`, a runaway loop) grows the write buffer without
+// bound. Above the high watermark we pause the Rust reader thread; the kernel
+// PTY buffer fills up and the child blocks on write — end-to-end backpressure.
+// Resumed once xterm's parser drains below the low watermark. Lengths are
+// UTF-16 code units, a close-enough proxy for buffered bytes.
+const FLOW_PAUSE_THRESHOLD = 1024 * 1024;
+const FLOW_RESUME_THRESHOLD = 128 * 1024;
+
 const removeTerminalDataListener = bridge.onTerminalData(({ paneId, data }) => {
   const node = paneNodeMap.get(paneId);
   if (!node) return;
-  node.terminal.write(data);
+  node.flowPending += data.length;
+  if (!node.flowPaused && node.flowPending > FLOW_PAUSE_THRESHOLD) {
+    node.flowPaused = true;
+    bridge.setTerminalPaused({ paneId, paused: true }).catch(() => {});
+  }
+  node.terminal.write(data, () => {
+    node.flowPending -= data.length;
+    if (node.flowPaused && node.flowPending < FLOW_RESUME_THRESHOLD) {
+      node.flowPaused = false;
+      bridge.setTerminalPaused({ paneId, paused: false }).catch(() => {});
+    }
+  });
   paneActivityWatcher.noteData(paneId);
   // WKWebView can silently drop textarea focus when xterm switches buffers
   // (e.g. \x1b[?1049h from vi). Only re-assert if focus truly escaped to body.

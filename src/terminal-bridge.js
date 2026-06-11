@@ -59,6 +59,7 @@ export function createUnavailableBridge() {
     createTerminal: fail,
     writeTerminal: fail,
     resizeTerminal: fail,
+    setTerminalPaused: () => Promise.resolve(),
     destroyTerminal: fail,
     closeWindow: fail,
     newWindow: fail,
@@ -136,6 +137,8 @@ export function createTauriBridge(tauri) {
       invoke('terminal_write', { paneId: payload.paneId, data: base64Encode(payload.data) }),
     resizeTerminal: (payload) =>
       invoke('terminal_resize', { paneId: payload.paneId, cols: payload.cols, rows: payload.rows }),
+    setTerminalPaused: (payload) =>
+      invoke('terminal_set_paused', { paneId: payload.paneId, paused: payload.paused }),
     destroyTerminal: (payload) =>
       invoke('terminal_destroy', { paneId: payload.paneId }),
     closeWindow: () => getCurrentWindow().close(),

@@ -54,6 +54,19 @@ pub fn terminal_write(
     state.pty.write(&pane_id, &bytes)
 }
 
+/// Pause or resume PTY output reading for the given pane.
+///
+/// Used by the frontend for flow control: paused while xterm's write buffer
+/// is above the high watermark, resumed once it drains.
+#[tauri::command]
+pub fn terminal_set_paused(
+    state: State<'_, AppState>,
+    pane_id: String,
+    paused: bool,
+) -> Result<(), String> {
+    state.pty.set_paused(&pane_id, paused)
+}
+
 /// Resize the PTY for the given pane.
 #[tauri::command]
 pub fn terminal_resize(

@@ -3,7 +3,8 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::wsl;
@@ -89,6 +90,22 @@ struct TerminalExitPayload {
     exit_code: u32,
 }
 
+/// Pause flag + condvar shared with the reader thread. While paused the
+/// reader parks instead of draining the PTY; the kernel buffer fills up and
+/// the child blocks on write — end-to-end flow control driven by the
+/// frontend's xterm write-buffer watermarks.
+type PauseGate = Arc<(Mutex<bool>, Condvar)>;
+
+/// Clear the pause flag and wake the reader thread. Called whenever a
+/// session ends so a parked reader can observe EOF and exit.
+fn release_pause_gate(gate: &PauseGate) {
+    let (lock, cvar) = &**gate;
+    if let Ok(mut paused) = lock.lock() {
+        *paused = false;
+        cvar.notify_all();
+    }
+}
+
 /// Holds the live resources for a single PTY session.
 struct PtySession {
     /// The master end of the PTY pair. Kept alive so the child process
@@ -103,17 +120,27 @@ struct PtySession {
     _reader_thread: std::thread::JoinHandle<()>,
     /// Join handle for the exit-watcher thread.
     exit_thread: std::thread::JoinHandle<()>,
+    /// Flow-control gate parking the reader thread while the frontend
+    /// is saturated.
+    pause_gate: PauseGate,
+    /// Monotonic id distinguishing this spawn from any later session that
+    /// reuses the same pane id (SSH reconnect, shell change). The exit
+    /// watcher only removes/announces the session if the generation still
+    /// matches, so a lingering old child cannot tear down its replacement.
+    generation: u64,
 }
 
 /// Manages a collection of PTY sessions keyed by pane ID.
 pub struct PtyManager {
     sessions: Mutex<HashMap<String, PtySession>>,
+    next_generation: AtomicU64,
 }
 
 impl PtyManager {
     pub fn new() -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
+            next_generation: AtomicU64::new(0),
         }
     }
 
@@ -144,6 +171,8 @@ impl PtyManager {
     ) -> Result<(), String> {
         // Kill any previous session for this pane.
         self.destroy(pane_id);
+
+        let generation = self.next_generation.fetch_add(1, Ordering::Relaxed);
 
         let pty_system = native_pty_system();
         let cwd = resolve_working_directory(cwd);
@@ -217,6 +246,8 @@ impl PtyManager {
         // 64 KB, keeping event rate low during high-throughput output.
         let app_reader = app.clone();
         let pane_id_reader = pane_id_owned.clone();
+        let pause_gate: PauseGate = Arc::new((Mutex::new(false), Condvar::new()));
+        let reader_gate = Arc::clone(&pause_gate);
         let _reader_thread = std::thread::spawn(move || {
             const BUF_SIZE: usize = 8192;
             const BATCH_LIMIT: usize = 65536;
@@ -240,6 +271,17 @@ impl PtyManager {
             };
 
             loop {
+                // Flow control: park while the frontend's xterm write buffer
+                // is saturated. The session-ending paths call
+                // release_pause_gate() so a parked reader always wakes up.
+                {
+                    let (lock, cvar) = &*reader_gate;
+                    let Ok(mut paused) = lock.lock() else { return };
+                    while *paused {
+                        let Ok(next) = cvar.wait(paused) else { return };
+                        paused = next;
+                    }
+                }
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => {
                         // Flush any remaining bytes before closing.
@@ -264,24 +306,44 @@ impl PtyManager {
         // Watch for child exit on a blocking thread. Emit the exit event
         // and remove the session from the map, matching Electron behaviour.
         let manager = Arc::clone(self);
+        let exit_gate = Arc::clone(&pause_gate);
         let exit_thread = std::thread::spawn(move || {
             let exit_code = child.wait().map(|s| s.exit_code()).unwrap_or(1);
 
-            // Emit the exit event before removing the session so the
-            // frontend always receives it.
-            let _ = app.emit(
-                "vibe99:terminal-exit",
-                TerminalExitPayload {
-                    pane_id: pane_id_owned.clone(),
-                    exit_code,
+            // Remove the session only while it is still THIS spawn's session.
+            // spawn() may have already replaced it under the same pane id
+            // (SSH reconnect, shell change): removing blindly would delete
+            // the live replacement, and emitting an exit event for it would
+            // make the frontend close a live pane.
+            let should_emit = match manager.sessions.lock() {
+                Ok(mut sessions) => match sessions.get(&pane_id_owned) {
+                    Some(s) if s.generation == generation => {
+                        sessions.remove(&pane_id_owned);
+                        true
+                    }
+                    // A newer session owns this pane id — stay silent.
+                    Some(_) => false,
+                    // Already removed by destroy(): emit so frontend flows
+                    // that wait for the exit message (shell change) still
+                    // observe it; a closed pane simply ignores the event.
+                    None => true,
                 },
-            );
+                Err(_) => false,
+            };
 
-            // Remove the session from the map (matches Electron's
-            // `terminalSessions.delete(paneId)`).
-            if let Ok(mut sessions) = manager.sessions.lock() {
-                sessions.remove(&pane_id_owned);
+            if should_emit {
+                let _ = app.emit(
+                    "vibe99:terminal-exit",
+                    TerminalExitPayload {
+                        pane_id: pane_id_owned.clone(),
+                        exit_code,
+                    },
+                );
             }
+
+            // Wake a parked reader so it can observe EOF and exit (covers
+            // natural exit; the destroy paths also release at kill time).
+            release_pause_gate(&exit_gate);
         });
 
         let session = PtySession {
@@ -290,6 +352,8 @@ impl PtyManager {
             killer,
             _reader_thread,
             exit_thread,
+            pause_gate,
+            generation,
         };
 
         self.sessions
@@ -349,6 +413,22 @@ impl PtyManager {
         Ok(())
     }
 
+    /// Pause or resume PTY output reading for `pane_id` (frontend flow
+    /// control). Unknown pane ids are ignored: a resume can race with
+    /// session teardown.
+    pub fn set_paused(&self, pane_id: &str, paused: bool) -> Result<(), String> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|e| format!("lock poisoned: {e}"))?;
+        if let Some(session) = sessions.get(pane_id) {
+            let (lock, cvar) = &*session.pause_gate;
+            *lock.lock().map_err(|e| format!("pause lock poisoned: {e}"))? = paused;
+            cvar.notify_all();
+        }
+        Ok(())
+    }
+
     /// Kill the child process and remove the session for `pane_id`.
     /// The exit-watcher thread is joined in the background so the IPC caller
     /// never blocks — even if the child takes time to notice the signal.
@@ -361,7 +441,13 @@ impl PtyManager {
             let Some(session) = sessions.remove(pane_id) else {
                 return;
             };
-            let PtySession { mut killer, exit_thread, .. } = session;
+            let PtySession { mut killer, exit_thread, pause_gate, .. } = session;
+            // Wake a parked reader BEFORE killing: a paused child may be
+            // blocked writing to the full PTY buffer, and if its signal
+            // handler needs a final tty write to finish exiting, the kill
+            // alone never completes and the exit watcher (the other unpause
+            // point) never runs — a circular wait.
+            release_pause_gate(&pause_gate);
             let _ = killer.kill();
             exit_thread
         };
@@ -374,6 +460,10 @@ impl PtyManager {
             .map(|mut sessions| {
                 sessions.drain()
                     .map(|(_, mut session)| {
+                        // Same unpause-before-kill as destroy(): this join
+                        // loop runs on the main thread during shutdown and
+                        // must never wait on a write-blocked paused child.
+                        release_pause_gate(&session.pause_gate);
                         let _ = session.killer.kill();
                         session.exit_thread
                     })
