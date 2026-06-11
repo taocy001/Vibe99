@@ -2,6 +2,57 @@
 
 <!-- towncrier release notes start -->
 
+## 0.7.3-zh - 2026-06-11
+
+macOS Chinese fork release, based on upstream v0.7.2. Focus: eliminating the
+CJK rendering corruption that appeared in long sessions, plus terminal I/O
+robustness.
+
+### Fixed
+
+- **Long-session glyph garbling (the "fixed by selecting it" bug)** — root
+  cause found in `@xterm/addon-webgl` 0.19: atlas page merges shift page
+  indexes while per-page version counters collide, so the GPU texture upload
+  is skipped forever and cells render another page's pixels. All atlas page
+  versions are now rebased above a global monotonic epoch after every merge,
+  forcing a full GPU re-upload (mirrors upstream fix xterm.js `dc726a2`,
+  which is only on the 0.20 beta line).
+- WebGL context loss now logs and retries the WebGL renderer up to 3 times
+  instead of silently degrading to the slower DOM renderer for the session.
+- xterm's grid is clamped to the PTY's 20x8 minimum before resizing, so TUI
+  apps and the renderer always agree on line width (tiny split panes no
+  longer garble scrollback).
+- Chinese IME on WKWebView: composition is bypassed in application cursor
+  key mode (vi/vim/nano), stuck compositions self-recover, and cancelled
+  pinyin no longer blocks Enter.
+- Terminal focus is restored after WKWebView drops it on alternate-screen
+  switches; build target raised to es2022 so esbuild no longer mangles
+  xterm.js `||=` operators.
+- Grapheme provider hardening: stranded skin-tone modifiers no longer swallow
+  the preceding cell; ZWJ state resets on DECSTR soft reset as well as RIS.
+- PTY teardown can no longer deadlock against a flow-paused reader; a
+  lingering old shell can no longer tear down its replacement session on the
+  same pane (generation-checked exit watcher).
+- Status bar uses the system UI font so CJK hints no longer overflow the row.
+
+### Added
+
+- **Synchronized output (DEC private mode 2026)** — frames wrapped in
+  BSU/ESU by Claude Code, Ink, zellij etc. are now presented atomically
+  instead of tearing, with a 1s/4MiB safety valve.
+- **PTY output flow control** — runaway output (`cat bigfile`) no longer
+  grows memory without bound; the PTY reader pauses above a 1 MiB watermark
+  and the child blocks on the kernel buffer until xterm drains.
+- CJK ambiguous-width (EAW=A) double-width setting, auto-enabled on CJK
+  locales, with TUI-safe exclusions and a settings hint that it only affects
+  new output.
+- ZWJ emoji grapheme clusters (👨‍👩‍👧‍👦) and skin-tone modifiers render as single
+  cells via a custom Unicode provider.
+- Colors tab with terminal colour presets and `.itermcolors` import/export;
+  settings reorganized into 6 tabs; complete i18n coverage (en/zh-CN/zh-TW/ja).
+- Right-click paste (iTerm2 style) and copy-on-select, both enabled by
+  default; macOS-style tab close button on the left.
+
 ## 0.7.2 - 2026-05-02
 
 ### Added
