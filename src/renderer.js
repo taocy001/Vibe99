@@ -455,18 +455,43 @@ function createPane(pane, { tabId = null } = {}) {
     // back to its canvas renderer, which composites correctly with transparent
     // terminal backgrounds and doesn't require a context to stay valid.
     _addon.onContextLoss(() => _addon.dispose());
-    // When the atlas runs out of pages it merges/evicts the oldest ones and
-    // remaps glyph texture coordinates. If any cached GPU references still
-    // hold old coordinates the wrong glyph is drawn — producing the "random
-    // CJK character replaced by a different glyph" garbling that appears
-    // after 10–20 minutes of CJK-heavy output. Clearing the atlas immediately
-    // forces a clean rebuild with consistent coordinates.
+    // Atlas eviction recovery.
+    //
+    // When the atlas is full, xterm calls _mergePages() which:
+    //   (a) updates all glyph texture coords in-place in the CPU cache, then
+    //   (b) fires onRemoveTextureAtlasCanvas for each old page.
+    //
+    // Two problems require clearTextureAtlas() after eviction:
+    //
+    // 1. Version collision: the merged page starts at version 1 (bumped once
+    //    by _createNewPage). If the evicted page also had version 1 (only one
+    //    glyph was ever rasterized to it), the GlyphRenderer's version check
+    //    skips the texture re-upload → stale GPU texture → garbled cells.
+    //
+    // 2. Stale model in inactive panes: a non-focused split panel may not
+    //    render until it receives new data. Its vertex buffer still references
+    //    old texture coordinates that are now wrong after the merge.
+    //
+    // clearTextureAtlas() resets all page versions so all GPU textures are
+    // unconditionally re-uploaded on the next render, and clears the glyph
+    // cache so every cell is re-rasterized from scratch.
+    //
+    // Cascade prevention: clearing the cache forces re-rasterization, which
+    // can fill the atlas and trigger another eviction — firing this handler
+    // again mid-render and corrupting the in-progress vertex buffer.
+    // Deferring via queueMicrotask ensures we only clear ONCE per eviction
+    // cycle, AFTER _createNewPage() has fully committed its merged page.
+    // Any further evictions in the next render frame schedule at most one
+    // additional microtask, so the cascade converges in 1–2 extra frames.
+    let _atlasClearPending = false;
     _addon.onRemoveTextureAtlasCanvas(() => {
-      _addon.clearTextureAtlas();
-      // Force xterm to re-render all visible rows so stale cells painted with
-      // old atlas coordinates are replaced immediately rather than persisting
-      // until the next update.
-      terminal.refresh(0, terminal.rows - 1);
+      if (_atlasClearPending) return;
+      _atlasClearPending = true;
+      queueMicrotask(() => {
+        _atlasClearPending = false;
+        _addon.clearTextureAtlas();
+        terminal.refresh(0, terminal.rows - 1);
+      });
     });
     terminal.loadAddon(_addon);
     webglAddon = _addon;
