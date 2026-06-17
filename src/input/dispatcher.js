@@ -24,9 +24,36 @@ import { matchesChord, parseChord } from './keymap.js';
 // WKWebView (macOS Tauri) bug: the keydown immediately after compositionend
 // still reports event.isComposing = true. Track composition state ourselves
 // via compositionstart/end so the guard is reliable across all WebKit builds.
+//
+// Second WKWebView quirk: compositionend is sometimes never delivered (focus
+// changes mid-composition, app/window switch, certain IME commit paths). Left
+// alone, _composing stays true forever and every shortcut is silently dropped
+// until the next composition happens to end cleanly. Three fallbacks recover:
+//   1. compositionend (the normal path)
+//   2. blur — focus/window left mid-composition, where end is most often lost
+//   3. a watchdog re-armed on every composition signal; if nothing arrives for
+//      a while, assume the composition died and clear the flag.
+const COMPOSITION_TIMEOUT_MS = 2000;
 let _composing = false;
-window.addEventListener('compositionstart', () => { _composing = true; }, true);
-window.addEventListener('compositionend',   () => { _composing = false; }, true);
+let _compositionWatchdog = null;
+
+function clearComposing() {
+  _composing = false;
+  if (_compositionWatchdog !== null) {
+    clearTimeout(_compositionWatchdog);
+    _compositionWatchdog = null;
+  }
+}
+
+function armCompositionWatchdog() {
+  if (_compositionWatchdog !== null) clearTimeout(_compositionWatchdog);
+  _compositionWatchdog = setTimeout(clearComposing, COMPOSITION_TIMEOUT_MS);
+}
+
+window.addEventListener('compositionstart',  () => { _composing = true; armCompositionWatchdog(); }, true);
+window.addEventListener('compositionupdate', () => { if (_composing) armCompositionWatchdog(); }, true);
+window.addEventListener('compositionend',    clearComposing, true);
+window.addEventListener('blur',              clearComposing, true);
 
 export function createDispatcher({
   getKeymap,
