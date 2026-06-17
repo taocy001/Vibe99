@@ -174,6 +174,13 @@ fn build_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
 
+    // Custom quit item without an accelerator: Cmd+Q is handled in the webview
+    // (tap = close window, long-press = confirm quit) instead of the native
+    // PredefinedMenuItem::quit, which would terminate the whole app immediately.
+    let quit_item = MenuItemBuilder::new(ml("退出 Vibe99", "Vibe99 を終了", "Quit Vibe99"))
+        .id("quit-app")
+        .build(app)?;
+
     let app_menu = SubmenuBuilder::new(app, "Vibe99")
         .item(&PredefinedMenuItem::about(app, Some(ml("关于 Vibe99", "Vibe99 について", "About Vibe99")), None)?)
         .separator()
@@ -183,7 +190,7 @@ fn build_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::
         .item(&PredefinedMenuItem::hide_others(app, Some(ml("隐藏其他", "ほかを隠す", "Hide Others")))?)
         .item(&PredefinedMenuItem::show_all(app, Some(ml("全部显示", "すべてを表示", "Show All")))?)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some(ml("退出 Vibe99", "Vibe99 を終了", "Quit Vibe99")))?)
+        .item(&quit_item)
         .build()?;
 
     // ── SSH menu ──────────────────────────────────────────────────

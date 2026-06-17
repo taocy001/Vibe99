@@ -172,6 +172,7 @@ const TRANSLATIONS = {
     'broadcast.label': '⊕ BROADCAST',
     // Shortcuts extras
     'shortcuts.confirm.resetMessage': 'Reset all keyboard shortcuts to their default values?',
+    'quit.confirm.message': 'Quit Vibe99? All terminal sessions will be closed.',
     'shortcuts.recorder.hint': 'Press your new key combination for "%s"',
   },
   'zh-CN': {
@@ -347,6 +348,7 @@ const TRANSLATIONS = {
     'broadcast.label': '⊕ 广播模式',
     // Shortcuts extras
     'shortcuts.confirm.resetMessage': '将所有快捷键恢复为默认设置？',
+    'quit.confirm.message': '退出 Vibe99？所有终端会话将被关闭。',
     'shortcuts.recorder.hint': '请为"%s"按下新的快捷键',
   },
   'zh-TW': {
@@ -522,6 +524,7 @@ const TRANSLATIONS = {
     'broadcast.label': '⊕ 廣播模式',
     // Shortcuts extras
     'shortcuts.confirm.resetMessage': '將所有快捷鍵恢復為預設設定？',
+    'quit.confirm.message': '退出 Vibe99？所有終端工作階段將被關閉。',
     'shortcuts.recorder.hint': '請為「%s」按下新的快捷鍵',
   },
   ja: {
@@ -697,6 +700,7 @@ const TRANSLATIONS = {
     'broadcast.label': '⊕ ブロードキャスト',
     // Shortcuts extras
     'shortcuts.confirm.resetMessage': 'すべてのキーボードショートカットをデフォルト値にリセットしますか？',
+    'quit.confirm.message': 'Vibe99 を終了しますか？すべてのターミナルセッションが閉じられます。',
     'shortcuts.recorder.hint': '"%s"の新しいショートカットキーを押してください',
   },
 };

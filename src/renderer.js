@@ -32,6 +32,7 @@ import * as ShortcutsUI from './shortcuts-ui.js';
 import * as ColorsRegistry from './colors-registry.js';
 import { createActions } from './input/actions.js';
 import { createDispatcher } from './input/dispatcher.js';
+import { setupQuitHandler } from './input/quit-handler.js';
 import { showContextMenu, hideContextMenu } from './context-menu.js';
 import { t } from './i18n.js';
 import {
@@ -1901,6 +1902,8 @@ function handleMenuAction(action, paneId) {
 
   if (action === 'close-window') { void bridge.closeWindow().catch(reportError); return; }
 
+  if (action === 'quit-app') { void quitHandler.triggerQuitConfirm(); return; }
+
   if (action === 'rename-tab') {
     const paneIndex = paneManager.getFocusedIndex();
     if (paneIndex !== -1) {
@@ -2014,6 +2017,18 @@ const dispatchKeydown = createDispatcher({
 });
 
 window.addEventListener('keydown', dispatchKeydown, true);
+
+const quitHandler = setupQuitHandler({
+  bridge,
+  reportError,
+  closeActiveTab: () => paneManager.closeActivePanel(),
+  // Closing the active tab/panel quits the app only when it is the last panel
+  // of the last tab (no split layout to fall back to).
+  wouldQuitOnClose: () => {
+    const pane = st.panes[paneManager.getFocusedIndex()];
+    return st.panes.length === 1 && !pane?.layout;
+  },
+});
 
 const onWindowKeyup = (event) => {
   if (paneManager && st.paneCycleState && (event.key === 'Control' || event.key === 'Meta')) {
