@@ -9,6 +9,14 @@
 > **平台说明：本 fork 仅面向 macOS。**  
 > 所有开发与测试均在 macOS 上进行，不涉及 Windows 或 Linux。其中多项改动本身就是 macOS 专属（Dock 菜单、WKWebView IME、ProMotion 高刷优化、原生全屏处理等）。上游项目支持的其他平台在本 fork 中未经验证。
 
+## 演示
+
+多个标签各跑一个 AI CLI（claude / gemini / kimi）：聚焦标签全宽展开，其余标签作为**实时预览条**在后台持续滚动；支持左右切换标签、拖拽分割线调整聚焦标签宽度、深色 / 浅色主题一键切换。
+
+![Vibe99 演示](./artifacts/vibe99-zh-demo.gif)
+
+> 演示在消毒环境中录制（自定义提示符、隐去真实路径与主机名，AI 会话为脚本模拟）。
+
 ---
 
 ## 新功能
