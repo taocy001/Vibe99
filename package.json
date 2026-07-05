@@ -12,6 +12,7 @@
     "vite:build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "harness": "node scripts/make-harness.mjs && node scripts/render-harness.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2",
     "happy-dom": "^20.9.0",
+    "playwright-core": "^1.61.1",
     "vite": "^6.4.2",
     "vitest": "^4.1.5"
   },

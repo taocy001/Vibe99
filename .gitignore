@@ -15,3 +15,6 @@ src-tauri/gen/schemas/macOS-schema.json
 .codex
 .claude
 demo-recorder/
+
+# Generated render-debug harness page (from scripts/make-harness.mjs)
+src/harness.html

@@ -291,6 +291,37 @@ function fitTerminal(node, force = false) {
   node.needsFit = false;
 }
 
+// Self-heal a WebGL pane whose canvas backing store has drifted away from the
+// renderer's device dimensions. WKWebView can leave the two out of sync after a
+// devicePixelRatio change — window dragged between a Retina and a non-Retina
+// display, or sleep/wake: xterm updates the GL viewport to device pixels while
+// the canvas backing store keeps its old css-pixel size, so every glyph draws
+// outside the visible buffer and the whole pane renders garbled or black.
+// xterm only re-syncs the canvas from its ResizeObserver-driven handleResize,
+// which WKWebView does not reliably fire on a dpr change (a plain window resize
+// event still arrives, which is why we hook it below). Detect the divergence
+// and force xterm to recompute device dimensions and resize the canvas backing
+// store. Cheap no-op whenever the pane is healthy or has fallen back to the DOM
+// renderer. Uses the same private-field access as the atlas-eviction fix; falls
+// back silently if a future xterm upgrade renames them.
+function resyncWebglCanvas(node) {
+  const renderer = node.webglAddon?._renderer;
+  const gl = renderer?._gl;
+  const device = renderer?.dimensions?.device?.canvas;
+  if (!gl || !gl.canvas || !device) return;
+  if (gl.canvas.width === device.width && gl.canvas.height === device.height) return;
+  const before = `${gl.canvas.width}x${gl.canvas.height}`;
+  try {
+    node.terminal._core?._renderService?.handleResize(node.terminal.cols, node.terminal.rows);
+    node.terminal.refresh(0, node.terminal.rows - 1);
+  } catch { return; }
+  console.warn(`[vibe99] resynced WebGL canvas on pane ${node.paneId}: ${before} -> ${gl.canvas.width}x${gl.canvas.height} (device ${device.width}x${device.height})`);
+}
+
+function resyncAllWebglCanvases() {
+  for (const node of paneNodeMap.values()) resyncWebglCanvas(node);
+}
+
 async function initializePaneTerminal(node) {
   if (!paneNodeMap.has(node.paneId)) return;
   // Ensure the vibe99:terminal-data listener is registered with the Rust event
@@ -920,6 +951,12 @@ function createPane(pane, { tabId = null } = {}) {
       }
     });
   });
+
+  // Debug harness hook: dead code in production (window.__h is only set by the
+  // browser render-debug harness, never by the Tauri app). Publishes the live
+  // pane node so the harness can drive the real render pipeline and inspect the
+  // WebGL atlas. See scripts/make-harness.mjs and src/harness-inject.js.
+  if (window.__h) (window.__h.nodes ??= new Map()).set(node.paneId, node);
 
   terminalHost.addEventListener('contextmenu', async (event) => {
     event.preventDefault();
@@ -2045,6 +2082,9 @@ const onWindowFocus = () => {
   const focusedPanelId = st.panes.find((p) => p.id === st.focusedPaneId)?.focusedPanelId ?? st.focusedPaneId;
   const node = paneNodeMap.get(focusedPanelId);
   if (node?.sessionReady) node.terminal.focus();
+  // Sleep/wake can drop the WebGL context or leave the canvas dpr-desynced;
+  // regaining focus is the first moment we can repair it.
+  resyncAllWebglCanvases();
 };
 window.addEventListener('focus', onWindowFocus);
 
@@ -2128,6 +2168,10 @@ const onWindowResize = () => {
     _resizeRafId = requestAnimationFrame(() => {
       _resizeRafId = null;
       try { layoutRenderer.renderPanes(false); } catch (error) { reportError(error); }
+      // A resize event also fires when the window moves to a display with a
+      // different devicePixelRatio; repair any WebGL canvas the dpr change left
+      // desynced before it shows a garbled frame.
+      resyncAllWebglCanvases();
     });
   }
   clearTimeout(_resizeTimer);
@@ -2136,6 +2180,19 @@ const onWindowResize = () => {
   }, 120);
 };
 window.addEventListener('resize', onWindowResize);
+
+// Watch for devicePixelRatio changes directly. Some dpr transitions (notably on
+// WKWebView) arrive without a window resize event, so the resize hook alone can
+// miss them. A resolution media query fires once when dpr leaves its current
+// value; re-arm it at the new dpr each time and repair any desynced WebGL canvas.
+function watchDevicePixelRatio() {
+  const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+  mq.addEventListener('change', () => {
+    resyncAllWebglCanvases();
+    watchDevicePixelRatio();
+  }, { once: true });
+}
+watchDevicePixelRatio();
 
 window.addEventListener('DOMContentLoaded', async () => {
   try {
